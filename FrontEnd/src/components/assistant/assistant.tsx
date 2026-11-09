@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, History, MicOff, Phone, PhoneOff } from "lucide-react";
+import { ArrowLeft, History, MicOff, Phone, PhoneOff, X } from "lucide-react";
 import { useVoiceCall, type Mode } from "@/hooks/useVoiceCall";
 import { PHASE_LABEL } from "@/lib/voice/protocol";
 import { assistantScreen } from "@/content/app";
@@ -43,18 +43,46 @@ export default function Assistant() {
   const lastUser = call.lines.findLast((line) => line.speaker === "user")?.text;
   const caption = live ? lastAssistant : status === "ended" ? assistantScreen.ended : undefined;
 
+  const hold = live && call.talkMode === "hold";
+  const holdLabel = call.micOn ? assistantScreen.holdActive : assistantScreen.holdLabel;
+  const statusText = call.reconnecting
+    ? assistantScreen.reconnecting
+    : hold
+      ? call.micOn
+        ? assistantScreen.holdActive
+        : mode === "speaking" || mode === "thinking"
+          ? MODE_LABEL[mode]
+          : assistantScreen.holdIdle
+      : call.micOn
+        ? MODE_LABEL[mode]
+        : "Micro đang tắt";
+
+  // Pointer capture keeps the press alive when a finger slides off the button; release, cancel and lost capture end it.
+  const onHoldDown = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    call.holdStart();
+  };
+  const onHoldKey = (event: KeyboardEvent<HTMLButtonElement>, down: boolean) => {
+    if (event.key !== " " && event.key !== "Enter") return;
+    event.preventDefault(); // also stops the button's own click
+    if (!down) call.holdEnd();
+    else if (!event.repeat) call.holdStart();
+  };
+
   const onOrb = () => {
+    if (hold) return;
     if (live) call.toggleMic();
     else if (!connecting) void call.start();
   };
 
   return (
-    <div className="fa" data-layout={step ? "dock" : "hero"}>
+    <div className="fa" data-layout={step ? "dock" : "hero"} data-noisy={call.noisy || undefined}>
       <header className="fa-top">
         <Link className="fa-back" href="/app/sos">
           <ArrowLeft aria-hidden="true" /> <span>Thoát</span>
         </Link>
-        <a className="fa-115" href="tel:115">
+        <a className="fa-115" href="tel:115" data-urgent={call.urgent || undefined}>
           <Phone aria-hidden="true" /> Gọi 115
         </a>
       </header>
@@ -102,10 +130,20 @@ export default function Assistant() {
             type="button"
             className="fa-orbbtn"
             onClick={onOrb}
-            aria-label={live ? (call.micOn ? "Tắt micro" : "Bật micro") : "Gọi trợ lý sơ cứu"}
+            data-hold={hold || undefined}
+            aria-pressed={hold ? call.micOn : undefined}
+            aria-label={hold ? holdLabel : live ? (call.micOn ? "Tắt micro" : "Bật micro") : "Gọi trợ lý sơ cứu"}
+            onPointerDown={hold ? onHoldDown : undefined}
+            onPointerUp={hold ? call.holdEnd : undefined}
+            onPointerCancel={hold ? call.holdEnd : undefined}
+            onLostPointerCapture={hold ? call.holdEnd : undefined}
+            onBlur={hold ? call.holdEnd : undefined}
+            onKeyDown={hold ? (event) => onHoldKey(event, true) : undefined}
+            onKeyUp={hold ? (event) => onHoldKey(event, false) : undefined}
+            onContextMenu={hold ? (event) => event.preventDefault() : undefined}
           >
             <VoiceOrb mode={live ? mode : "idle"} level={level} />
-            {live && !call.micOn && <MicOff className="fa-micoff" aria-hidden="true" />}
+            {live && !hold && !call.micOn && <MicOff className="fa-micoff" aria-hidden="true" />}
           </button>
           <div className="fa-viz"><VoiceVisualizer bands={bands} tone={tone} /></div>
           <span className="fa-spacer" aria-hidden="true" />
@@ -114,7 +152,7 @@ export default function Assistant() {
         {live ? (
           <div className="fa-status">
             <span className="fa-status-text">
-              {call.micOn ? MODE_LABEL[mode] : "Micro đang tắt"}
+              {statusText}
               {call.phase && ` · ${PHASE_LABEL[call.phase]}`}
             </span>
             <button type="button" className="fa-end" onClick={call.end} aria-label="Kết thúc cuộc gọi">
@@ -129,6 +167,33 @@ export default function Assistant() {
             </button>
             <p className="fa-consent">{assistantScreen.consent}</p>
           </div>
+        )}
+
+        {live && (
+          <div className="fa-talk" role="group" aria-label={assistantScreen.talkModeLabel}>
+            <button type="button" aria-pressed={!hold} onClick={() => call.setTalkMode("open")}>
+              {assistantScreen.talkFree}
+            </button>
+            <button type="button" aria-pressed={hold} onClick={() => call.setTalkMode("hold")}>
+              {assistantScreen.talkHold}
+            </button>
+          </div>
+        )}
+
+        {live && call.noiseHint && (
+          <div className="fa-notice fa-hint" role="status">
+            <span>{assistantScreen.noisyHint}</span>
+            <button type="button" onClick={call.acceptNoiseHint}>{assistantScreen.noisyEnable}</button>
+            <button type="button" className="fa-hint-x" onClick={call.dismissNoiseHint} aria-label={assistantScreen.noisyDismiss}>
+              <X aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
+        {call.notice && (
+          <p className="fa-notice" role="status">
+            {call.notice}
+          </p>
         )}
 
         {call.error && (

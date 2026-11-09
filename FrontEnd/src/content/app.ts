@@ -69,6 +69,21 @@ export const assistantScreen = {
   start: 'Đồng ý và gọi trợ lý',
   again: 'Gọi lại',
   ended: 'Cuộc gọi đã kết thúc. Nếu vẫn nguy hiểm, hãy gọi 115.',
+  reconnecting: 'Đang kết nối lại…',
+  timeLimit: 'Cuộc gọi đã đạt thời gian tối đa. Bạn có thể gọi lại; nếu khẩn cấp, hãy gọi 115 ngay.',
+  endingSoon: 'Cuộc gọi sắp đạt thời gian tối đa. Nếu vẫn cần giúp, bạn có thể gọi lại sau đó hoặc gọi 115.',
+  problem: 'Trợ lý gặp sự cố và cuộc gọi đã dừng. Nếu khẩn cấp, hãy gọi 115 ngay.',
+  connectionLost: 'Mất kết nối âm thanh với trợ lý. Nếu khẩn cấp, hãy gọi 115 ngay.',
+  micLost: 'Micro đã bị ngắt hoặc mất quyền truy cập, cuộc gọi đã dừng. Nếu khẩn cấp, hãy gọi 115 ngay.',
+  talkModeLabel: 'Cách nói',
+  talkFree: 'Nói tự do',
+  talkHold: 'Giữ để nói',
+  holdIdle: 'Giữ nút để nói',
+  holdActive: 'Đang nghe bạn…',
+  holdLabel: 'Giữ để nói với trợ lý',
+  noisyHint: 'Xung quanh đang ồn. Bật “Giữ để nói” để trợ lý chỉ nghe bạn.',
+  noisyEnable: 'Bật',
+  noisyDismiss: 'Bỏ qua gợi ý',
   consent:
     'Khi gọi, trình duyệt sẽ xin quyền micro. Âm thanh được gửi tới dịch vụ AI (OpenAI, qua Vercel AI Gateway) để trợ lý nghe và trả lời; trang này không lưu âm thanh. Trợ lý không thay thế cấp cứu: trong nguy hiểm tính mạng hãy gọi 115.'
 }

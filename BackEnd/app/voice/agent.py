@@ -8,6 +8,7 @@ A realtime session fixes its tools when it connects, so the phase gating `demo-v
 is enforced inside each tool.
 """
 
+import asyncio
 import functools
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -56,6 +57,8 @@ class CallSession:
     """Lines that must be said word for word (the 115 call-out)."""
     handed_off: bool = False
     """The hand-over was given: once it has been spoken the call ends by itself."""
+    handoff_dispatched: asyncio.Event = field(default_factory=asyncio.Event)
+    """Set the moment the hand-over is dispatched (what the call loop waits on, instead of polling `handed_off`)."""
 
     def say(self, text: str, *, exact: bool = False) -> None:
         (self.exact if exact else self.pending).append(text)
@@ -67,6 +70,7 @@ class CallSession:
         before = self.state.phase
         if isinstance(event, Handoff):
             self.handed_off = True
+            self.handoff_dispatched.set()
         self.state, effects = reduce_call(self.state, event)
         for effect in effects:
             self._apply(effect)
@@ -93,19 +97,30 @@ class CallSession:
             self.say(guide_intro(guide))
         self.say(step_speech(guide, step_index))
         self.shown_guide = guide_id
-        self.emit(
-            {
-                "type": "step",
-                "guideId": guide_id,
-                "file": guide.file,
-                "stepIndex": step_index,
-                "title": guide.title,
-                "method": guide.method,
-                "stepTitle": guide.steps[step_index].title,
-                "lines": [line.text for line in step_lines(guide.steps[step_index].text)],
-                "totalSteps": len(guide.steps),
-            }
-        )
+        self.emit(self._step_message(guide_id, step_index))
+
+    @staticmethod
+    def _step_message(guide_id: str, step_index: int) -> dict[str, Any]:
+        guide = get_guide(guide_id)
+        return {
+            "type": "step",
+            "guideId": guide_id,
+            "file": guide.file,
+            "stepIndex": step_index,
+            "title": guide.title,
+            "method": guide.method,
+            "stepTitle": guide.steps[step_index].title,
+            "lines": [line.text for line in step_lines(guide.steps[step_index].text)],
+            "totalSteps": len(guide.steps),
+        }
+
+    def current_step_message(self) -> dict[str, Any] | None:
+        """The `step` message for what the screen shows now (None when no guide is open), to redraw a reconnected
+        browser."""
+        index = self.state.step_index
+        if self.shown_guide is None or index is None:
+            return None
+        return self._step_message(self.shown_guide, index)
 
     def present_step(self, guide_id: str, step_index: int) -> dict[str, Any]:
         """Open a guide at a step. A victim already known to be unconscious goes straight to the step made for it."""
@@ -180,6 +195,13 @@ Backchannel policy:
 
 Interruption policy:
 - Khi người gọi chen ngang, dừng ngay và nghe; "khoan", "đợi đã" thì dừng không cần hỏi lại. Đừng đọc tiếp kết quả cũ nếu họ đã nói điều mới.
+
+Môi trường ồn:
+- Xung quanh có thể rất ồn và có nhiều người cùng nói. Chỉ nghe người đang cầm máy nói với bạn: giọng gần và rõ nhất. Tiếng la, người khác nói chuyện với nhau, tivi hay loa không phải là yêu cầu.
+- Nghe không trọn câu hoặc không chắc ai vừa nói thì hỏi lại một câu thật ngắn, đừng đoán và đừng làm theo.
+- Người gọi im một lúc để làm theo hướng dẫn thì cứ chờ; đừng coi tiếng ồn là câu trả lời.
+- Riêng khi nghe ai đó nói nạn nhân bất tỉnh hoặc ngừng thở thì đừng bỏ qua: hỏi ngay người gọi để xác nhận.
+- Khi ồn, nói ngắn hơn và rõ hơn, từng ý một.
 
 Delegation policy:
 Backend tools: ghi nhận tình trạng nạn nhân, mở hoặc chuyển bước hướng dẫn, trả lời câu hỏi về cách làm, bàn giao.

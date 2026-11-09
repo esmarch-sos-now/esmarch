@@ -14,31 +14,50 @@ Browser -> server
     {"type": "offer", "sdp"}                       the browser's WebRTC offer
     {"type": "ui_step", "guideId", "stepIndex"}   the caller moved the on-screen step by hand
     {"type": "stop"}
+    {"type": "resume", "callId"}                   first message of a NEW socket for a call whose socket dropped
 
 Server -> browser
-    {"type": "answer", "sdp"}                      the WebRTC answer
+    {"type": "answer", "sdp", "callId"}            the WebRTC answer; `callId` is the secret credential for `resume`
     {"type": "ready"}                              the call is live
     {"type": "transcript", "speaker": "user" | "assistant", "index", "text"}   caption of the turn so far
     {"type": "phase", "phase"} {"type": "signs", ...} {"type": "handoff", "summary"}
     {"type": "step", "guideId", "file", "stepIndex", ...}   open the 3D guide at a step
     {"type": "turn_complete"}
+    {"type": "ending_soon", "seconds"}             the time limit is this many seconds away
+    {"type": "resumed"}                            the new socket is attached; phase, step and missed messages follow
     {"type": "error", "message"} {"type": "ended", "reason"}
+
+A socket that drops without `stop` leaves the call running for `voice_resume_grace_seconds` (`app.voice.resume`);
+screen messages are buffered meanwhile (transcripts are dropped). A `resume` for an unknown or finished call is closed
+with code 4404.
+
+Why a call ended (`ended.reason`, always sent when a socket is still there):
+    completed       the hand-over was spoken
+    stopped         the browser sent `stop`
+    disconnected    the browser went away (or never resumed within the grace period)
+    time_limit      `voice_session_seconds` passed (`ending_soon` came first)
+    no_offer        no WebRTC offer arrived in time
+    session_ended   the realtime session ended by itself
+    error           anything else that failed, before or during the call
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol, cast
 
 from pydantic_ai import FunctionToolCallEvent
+from pydantic_ai.agent import AgentRealtime
 from pydantic_ai.messages import (
     RealtimeSessionErrorEvent,
+    RealtimeSessionReconnectEvent,
     RealtimeTurnCompleteEvent,
 )
-from pydantic_ai.realtime import RealtimeModel, RealtimeModelSettings
+from pydantic_ai.realtime import RealtimeModel, RealtimeModelSettings, ReconnectPolicy, WebRTCSession
 
 from app.core.config import Settings
 from app.voice.agent import LIVE_INSTRUCTIONS, CallSession, build_agent
@@ -63,6 +82,18 @@ def clean_caption(text: str) -> str:
 
 CALL_ERROR = "Trợ lý đang gặp sự cố kết nối. Nếu khẩn cấp, hãy gọi 115 ngay."
 
+#: A dropped sideband is re-attached to the same WebRTC session (the browser's audio never stopped).
+RECONNECT: ReconnectPolicy = {"max_attempts": 5}
+
+
+def ending_soon_line(seconds: int) -> str:
+    """What the assistant says (in its own words) when the time limit is near."""
+    left = f"khoảng {round(seconds / 60)} phút" if seconds >= 90 else f"khoảng {seconds} giây"
+    return (
+        f"Cuộc gọi này sẽ tự kết thúc sau {left} nữa. Bạn có thể gọi lại ngay sau đó. "
+        "Nếu đây là tình huống khẩn cấp, hãy gọi 115."
+    )
+
 
 def live_settings(s: Settings) -> RealtimeModelSettings:
     """Its own spoken-persona prompt, and the cheap backend that runs the agent and its tools."""
@@ -74,6 +105,7 @@ def live_settings(s: Settings) -> RealtimeModelSettings:
             "openai_live_instructions": LIVE_INSTRUCTIONS,
             "openai_live_turn_silence_ms": s.voice_live_turn_silence_ms,
             "openai_live_delegation": {"model": s.voice_live_backend, "reasoning_effort": s.voice_reasoning_effort},
+            "reconnect": RECONNECT,
         },
     )
 
@@ -146,14 +178,61 @@ async def run_call(
     settings: RealtimeModelSettings,
     checkin_seconds: float = 0,
     checkin_max: int = 3,
+    end_warning_seconds: float = 0,
+    call_id: str | None = None,
 ) -> str:
     """Serve one call until the browser leaves, says stop, the time limit passes, or the session fails.
 
-    Returns why it ended. Audio and transcripts are never logged.
+    Returns why it ended (see the module docstring); a failure anywhere is `"error"`, never an exception, so the
+    caller can always tell the browser. Audio and transcripts are never logged.
     """
+    try:
+        return await _serve(
+            transport,
+            model,
+            duration_seconds=duration_seconds,
+            settings=settings,
+            checkin_seconds=checkin_seconds,
+            checkin_max=checkin_max,
+            end_warning_seconds=end_warning_seconds,
+            call_id=call_id,
+        )
+    except Exception:
+        log.exception("voice call failed")
+        with contextlib.suppress(Exception):  # the browser may be gone already
+            await transport.send_json({"type": "error", "message": CALL_ERROR})
+        return "error"
+
+
+class _HangUp:
+    """Ends the paid upstream call exactly once, by whichever route is available when the call is over."""
+
+    def __init__(self) -> None:
+        self.done = False
+
+    async def __call__(self, end: Callable[[], Awaitable[None]]) -> None:
+        if self.done:
+            return
+        try:
+            await end()
+            self.done = True
+        except Exception:
+            log.warning("voice hang up failed", exc_info=True)  # logged, never raised: the call is over regardless
+
+
+async def _serve(
+    transport: Transport,
+    model: RealtimeModel,
+    *,
+    duration_seconds: float,
+    settings: RealtimeModelSettings,
+    checkin_seconds: float,
+    checkin_max: int,
+    end_warning_seconds: float,
+    call_id: str | None,
+) -> str:
     outbox: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     call = CallSession(emit=outbox.put_nowait)
-    reason = "closed"
 
     try:
         async with asyncio.timeout(OFFER_TIMEOUT_SECONDS):
@@ -167,9 +246,44 @@ async def run_call(
 
     realtime = build_agent().realtime(model, deps=call, model_settings=settings)
     answer = await realtime.answer_webrtc_offer(offer["sdp"])
-    await transport.send_json({"type": "answer", "sdp": answer.sdp})
+    hang_up = _HangUp()
+    try:
+        # From here the browser is connected to OpenAI and billed: every way out below must hang the call up.
+        reply: dict[str, Any] = {"type": "answer", "sdp": answer.sdp}
+        if call_id is not None:
+            reply["callId"] = call_id
+        await transport.send_json(reply)
+        return await _talk(
+            transport,
+            realtime,
+            answer.session,
+            call,
+            outbox,
+            hang_up,
+            duration_seconds=duration_seconds,
+            checkin_seconds=checkin_seconds,
+            checkin_max=checkin_max,
+            end_warning_seconds=end_warning_seconds,
+        )
+    finally:
+        await hang_up(lambda: realtime.hang_up(answer.session))
 
-    async with realtime.session(provider_session=answer.session) as session:
+
+async def _talk(
+    transport: Transport,
+    realtime: AgentRealtime[CallSession],
+    provider_session: WebRTCSession,
+    call: CallSession,
+    outbox: asyncio.Queue[dict[str, Any]],
+    hang_up: _HangUp,
+    *,
+    duration_seconds: float,
+    checkin_seconds: float,
+    checkin_max: int,
+    end_warning_seconds: float,
+) -> str:
+    reason = "error"
+    async with realtime.session(provider_session=provider_session) as session:
         captions = session.stream_transcripts(delta=True)
         check_ins = CheckIns(checkin_seconds, checkin_max)
         handoff_spoken = asyncio.Event()
@@ -196,9 +310,15 @@ async def run_call(
                 elif isinstance(event, FunctionToolCallEvent):
                     check_ins.activity()
                     log.info("voice tool: %s", event.part.tool_name)  # name only, never arguments
+                elif isinstance(event, RealtimeSessionReconnectEvent):
+                    log.info("voice sideband reconnected (state restored: %s)", event.state_restored)
                 elif isinstance(event, RealtimeSessionErrorEvent):
-                    log.warning("voice session error: %s", event.code or event.type)
-                    await transport.send_json({"type": "error", "message": CALL_ERROR})
+                    log.warning(
+                        "voice session error: %s (recoverable: %s)", event.code or event.type, event.recoverable
+                    )
+                    # A recoverable one leaves the call usable: the caller need not hear of it.
+                    if not event.recoverable:
+                        await transport.send_json({"type": "error", "message": CALL_ERROR})
 
         async def pump_check_ins() -> None:
             while True:
@@ -206,10 +326,19 @@ async def run_call(
                 if line := check_ins.due(call.state.phase):
                     await send_context(session, "commentary", line)
 
+        async def warn_ending() -> None:
+            """Tell the caller (screen and voice) that the time limit is near; the limit itself is not extended."""
+            try:
+                await asyncio.sleep(duration_seconds - end_warning_seconds)
+                seconds = round(end_warning_seconds)
+                await transport.send_json({"type": "ending_soon", "seconds": seconds})
+                await send_context(session, "commentary", ending_soon_line(seconds))
+            except Exception:
+                log.warning("voice end warning failed", exc_info=True)
+
         async def pump_hand_off() -> str:
             """End the call after the hand-over has been spoken (no one has to say goodbye by hand)."""
-            while not call.handed_off:
-                await asyncio.sleep(0.5)
+            await call.handoff_dispatched.wait()
             try:
                 await asyncio.wait_for(handoff_spoken.wait(), HANDOFF_END_SECONDS)
             except TimeoutError:
@@ -222,6 +351,10 @@ async def run_call(
                 match message.get("type"):
                     case "stop":
                         return "stopped"
+                    case "resumed":  # a new socket took over: redraw it (the transport adds what it missed)
+                        await transport.send_json({"type": "phase", "phase": call.state.phase})
+                        if step := call.current_step_message():
+                            await transport.send_json(step)
                     case "ui_step":
                         gid, idx = message.get("guideId"), message.get("stepIndex")
                         if isinstance(gid, str) and isinstance(idx, int) and not isinstance(idx, bool):
@@ -231,6 +364,7 @@ async def run_call(
         await transport.send_json({"type": "ready"})
         await transport.send_json({"type": "phase", "phase": call.state.phase})
         start_greeting = asyncio.create_task(send_context(session, "commentary", GREETING_TEXT))
+        warning = [asyncio.create_task(warn_ending())] if 0 < end_warning_seconds < duration_seconds else []
 
         pumps = [asyncio.create_task(p()) for p in (pump_outbox, pump_captions, pump_events, pump_check_ins)]
         browser = asyncio.create_task(pump_browser())
@@ -247,13 +381,10 @@ async def run_call(
         except TimeoutError:
             reason = "time_limit"
         finally:
-            for task in (browser, ender, *pumps, start_greeting):
+            for task in (browser, ender, *pumps, start_greeting, *warning):
                 task.cancel()
-            await asyncio.gather(browser, ender, *pumps, start_greeting, return_exceptions=True)
-            try:
-                await session.hang_up()  # closing alone leaves the browser connected to (and billed by) OpenAI
-            except Exception:
-                log.warning("voice hang up failed", exc_info=True)
+            await asyncio.gather(browser, ender, *pumps, start_greeting, *warning, return_exceptions=True)
+            await hang_up(session.hang_up)  # closing alone leaves the browser connected to (and billed by) OpenAI
     return reason
 
 

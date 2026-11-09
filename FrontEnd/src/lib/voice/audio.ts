@@ -42,6 +42,16 @@ const AUDIBLE_LEVEL = 0.02;
 /** ... and as finished once it has been quieter than that for this long (gaps between words). */
 const QUIET_MS = 250;
 
+/** Health of the WebRTC link, as far as the call cares: `disconnected` may heal by itself, `failed` will not. */
+export type LineConnection = "connecting" | "connected" | "disconnected" | "failed";
+
+export type LineEvents = {
+  onPlayback: (state: PlaybackState) => void;
+  onConnection: (state: LineConnection) => void;
+  /** The microphone track ended on its own (device unplugged, permission revoked). */
+  onMicEnded: () => void;
+};
+
 export type VoiceLine = {
   mic: Meter;
   voice: Meter;
@@ -61,13 +71,26 @@ export type VoiceLine = {
 export function openVoiceLine(
   context: AudioContext,
   stream: MediaStream,
-  onPlayback: (state: PlaybackState) => void,
+  { onPlayback, onConnection, onMicEnded }: LineEvents,
 ): VoiceLine {
   const pc = new RTCPeerConnection();
   const mic = new Meter(context);
   const voice = new Meter(context);
   context.createMediaStreamSource(stream).connect(mic.input);
-  for (const track of stream.getAudioTracks()) pc.addTrack(track, stream);
+  for (const track of stream.getAudioTracks()) {
+    pc.addTrack(track, stream);
+    track.onended = onMicEnded;
+  }
+
+  // Without this a dead ICE connection is silent: nothing else tells the page the audio stopped flowing.
+  const report = () => {
+    if (pc.connectionState === "failed" || pc.iceConnectionState === "failed") onConnection("failed");
+    else if (pc.connectionState === "disconnected" || pc.iceConnectionState === "disconnected") onConnection("disconnected");
+    else if (pc.connectionState === "connected") onConnection("connected");
+    else onConnection("connecting");
+  };
+  pc.addEventListener("connectionstatechange", report);
+  pc.addEventListener("iceconnectionstatechange", report);
 
   // Remote audio must be attached to a media element to flow at all; the meter taps the same stream.
   const element = new Audio();
@@ -118,6 +141,9 @@ export function openVoiceLine(
     },
     stop: () => {
       clearInterval(poll);
+      pc.removeEventListener("connectionstatechange", report);
+      pc.removeEventListener("iceconnectionstatechange", report);
+      for (const track of stream.getAudioTracks()) track.onended = null;
       element.srcObject = null;
       pc.close();
       for (const track of stream.getTracks()) track.stop();
