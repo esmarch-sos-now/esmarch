@@ -1,6 +1,7 @@
 """Application settings. Environment variable names follow the legacy Spring Boot backend."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -23,6 +24,22 @@ class Settings(BaseSettings):
     public_api_rate_limit_window_seconds: float = 60
     public_api_max_clients: int = 10_000
 
+    # Realtime voice assistant: GPT-Live straight from OpenAI. It speaks; a cheaper backend model does the thinking
+    # and runs the tools. Disabled while the key is empty.
+    openai_api_key: str = ""
+    voice_live_model: str = "gpt-live-1"
+    voice_live_backend: str = "gpt-6-luna"
+    voice_live_voice: str = "marin"
+    voice_live_voice_id: str = ""  # a designed custom voice (see scripts/create_voice.py); replaces `voice_live_voice`
+    voice_live_turn_silence_ms: int = Field(default=800, ge=300, le=5000)
+    voice_ack_delay_ms: int = Field(default=500, ge=0, le=800)  # wait before Live acknowledges a slow backend itself
+    voice_checkin_seconds: float = Field(default=20, ge=0)  # silence while guiding before a check-in; 0 turns them off
+    voice_checkin_max: int = Field(default=3, ge=0)  # unanswered check-ins before it stops
+    voice_reasoning_effort: Literal["minimal", "low", "medium", "high", "xhigh"] = "low"
+    voice_max_sessions: int = 5  # concurrent calls; each one holds a paid upstream connection
+    voice_session_seconds: float = 600
+    voice_connects_per_window: int = 6  # per IP, over public_api_rate_limit_window_seconds
+
     @model_validator(mode="after")
     def _validate(self) -> Settings:
         if not self.origins or any("*" in origin for origin in self.origins):
@@ -32,6 +49,10 @@ class Settings(BaseSettings):
     @property
     def origins(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def voice_configured(self) -> bool:
+        return bool(self.openai_api_key)
 
     @property
     def admin_configured(self) -> bool:

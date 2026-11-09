@@ -112,6 +112,14 @@ button:disabled { opacity: 0.45; cursor: default; }
 .top h1 { font-size: clamp(22px, 3vw, 28px); }
 .top p { max-width: 38ch; font-size: 13px; }
 :root[data-embedded="true"] .top { display: none; }
+:root[data-embedded="true"] .panel {
+  left: 14px; bottom: 14px; width: min(390px, calc(100% - 28px)); padding: 12px 14px 10px;
+}
+:root[data-embedded="true"] .panel .steps { display: none; }
+:root[data-embedded="true"] .panel .controls #voice { display: none; }
+:root[data-embedded="true"] .panel .controls { grid-template-columns: auto auto minmax(0, 1fr) auto auto; }
+:root[data-embedded="true"] .panel .controls #play { grid-column: 4; grid-row: 1; }
+:root[data-embedded="true"] .panel .controls #view { grid-column: 5; grid-row: 1; }
 .tag { z-index: 1; border-color: color-mix(in srgb, var(--line) 76%, transparent); box-shadow: 0 8px 22px rgba(20,28,40,.14); }
 .panel {
   z-index: 3; left: 18px; bottom: 18px; width: min(440px, calc(100% - 36px)); padding: 15px 17px 13px;
@@ -155,6 +163,9 @@ button:focus-visible { outline-offset: 3px; }
   .controls #play { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; justify-content: center; }
   .controls #voice { grid-column: 1; grid-row: 3; }
   .controls #view { grid-column: 2; grid-row: 3; width: 38px; justify-self: end; }
+  :root[data-embedded="true"] .panel .controls { grid-template-columns: auto auto minmax(0, 1fr) auto auto; }
+  :root[data-embedded="true"] .panel .controls #play { grid-column: 4; grid-row: 1; justify-self: end; }
+  :root[data-embedded="true"] .panel .controls #view { grid-column: 5; grid-row: 1; }
   .tag { font-size: 11px; }
 }
 </style>
@@ -1597,7 +1608,7 @@ const VOICE = ["data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYyLjEyL
 const VOICE_DUR = [3.68, 2.88, 7.94, 11.44, 5.10, 4.01, 4.55];
 const audio = new Audio();
 audio.preload = 'auto';
-let voiceOn = true, voiceDone = true;
+let voiceOn = window.parent === window, voiceDone = true;
 let narrationPlaying = false;
 function notifyNarration(active, force = false) {
   if (!force && narrationPlaying === active) return;

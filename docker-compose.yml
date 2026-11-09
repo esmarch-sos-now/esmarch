@@ -3,6 +3,7 @@ name: esmarch
 services:
   db:
     image: postgres:18
+    pull_policy: always
     environment:
       POSTGRES_USER: esmarch
       POSTGRES_PASSWORD: esmarch
@@ -18,10 +19,16 @@ services:
       retries: 20
 
   backend:
-    build: ./BackEnd
+    build:
+      context: ./BackEnd
+      pull: true
+    env_file:
+      - path: ./BackEnd/.env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg://esmarch:esmarch@db:5432/esmarch
-      CORS_ORIGINS: http://localhost:3000
+      # The browser opens the voice WebSocket straight to the backend, which checks Origin against this list.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
       SUPPORT_ADMIN_TOKEN: ${SUPPORT_ADMIN_TOKEN:-}
       # Requests arrive via the Next proxy: trust its X-Forwarded-For so rate limits apply per real client.
       # Dev/compose only. In production restrict this to the proxy's address.
@@ -30,10 +37,15 @@ services:
     depends_on:
       db: { condition: service_healthy }
     volumes:
-      - ./BackEnd/app:/app/app
-      - ./BackEnd/data:/app/data
-      - ./BackEnd/tests:/app/tests
-      - ./BackEnd/migrations:/app/migrations
+      - ./BackEnd:/app
+    develop:
+      watch:
+        - action: rebuild
+          path: ./BackEnd/pyproject.toml
+        - action: rebuild
+          path: ./BackEnd/uv.lock
+        - action: restart
+          path: ./BackEnd/.env
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/api/health')"]
       interval: 5s
@@ -42,7 +54,9 @@ services:
       start_period: 20s
 
   frontend:
-    build: ./FrontEnd
+    build:
+      context: ./FrontEnd
+      pull: true
     env_file:
       - path: ./FrontEnd/.env
         required: false
@@ -50,6 +64,8 @@ services:
       # Server-side calls inside the compose network; the browser only talks to the Next origin.
       BACKEND_URL: http://backend:8000
       WATCHPACK_POLLING: "true"
+      # Set (with CORS_ORIGINS above) when exposing the app through tunnels: the voice WebSocket goes to the backend directly.
+      NEXT_PUBLIC_VOICE_WS_URL: ${NEXT_PUBLIC_VOICE_WS_URL:-}
     ports: ["${FRONTEND_PORT:-3001}:3000"] # 3000 is often taken by other local Next apps
     depends_on:
       backend: { condition: service_healthy }
@@ -57,6 +73,14 @@ services:
       - ./FrontEnd:/app
       - /app/node_modules
       - /app/.next
+    develop:
+      watch:
+        - action: rebuild
+          path: ./FrontEnd/package.json
+        - action: rebuild
+          path: ./FrontEnd/package-lock.json
+        - action: restart
+          path: ./FrontEnd/.env
 
 volumes:
   pgdata:

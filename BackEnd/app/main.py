@@ -21,6 +21,7 @@ from app.modules.guides.service import catalog as guides_catalog
 from app.modules.health import router as health_router
 from app.modules.support import router as support_router
 from app.modules.support.service import support
+from app.voice import router as voice_router
 
 # Request URLs carry user coordinates; keep them out of logs.
 logging.getLogger("uvicorn.access").disabled = True
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
         support_router,
         capabilities_router,
         alerts_router,
+        voice_router,
     ):
         app.include_router(module.router)
     return app

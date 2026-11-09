@@ -22,6 +22,12 @@ export const appPages: AppPageDef[] = [
     title: 'Cơ sở y tế gần nhất',
     description: 'Danh sách bệnh viện, cơ sở y tế gần vị trí hiện tại kèm số điện thoại để gọi khi không liên lạc được 115, cùng nút chỉ đường.'
   },
+  {
+    path: '/app/tro-ly',
+    nav: 'Trợ lý sơ cứu',
+    title: 'Trợ lý sơ cứu bằng giọng nói',
+    description: 'Nói chuyện với trợ lý để được hướng dẫn sơ cứu từng bước bằng giọng nói và hình 3D.'
+  },
   // Hai tính năng dưới đây chưa làm, trang chỉ hiện dòng Coming Soon
   {
     path: '/app/tre-em',
@@ -56,6 +62,17 @@ export const authPages: AppPageDef[] = [
 
 // Màn hình Cơ sở y tế gần nhất: nhấn SOS sẽ mở màn này kèm hộp Gọi 115 / Hủy.
 // Bản demo không gọi thật: nút Gọi chỉ hiện trạng thái đang gọi
+// Màn hình Trợ lý sơ cứu bằng giọng nói
+export const assistantScreen = {
+  title: 'Trợ lý sơ cứu',
+  lede: 'Bấm gọi và kể chuyện gì đang xảy ra. Trợ lý sẽ tự mở hướng dẫn phù hợp và đọc từng bước cho bạn.',
+  start: 'Đồng ý và gọi trợ lý',
+  again: 'Gọi lại',
+  ended: 'Cuộc gọi đã kết thúc. Nếu vẫn nguy hiểm, hãy gọi 115.',
+  consent:
+    'Khi gọi, trình duyệt sẽ xin quyền micro. Âm thanh được gửi tới dịch vụ AI (OpenAI, qua Vercel AI Gateway) để trợ lý nghe và trả lời; trang này không lưu âm thanh. Trợ lý không thay thế cấp cứu: trong nguy hiểm tính mạng hãy gọi 115.'
+}
+
 export const facilityScreen = {
   title: 'Cơ sở y tế gần bạn',
   locating: 'Đang xác định vị trí của bạn…',
