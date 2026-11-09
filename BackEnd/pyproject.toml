@@ -1,0 +1,43 @@
+[project]
+name = "backend"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "alembic>=1.20.1",
+    "fastapi[standard]>=0.162.2",
+    "numpy>=2.5.4",
+    "psycopg[binary]>=3.3.8",
+    "pydantic-settings>=2.16.2",
+    "scipy>=1.18.1",
+    "sqlmodel>=0.0.48",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pyrefly>=1.4.1",
+    "pytest>=9.2.0",
+    "ruff>=0.17.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pyrefly]
+project-includes = [
+    "**/*.py*",
+    "**/*.ipynb",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S110"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["C408"]

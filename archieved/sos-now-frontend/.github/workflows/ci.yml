@@ -1,0 +1,25 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+jobs:
+  sos-now:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sos-now
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sos-now/package-lock.json
+      # package-lock.json from upstream is out of sync with package.json,
+      # so `npm ci` fails. Switch back to `npm ci` once the lock file is regenerated.
+      - run: npm install --no-audit --no-fund
+      - run: npm run build

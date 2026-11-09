@@ -1,0 +1,62 @@
+name: esmarch
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: esmarch
+      POSTGRES_PASSWORD: esmarch
+      POSTGRES_DB: esmarch
+    ports: ["5432:5432"]
+    volumes:
+      # Postgres 18+ images keep data under /var/lib/postgresql/<major> (mount the parent dir).
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U esmarch -d esmarch"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./BackEnd
+    environment:
+      DATABASE_URL: postgresql+psycopg://esmarch:esmarch@db:5432/esmarch
+      CORS_ORIGINS: http://localhost:3000
+      SUPPORT_ADMIN_TOKEN: ${SUPPORT_ADMIN_TOKEN:-}
+      # Requests arrive via the Next proxy: trust its X-Forwarded-For so rate limits apply per real client.
+      # Dev/compose only. In production restrict this to the proxy's address.
+      FORWARDED_ALLOW_IPS: "*"
+    ports: ["8000:8000"]
+    depends_on:
+      db: { condition: service_healthy }
+    volumes:
+      - ./BackEnd/app:/app/app
+      - ./BackEnd/data:/app/data
+      - ./BackEnd/tests:/app/tests
+      - ./BackEnd/migrations:/app/migrations
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  frontend:
+    build: ./FrontEnd
+    env_file:
+      - path: ./FrontEnd/.env
+        required: false
+    environment:
+      # Server-side calls inside the compose network; the browser only talks to the Next origin.
+      BACKEND_URL: http://backend:8000
+      WATCHPACK_POLLING: "true"
+    ports: ["${FRONTEND_PORT:-3001}:3000"] # 3000 is often taken by other local Next apps
+    depends_on:
+      backend: { condition: service_healthy }
+    volumes:
+      - ./FrontEnd:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  pgdata:
