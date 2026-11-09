@@ -4,6 +4,8 @@ import type { NextConfig } from "next";
 const BACKEND_URL = (process.env.BACKEND_URL ?? "http://localhost:8000").replace(/\/+$/, "");
 
 const nextConfig: NextConfig = {
+  // Dev server reached through a quick tunnel (cloudflared) for outside testers.
+  allowedDevOrigins: ["*.trycloudflare.com"],
   reactCompiler: true,
   async rewrites() {
     // Browser -> /backend/api/... -> FastAPI /api/... (dedicated prefix, no clash with Next's own routes).

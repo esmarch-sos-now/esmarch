@@ -17,6 +17,7 @@ os.environ.update(
     SUPPORT_ADMIN_TOKEN=ADMIN,
     CORS_ORIGINS="https://esmarch.example,http://localhost:3000",
     PUBLIC_API_RATE_LIMIT_REQUESTS="100000",
+    OPENAI_API_KEY="",  # tests must not depend on the developer's .env
 )
 
 
@@ -76,3 +77,8 @@ def client():
 
     with TestClient(create_app()) as c:
         yield c
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"

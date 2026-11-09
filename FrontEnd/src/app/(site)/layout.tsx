@@ -12,6 +12,7 @@ import "@/styles/site/cta-footer.css";
 import "@/styles/site/app.css";
 import "@/styles/site/sos.css";
 import "@/styles/site/voice.css";
+import "@/styles/site/assistant.css";
 import "@/styles/site/facilities-page.css";
 import "@/styles/site/map.css";
 
