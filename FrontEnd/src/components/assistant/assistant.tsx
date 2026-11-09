@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import Link from "next/link";
 import { ArrowLeft, History, MicOff, Phone, PhoneOff, X } from "lucide-react";
 import { useVoiceCall, type Mode } from "@/hooks/useVoiceCall";
@@ -22,15 +22,14 @@ const MODE_LABEL: Record<Mode, string> = {
 // then the 3D guide on stage with the orb docked underneath.
 export default function Assistant() {
   const frame = useRef<HTMLIFrameElement>(null);
-  const call = useVoiceCall(frame);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // On a wide screen the transcript opens beside the guide when the call connects (the dock itself has no text).
+  const call = useVoiceCall(frame, () => {
+    if (window.matchMedia("(min-width: 900px)").matches) setHistoryOpen(true);
+  });
 
   const { status, mode, step, meters } = call;
 
-  // On a wide screen the transcript opens beside the guide when the call connects (the dock itself has no text).
-  useEffect(() => {
-    if (status === "live" && window.matchMedia("(min-width: 900px)").matches) setHistoryOpen(true);
-  }, [status]);
   const live = status === "live";
   const connecting = status === "connecting";
   const speaking = live && mode === "speaking";

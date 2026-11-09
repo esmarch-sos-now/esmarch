@@ -162,8 +162,12 @@ function outcomeOf(reason: string): Outcome {
 /**
  * One voice call with the first-aid assistant: microphone -> WebSocket -> realtime model -> assistant voice.
  * `frameRef` is the iframe of the 3D guide the assistant opens (it narrates itself and reports its own steps).
+ * `onLive` runs once each time the call goes live (the server's `ready`), for UI that should react to that moment.
  */
-export function useVoiceCall(frameRef: RefObject<HTMLIFrameElement | null>) {
+export function useVoiceCall(
+  frameRef: RefObject<HTMLIFrameElement | null>,
+  onLive?: () => void,
+) {
   const [status, setStatus] = useState<CallStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("idle");
@@ -181,6 +185,10 @@ export function useVoiceCall(frameRef: RefObject<HTMLIFrameElement | null>) {
   const runtime = useRef<Runtime | null>(null);
   const starting = useRef(false);
   const mounted = useRef(false);
+  const onLiveRef = useRef(onLive);
+  useEffect(() => {
+    onLiveRef.current = onLive;
+  });
 
   const postStep = useCallback(
     (index: number) =>
@@ -275,6 +283,7 @@ export function useVoiceCall(frameRef: RefObject<HTMLIFrameElement | null>) {
           rt.ready = true;
           setStatus("live");
           setMode("listening");
+          onLiveRef.current?.();
           break;
         case "resumed":
           clearTimeout(rt.timers.retry);
