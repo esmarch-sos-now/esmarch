@@ -21,15 +21,31 @@ export type StepInfo = {
 };
 
 export type ServerMessage =
-  | { type: "answer"; sdp: string }
+  | { type: "answer"; sdp: string; callId?: string }
   | { type: "ready" }
+  | { type: "resumed" }
+  | { type: "ending_soon"; seconds: number }
+  | { type: "signs"; awake: boolean | null; breathing: boolean | null; talking: boolean | null }
   | { type: "transcript"; speaker: "user" | "assistant"; index: number; text: string }
   | { type: "phase"; phase: CallPhase }
   | { type: "handoff"; summary: string }
   | ({ type: "step"; lines: string[] } & StepInfo)
   | { type: "turn_complete" }
   | { type: "error"; message: string }
-  | { type: "ended"; reason: string };
+  | { type: "ended"; reason: EndReason };
+
+/** Why the server ended the call. */
+export type EndReason =
+  | "completed"
+  | "stopped"
+  | "disconnected"
+  | "time_limit"
+  | "no_offer"
+  | "session_ended"
+  | "error";
+
+/** The server closes the socket with this code when a `resume` names a call it no longer has. */
+export const CLOSE_UNKNOWN_CALL = 4404;
 
 // Dev default: the FastAPI backend on the same host. Production sets NEXT_PUBLIC_VOICE_WS_URL (wss://…/api/voice/ws).
 // A Next.js rewrite cannot be relied on for WebSockets, so the browser connects to the backend directly.

@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     voice_reasoning_effort: Literal["minimal", "low", "medium", "high", "xhigh"] = "low"
     voice_max_sessions: int = 5  # concurrent calls; each one holds a paid upstream connection
     voice_session_seconds: float = 600
+    voice_end_warning_seconds: float = Field(default=60, ge=0)  # warn the caller this long before the limit; 0 = off
+    voice_resume_grace_seconds: float = Field(default=20, ge=0)  # keep a call whose WebSocket dropped; 0 = no resume
     voice_connects_per_window: int = 6  # per IP, over public_api_rate_limit_window_seconds
 
     @model_validator(mode="after")
