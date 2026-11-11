@@ -22,7 +22,7 @@ function PlanCard({ plan, index, inView }: { plan: Plan; index: number; inView: 
         'flex flex-col overflow-hidden rounded-[calc(32*var(--u))] border border-black/8 bg-[linear-gradient(160deg,rgba(255,255,255,.95)_0%,rgba(246,246,248,.85)_55%,rgba(238,238,241,.85)_100%)] shadow-[inset_0_1px_0_#fff,inset_0_0_30px_rgba(255,255,255,.6),0_calc(24*var(--u))_calc(60*var(--u))_rgba(20,20,40,.1)] backdrop-blur-[26px] backdrop-saturate-160 max-lp:rounded-3xl',
         // Các thẻ hiện lần lượt khi cuộn tới
         'transition-[opacity,transform] duration-600 ease-in-out delay-[calc(var(--i)*120ms)] motion-reduce:transition-none',
-        inView ? 'transform-none opacity-100' : 'transform-[translateY(calc(30*var(--u)))] opacity-0 max-lp:transform-[translateY(24px)] motion-reduce:transform-none motion-reduce:opacity-100',
+        inView ? 'transform-none opacity-100' : 'transform-[translateY(calc(30*var(--u)))] opacity-0 max-lp:motion-safe:transform-[translateY(24px)] motion-reduce:transform-none motion-reduce:opacity-100',
       )}
     >
       <div className="border-b border-black/8 px-[calc(42*var(--u))] pt-[calc(42*var(--u))] pb-[calc(52*var(--u))] max-lp:px-5.5 max-lp:pt-6.5 max-lp:pb-7.5">

@@ -22,7 +22,7 @@ export default function Logo({ variant = 'default' }: { variant?: keyof typeof v
   return (
     <Link className={cn('inline-flex items-center no-underline', styles.link)} href="/" aria-label="SOSNOW - Trang chủ">
       <img src={logoMark} alt="" width="46" height="62" className={cn('w-auto', styles.img)} />
-      <span className={cn('leading-none', styles.text)}>SOS NOW</span>
+      <span className={cn(styles.text, 'leading-none')}>SOS NOW</span>
     </Link>
   )
 }

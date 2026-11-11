@@ -104,7 +104,7 @@ function ParticleSphere() {
 function rise(inView: boolean) {
   return cn(
     'transition-[opacity,translate] duration-700 ease-in-out motion-reduce:transition-none',
-    inView ? 'translate-y-0 opacity-100' : 'translate-y-[calc(20*var(--u))] opacity-0 max-lp:translate-y-5 motion-reduce:translate-y-0 motion-reduce:opacity-100',
+    inView ? 'translate-y-0 opacity-100' : 'translate-y-[calc(20*var(--u))] opacity-0 max-lp:motion-safe:translate-y-5 motion-reduce:translate-y-0 motion-reduce:opacity-100',
   )
 }
 

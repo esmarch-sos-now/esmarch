@@ -53,7 +53,7 @@ export default function Problem({ id }: { id: string }) {
                   'transition-[opacity,translate,box-shadow,transform] duration-[.6s,.6s,.3s,.3s] delay-[calc(var(--i)*110ms),calc(var(--i)*110ms),0s,0s]',
                   'hover:transform-[translateY(calc(-4*var(--u)))] hover:shadow-[0_14px_30px_rgba(0,0,0,.1)]',
                   'motion-reduce:transition-none motion-reduce:hover:transform-none',
-                  inView ? 'translate-0 opacity-100' : 'translate-y-[calc(28*var(--u))] opacity-0 max-lp:translate-y-6 motion-reduce:translate-0 motion-reduce:opacity-100',
+                  inView ? 'translate-0 opacity-100' : 'translate-y-[calc(28*var(--u))] opacity-0 max-lp:motion-safe:translate-y-6 motion-reduce:translate-0 motion-reduce:opacity-100',
                 )}
               >
                 <span className="grid size-[calc(56*var(--u))] place-items-center rounded-full border border-black/12 bg-white text-[#e5361a] max-lp:size-12 [&_svg]:size-[calc(26*var(--u))] max-lp:[&_svg]:size-5.5">

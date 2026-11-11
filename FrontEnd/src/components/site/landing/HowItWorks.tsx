@@ -64,7 +64,7 @@ export default function HowItWorks({ id }: { id: string }) {
                     'max-lp:static max-lp:w-auto max-lp:translate-x-0 max-lp:pl-14 max-lp:text-left',
                     fadeIn,
                     shown,
-                    inView ? 'translate-y-0' : 'translate-y-[calc(16*var(--u))] max-lp:translate-y-4 motion-reduce:translate-y-0',
+                    inView ? 'translate-y-0' : 'translate-y-[calc(16*var(--u))] max-lp:motion-safe:translate-y-4 motion-reduce:translate-y-0',
                   )}
                 >
                   <h3 className="text-[calc(30*var(--u))] leading-[1.15] font-medium tracking-[-.015em] max-lp:text-[22px]">{step.title}</h3>
