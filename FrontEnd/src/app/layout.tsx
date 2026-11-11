@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Anton, Geist, Sigmar } from "next/font/google";
-import { cn } from "@/lib/utils";
+import { inter } from "@/components/site/landing/inter";
 import "./globals.css";
 
-// Geist is the UI font (font-sans); Sigmar (font-display) and Anton (font-number) are brand display faces.
-const geist = Geist({ subsets: ["latin", "vietnamese"], variable: "--font-geist" });
-const sigmar = Sigmar({ subsets: ["latin", "vietnamese"], weight: "400", variable: "--font-sigmar" });
-const anton = Anton({ subsets: ["latin", "vietnamese"], weight: "400", variable: "--font-anton" });
+// Inter is the only font: font-sans, font-heading, font-display and font-number all point to --font-inter (globals.css).
 
 export const metadata: Metadata = {
   title: "SOS NOW — ESMARCH",
@@ -17,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="vi" className={cn(geist.variable, sigmar.variable, anton.variable)}>
+    <html lang="vi" className={inter.variable}>
       <body>{children}</body>
     </html>
   );
