@@ -323,7 +323,7 @@ export default function CameraDrill({ onComplete }: { onComplete?: (result: Dril
       const outcome = { face, arms, speech, summary }
       if (!alive(id)) return
       setResult(outcome)
-      setStatus(buildReport(face, arms, speech).title)
+      setStatus(buildReport(face, arms).title)
       setPhase('done')
       onComplete?.(outcome)
     } catch (error) {
@@ -343,7 +343,7 @@ export default function CameraDrill({ onComplete }: { onComplete?: (result: Dril
   const outline = posing && guide ? guide : preview
   const canPick = phase === 'idle' || phase === 'done' || phase === 'error'
   const frameIndex = camera.frames.findIndex((frame) => frame.id === outline)
-  const report = result && phase === 'done' ? buildReport(result.face, result.arms, result.speech) : null
+  const report = result && phase === 'done' ? buildReport(result.face, result.arms) : null
 
   return (
     <section className="mt-10" aria-labelledby="practice-camera" aria-busy={live}>

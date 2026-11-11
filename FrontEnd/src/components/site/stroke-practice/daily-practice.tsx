@@ -37,6 +37,18 @@ export default function DailyPractice({ drill }: { drill: SavedDrill | null }) {
   const [ready, setReady] = useState(false)
   const today = dateKey(new Date())
   const moves = knownMoves(log[today]?.moves ?? [])
+  const drillKey = drill ? `${today}:${drill.face}:${drill.arms}:${drill.speech}` : ''
+  const [savedDrillKey, setSavedDrillKey] = useState('')
+  if (ready && drill && drillKey !== savedDrillKey) {
+    setSavedDrillKey(drillKey)
+    setLog((current) => {
+      const entry = current[today]
+      if (entry?.drill && entry.drill.face === drill.face && entry.drill.arms === drill.arms && entry.drill.speech === drill.speech) {
+        return current
+      }
+      return { ...current, [today]: { moves: entry?.moves ?? [], drill } }
+    })
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -57,17 +69,6 @@ export default function DailyPractice({ drill }: { drill: SavedDrill | null }) {
     if (!ready) return
     localStorage.setItem(DAY_STORAGE_KEY, JSON.stringify(log))
   }, [log, ready])
-
-  useEffect(() => {
-    if (!ready || !drill) return
-    setLog((current) => {
-      const entry = current[today]
-      if (entry?.drill && entry.drill.face === drill.face && entry.drill.arms === drill.arms && entry.drill.speech === drill.speech) {
-        return current
-      }
-      return { ...current, [today]: { moves: entry?.moves ?? [], drill } }
-    })
-  }, [drill, ready, today])
 
   const toggle = (id: string) => {
     setLog((current) => {

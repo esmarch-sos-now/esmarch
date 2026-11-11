@@ -94,7 +94,7 @@ export type DrillReport = {
 }
 
 /** Kết quả gộp sau đủ 3 động tác. Lời nói không rõ không bị tính là nói khó, và không kết luận đột quỵ. */
-export function buildReport(face: GestureVerdict, arms: GestureVerdict, _speech: SpeechStep): DrillReport {
+export function buildReport(face: GestureVerdict, arms: GestureVerdict): DrillReport {
   const uneven = [face === 'uneven' ? 'mặt' : '', arms === 'uneven' ? 'tay' : ''].filter(Boolean)
 
   if (uneven.length > 0) {
