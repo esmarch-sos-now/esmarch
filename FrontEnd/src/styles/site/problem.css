@@ -1,41 +1,110 @@
-/* Vấn đề: 4 thẻ nỗi lo + dải giải pháp dẫn sang phần HDSD */
-.problem-title { margin: 12px 0 0; color: var(--text); font: 900 clamp(28px, 3.2vw, 42px)/1.15 var(--font-heading); letter-spacing: -.01em; }
-.problem-title span { color: var(--yellow-500); font-weight: 900; text-shadow: 3px 4px 6px rgba(0, 0, 0, .18); }
-.problem-subtitle { max-width: 620px; margin: 10px 0 0; color: var(--muted); font: 400 16px/1.5 var(--font-body); }
-
-.problem-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(12px, 2vw, 24px); margin: 36px 0 0; padding: 0; list-style: none; }
-.problem-card { position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 230px; padding: 20px 18px; overflow: hidden; border-radius: 10px; background: #f1f1f1; transition: box-shadow .3s, transform .3s; }
-.problem-card:hover { box-shadow: 0 14px 30px rgba(0, 0, 0, .08); transform: translateY(-3px); }
-/* Số thứ tự mờ lớn ở góc, cùng kiểu với thẻ HDSD */
-.problem-num { position: absolute; top: 12px; right: 16px; color: #d4d4d4; font: 400 40px/1 var(--font-number); }
-.problem-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: #fff; color: var(--red-500); }
-.problem-icon svg { width: 20px; height: 20px; }
-.problem-card h3 { margin: 6px 0 0; color: var(--ink); font: 700 17px/1.3 var(--font-nav); }
-.problem-card p { margin: 0; color: var(--muted); font: 400 14px/1.55 var(--font-body); }
-
-/* Thẻ hiện lần lượt khi cuộn tới */
-.problem-grid .problem-card { opacity: 0; transform: translateY(28px); transition: opacity .6s ease, transform .6s ease, box-shadow .3s; transition-delay: calc(var(--i) * 110ms); }
-.problem-grid.in-view .problem-card { opacity: 1; transform: none; }
-.problem-grid.in-view .problem-card:hover { transform: translateY(-3px); transition-delay: 0s; }
-
-.problem-solution { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; margin-top: 24px; padding: 18px 24px; border-radius: 14px; background: var(--red-500); color: #fff; transition-delay: .45s; }
-.problem-solution p { margin: 0; font: 700 clamp(16px, 1.6vw, 19px)/1.4 var(--font); }
-.problem-solution a { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 999px; background: var(--yellow-500); color: var(--ink); font: 500 15px var(--font); text-decoration: none; white-space: nowrap; transition: background .15s; }
-.problem-solution a:hover { background: #ffd04d; }
-.problem-solution svg { width: 18px; height: 18px; }
-
-@media (max-width: 1023px) {
-  .problem-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .problem-card { min-height: 0; }
+/*
+ * Vấn đề theo mẫu thiết kế khung 1440x810 (nền xám nhạt, nhãn, tiêu đề một dòng, 4 thẻ, thanh cam ở góc).
+ * Desktop: kích thước tính theo --u (cùng tỉ lệ với hero) nên bố cục co giãn đúng mẫu. Font Inter gắn qua next/font.
+ */
+.lp-problem {
+  --u: min(calc(100vw / 1440 * .8), .8px);
+  --lp-orange: #f67212;
+  /* Nội dung kéo lên 60 đơn vị so với mẫu vì dải đen loang xuống ở đáy hero đã chiếm chỗ phía trên */
+  --dy: 60;
+  /* Chồng lên đáy hero 3px (cùng màu #f8f8f8) để không lộ vạch mảnh do làm tròn pixel ở chỗ nối */
+  position: relative;
+  margin-top: -3px;
+  overflow: clip;
+  background: #f8f8f8;
+  color: #151515;
 }
 
-@media (max-width: 479px) {
-  .problem-grid { grid-template-columns: 1fr; }
-  .problem-solution { padding: 16px 18px; }
-  .problem-solution a { width: 100%; justify-content: center; }
+/* Dải màu đen loang xuống nằm ở đáy hero (hero.css), kết thúc đúng #f8f8f8 nên nối liền với nền của phần này */
+.lp-problem-stage { position: relative; width: calc(1440 * var(--u)); height: calc((810 - var(--dy)) * var(--u)); margin: 0 auto; }
+
+/* Thanh cam trang trí: đậm ở phía mép khung, mờ dần vào trong */
+.lp-bar { position: absolute; height: calc(15 * var(--u)); pointer-events: none; }
+.lp-bar-tr-1, .lp-bar-tr-2 { background: linear-gradient(270deg, var(--lp-orange), rgba(246, 114, 18, 0)); }
+.lp-bar-bl-1, .lp-bar-bl-2 { background: linear-gradient(90deg, var(--lp-orange), rgba(246, 114, 18, 0)); }
+.lp-bar-tr-1 { top: calc(39 * var(--u)); left: calc(1333 * var(--u)); width: calc(46 * var(--u)); }
+.lp-bar-tr-2 { top: calc(65 * var(--u)); left: calc(1251 * var(--u)); width: calc(128 * var(--u)); }
+.lp-bar-bl-1 { top: calc((708 - var(--dy)) * var(--u)); left: calc(78 * var(--u)); width: calc(128 * var(--u)); }
+.lp-bar-bl-2 { top: calc((734 - var(--dy)) * var(--u)); left: calc(78 * var(--u)); width: calc(51 * var(--u)); }
+
+.lp-problem-pill {
+  position: absolute;
+  top: calc((128 - var(--dy)) * var(--u));
+  left: calc(82 * var(--u));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(120 * var(--u));
+  height: calc(36 * var(--u));
+  border-radius: 999px;
+  background: #d1d0d0;
+  color: #1a1a1a;
+  font-size: calc(20.9 * var(--u));
+  line-height: 1;
+}
+.lp-problem-title {
+  position: absolute;
+  top: calc((186.6 - var(--dy)) * var(--u));
+  left: calc(81 * var(--u));
+  margin: 0;
+  font-size: calc(54.2 * var(--u));
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -.025em;
+  white-space: nowrap;
+}
+
+.lp-problem-grid { position: absolute; inset: 0; margin: 0; padding: 0; list-style: none; pointer-events: none; }
+.lp-problem-card {
+  position: absolute;
+  top: calc((330 - var(--dy)) * var(--u));
+  left: calc((81 + var(--i) * 332) * var(--u));
+  display: flex;
+  flex-direction: column;
+  width: calc(302 * var(--u));
+  height: calc(352 * var(--u));
+  padding: calc(28 * var(--u));
+  border: 1px solid #2b2b2b;
+  /* Nền trắng xám: phẳng bên trái, tối dần về mép phải như thẻ trong mẫu */
+  background: linear-gradient(90deg, #f8f8f8 0%, #f8f8f8 40%, #f1f1f1 72%, #dedede 92%, #d6d6d6 100%);
+  pointer-events: auto;
+  transition: box-shadow .3s, transform .3s;
+}
+.lp-problem-card:hover { box-shadow: 0 14px 30px rgba(0, 0, 0, .1); transform: translateY(calc(-4 * var(--u))); }
+
+.lp-problem-icon { display: grid; place-items: center; width: calc(56 * var(--u)); height: calc(56 * var(--u)); border: 1px solid rgba(0, 0, 0, .12); border-radius: 50%; background: #fff; color: #e5361a; }
+.lp-problem-icon svg { width: calc(26 * var(--u)); height: calc(26 * var(--u)); }
+.lp-problem-num { position: absolute; top: calc(22 * var(--u)); right: calc(26 * var(--u)); color: rgba(0, 0, 0, .14); font-size: calc(46 * var(--u)); font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+.lp-problem-body { margin-top: auto; }
+.lp-problem-body h3 { margin: 0 0 calc(12 * var(--u)); font-size: calc(26 * var(--u)); font-weight: 700; line-height: 1.2; letter-spacing: -.015em; }
+.lp-problem-body p { margin: 0; color: #4a4a4a; font-size: calc(17.5 * var(--u)); font-weight: 400; line-height: 1.55; }
+
+/* Thẻ hiện lần lượt khi cuộn tới */
+.lp-problem-grid .lp-problem-card { opacity: 0; translate: 0 calc(28 * var(--u)); transition: opacity .6s ease, translate .6s ease, box-shadow .3s, transform .3s; transition-delay: calc(var(--i) * 110ms), calc(var(--i) * 110ms), 0s, 0s; }
+.lp-problem-grid.in-view .lp-problem-card { opacity: 1; translate: 0 0; }
+
+/* Tablet & mobile: xếp dọc, cỡ chữ cố định */
+@media (max-width: 900px) {
+  .lp-problem-stage { display: flex; flex-direction: column; align-items: flex-start; width: auto; height: auto; padding: 56px 20px 64px; }
+  .lp-bar { display: none; }
+  .lp-problem-pill, .lp-problem-title, .lp-problem-grid, .lp-problem-card { position: static; }
+  .lp-problem-pill { width: 104px; height: 32px; font-size: 16px; }
+  .lp-problem-title { margin-top: 20px; font-size: clamp(28px, 8vw, 44px); line-height: 1.12; white-space: normal; text-wrap: balance; }
+  .lp-problem-grid { display: grid; grid-template-columns: 1fr; gap: 14px; width: 100%; margin-top: 32px; }
+  .lp-problem-card { width: auto; height: auto; min-height: 250px; padding: 22px; }
+  .lp-problem-icon { width: 48px; height: 48px; }
+  .lp-problem-icon svg { width: 22px; height: 22px; }
+  .lp-problem-num { top: 16px; right: 20px; font-size: 38px; }
+  .lp-problem-body { padding-top: 28px; }
+  .lp-problem-body h3 { margin-bottom: 8px; font-size: 21px; }
+  .lp-problem-body p { font-size: 15px; }
+  .lp-problem-grid .lp-problem-card { translate: 0 24px; }
+}
+@media (min-width: 600px) and (max-width: 900px) {
+  .lp-problem-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .problem-grid .problem-card { opacity: 1; transform: none; transition: none; }
-  .problem-card:hover, .problem-grid.in-view .problem-card:hover { transform: none; }
+  .lp-problem-grid .lp-problem-card { opacity: 1; translate: none; transition: none; }
+  .lp-problem-card:hover { transform: none; }
 }

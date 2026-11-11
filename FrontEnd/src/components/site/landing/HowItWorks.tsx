@@ -1,78 +1,48 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { MapPin, Navigation, PhoneCall, Siren } from 'lucide-react'
+import { MapPin, Navigation, Phone, Siren, type LucideIcon } from 'lucide-react'
+import useInView from '@/hooks/useInView'
 import { howItWorks } from '@/content/landing'
+import { inter } from './inter'
 
-const lightning = '/site/lightning.webp'
-const stepSos = '/site/step-sos.webp'
-const stepLocation = '/site/step-location.webp'
-const stepCall = '/site/step-call.webp'
-const stepNavigation = '/site/step-navigation.webp'
+const icons: Record<string, LucideIcon> = { sos: Siren, location: MapPin, call: Phone, navigate: Navigation }
 
-const STEP_MS = 4000
-const media = [
-  { image: stepSos, Icon: Siren },
-  { image: stepLocation, Icon: MapPin },
-  { image: stepCall, Icon: PhoneCall },
-  { image: stepNavigation, Icon: Navigation }
+// Toạ độ (khung 1440 đơn vị) của từng bước: x = tâm ngang, y = chấm tròn. Bước sau cao hơn bước trước như bậc thang.
+const positions = [
+  { x: 255, y: 510 },
+  { x: 575, y: 440 },
+  { x: 895, y: 370 },
+  { x: 1215, y: 300 }
 ]
 
-const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-
+// Hướng dẫn sử dụng dạng timeline bậc thang trên nền xám nhạt: tiêu đề + mô tả phía trên chấm tròn, đường dọc nối xuống
+// thanh vạch ngang, trên thanh là nút "Bước n" kèm biểu tượng tròn đen.
 export default function HowItWorks({ id }: { id: string }) {
   const { label, title, steps } = howItWorks
-  const [active, setActive] = useState(0)
-  const [visible, setVisible] = useState(false)
-  const [seen, setSeen] = useState(false)
-  const [paused, setPaused] = useState(false)
-  const sectionRef = useRef<HTMLElement>(null)
-  const autoplay = visible && !paused && !prefersReducedMotion()
-
-  // Chỉ tự chuyển bước khi phần này đang nằm trong màn hình
-  useEffect(() => {
-    const observer = new IntersectionObserver(([entry]) => {
-      setVisible(entry.isIntersecting)
-      if (entry.isIntersecting) setSeen(true)
-    }, { threshold: 0.2 })
-    if (sectionRef.current) observer.observe(sectionRef.current)
-    return () => observer.disconnect()
-  }, [])
-
-  // Hẹn giờ gắn với `active` nên bấm chọn bước sẽ đếm lại từ đầu
-  useEffect(() => {
-    if (!autoplay) return
-    const timer = setTimeout(() => setActive((current) => (current + 1) % steps.length), STEP_MS)
-    return () => clearTimeout(timer)
-  }, [active, autoplay, steps.length])
-
+  const [ref, inView] = useInView<HTMLOListElement>()
   return (
-    <section id={id} ref={sectionRef} className={`section hiw ${seen ? 'is-seen' : ''}`} aria-labelledby={`${id}-title`}>
-      <div className="container">
-        <div className={`reveal ${seen ? 'in-view' : ''}`}>
-          <span className="pill">{label}</span>
-          <h2 id={`${id}-title`} className="hiw-title">
-            <span className="hiw-title-small">{title[0]}</span> <span className="hiw-title-big">{title[1]}</span>
-            <img className="hiw-lightning" src={lightning} alt="" width="90" height="120" />
-          </h2>
-        </div>
+    <section id={id} className={`lp-how ${inter.className}`} aria-labelledby={`${id}-title`}>
+      <div className="lp-how-stage">
+        <span className="lp-how-pill">{label}</span>
+        <h2 id={`${id}-title`} className="lp-how-title">{title}</h2>
 
-        <ol className="steps" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
+        <span className="lp-how-track" aria-hidden="true" />
+        <ol ref={ref} className={`lp-how-steps ${inView ? 'in-view' : ''}`}>
           {steps.map((step, index) => {
-            const { image, Icon } = media[index]
-            const isActive = index === active
+            const Icon = icons[step.icon]
+            const { x, y } = positions[index]
             return (
-              <li key={step.title} className={`step ${isActive ? 'active' : ''}`} style={{ '--i': index }}>
-                <button type="button" className="step-card" aria-current={isActive ? 'step' : undefined} onClick={() => setActive(index)}>
-                  <span className="step-media"><img src={image} alt="" loading="lazy" /></span>
-                  <span className="step-num">{String(index + 1).padStart(2, '0')}</span>
-                  <span className="step-body">
-                    <span className="step-icon"><Icon aria-hidden="true" /></span>
-                    <span className="step-title">{step.title}</span>
-                    <span className="step-desc">{step.description}</span>
-                  </span>
-                  {isActive && <span key={active} className={`step-progress ${autoplay ? '' : 'is-paused'}`} style={{ '--duration': `${STEP_MS}ms` }} />}
-                </button>
+              <li key={step.title} className="lp-how-step" style={{ '--i': index, '--x': x, '--y': y } as React.CSSProperties}>
+                <div className="lp-how-text">
+                  <h3 className="lp-how-step-title">{step.title}</h3>
+                  <p className="lp-how-desc">{step.description}</p>
+                </div>
+                <span className="lp-how-dot" aria-hidden="true" />
+                <span className="lp-how-line" aria-hidden="true" />
+                <span className="lp-how-chip">
+                  Bước {index + 1}
+                  <span className="lp-how-icon" aria-hidden="true"><Icon /></span>
+                </span>
               </li>
             )
           })}

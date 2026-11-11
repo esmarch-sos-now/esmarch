@@ -1,13 +1,14 @@
 /* Về chúng tôi: băng chuyền 3D, thẻ giữa nổi bật, các thẻ hai bên nghiêng và mờ dần */
 /* clip (không phải hidden) để cuộn tới #doi-ngu không làm lệch ngang băng chuyền */
 .team { --card-w: 230px; overflow: hidden; overflow: clip; }
-.team-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 16px; }
-.team-title { margin: 0; color: var(--ink); font: 900 clamp(28px, 3.4vw, 42px)/1.2 var(--font-heading); }
-.team-title span { color: var(--yellow-500); }
-.team-subtitle { margin: 8px 0 0; color: var(--muted); font: 400 16px/1.5 var(--font-body); }
+.team-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-top: 20px; }
+/* Tiêu đề / mô tả cùng font Inter và cỡ chữ với các phần landing mới (54.2 đơn vị của khung 1440) */
+.team-title { margin: 0; color: #111; font-size: min(3.011vw, 43.4px); font-weight: 700; line-height: 1.1; letter-spacing: -.025em; }
+.team-title span { color: inherit; }
+.team-subtitle { margin: 10px 0 0; color: #6b6b6b; font-size: 17px; line-height: 1.5; }
 .team-arrows { display: flex; flex: none; gap: 12px; }
-.team-arrows button { display: grid; place-items: center; width: 46px; height: 46px; padding: 0; border: 1px solid #f0d9d4; border-radius: 50%; background: #fff; color: var(--red-500); cursor: pointer; transition: background .2s, color .2s; }
-.team-arrows button:hover { background: var(--red-500); color: #fff; }
+.team-arrows button { display: grid; place-items: center; width: 46px; height: 46px; padding: 0; border: 1px solid #dcdcdc; border-radius: 50%; background: #fff; color: #111; cursor: pointer; transition: background .2s, color .2s, border-color .2s; }
+.team-arrows button:hover { border-color: #111; background: #111; color: #fff; }
 .team-arrows svg { width: 22px; height: 22px; }
 
 .team-stage { position: relative; height: calc(var(--card-w) * 1.417 + 40px); margin-top: 32px; perspective: 1400px; outline: none; touch-action: pan-y; user-select: none; }
@@ -21,12 +22,17 @@
 /* Ô kính mờ ở chân thẻ */
 .team-card-panel { position: absolute; left: 10px; right: 10px; bottom: 10px; padding: 8px 12px; border: 1px solid rgba(255, 255, 255, .35); border-radius: 14px; background: rgba(255, 255, 255, .16); backdrop-filter: blur(10px); color: #fff; }
 .team-card-panel span { display: grid; gap: 2px; }
-.team-card-panel strong { font: 600 13px var(--font); }
-.team-card-panel small { font: 400 12px var(--font-nav); opacity: .9; }
+.team-card-panel strong { font-size: 13px; font-weight: 600; }
+.team-card-panel small { font-size: 12px; font-weight: 400; opacity: .9; }
 
 .team-dots { display: flex; justify-content: center; gap: 8px; margin-top: 28px; }
-.team-dots button { width: 10px; height: 10px; padding: 0; border: 0; border-radius: 999px; background: #d9dbe6; cursor: pointer; transition: width .3s, background .3s; }
-.team-dots button.active { width: 28px; background: var(--red-500); }
+.team-dots button { width: 10px; height: 10px; padding: 0; border: 0; border-radius: 999px; background: #d9d9d9; cursor: pointer; transition: width .3s, background .3s; }
+.team-dots button.active { width: 28px; background: #111; }
+
+@media (max-width: 900px) {
+  .team-title { font-size: clamp(28px, 8vw, 44px); line-height: 1.12; }
+  .team-subtitle { font-size: 15px; }
+}
 
 @media (max-width: 767px) {
   .team { --card-w: 180px; }

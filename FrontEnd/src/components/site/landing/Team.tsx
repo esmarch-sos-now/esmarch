@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import useInView from '@/hooks/useInView'
 import { team } from '@/content/landing'
+import { inter } from './inter'
 
 const myDung = '/site/team/my-dung.webp'
 const ngocHuu = '/site/team/ngoc-huu.webp'
@@ -54,9 +55,9 @@ export default function Team({ id }: { id: string }) {
   }
 
   return (
-    <section id={id} className="section team" aria-labelledby={`${id}-title`}>
-      <div className="container">
-        <span className="pill">{label}</span>
+    <section id={id} className={`section team ${inter.className}`} aria-labelledby={`${id}-title`}>
+      <div className="lp-container">
+        <span className="lp-pill">{label}</span>
         <div ref={ref} className={`team-head reveal ${inView ? 'in-view' : ''}`}>
           <div>
             <h2 id={`${id}-title`} className="team-title">{title[0]} <span>{title[1]}</span></h2>
