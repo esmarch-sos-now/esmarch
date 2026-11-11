@@ -61,10 +61,6 @@ export const sosScreen = {
 // Menu trên các trang app; trang Cơ sở y tế được mở từ luồng SOS nên không nằm trong menu
 export const appNav = appPages.filter((page) => page.nav).map((page) => ({ path: page.path, label: page.nav as string }))
 
-export const authPages: AppPageDef[] = [
-  { path: '/dang-nhap', title: 'Đăng nhập', description: 'Đăng nhập tài khoản để lưu tiến độ khóa học và quản lý gói sử dụng. Nút SOS vẫn dùng được khi chưa đăng nhập.' },
-  { path: '/dang-ky', title: 'Đăng ký', description: 'Tạo tài khoản SOS NOW mới để học sơ cứu và nâng cấp gói Pro, Ultra.' }
-]
 
 // Màn hình Cơ sở y tế gần nhất: nhấn SOS sẽ mở màn này kèm hộp Gọi 115 / Hủy.
 // Bản demo không gọi thật: nút Gọi chỉ hiện trạng thái đang gọi

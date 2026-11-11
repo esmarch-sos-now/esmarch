@@ -1,5 +1,4 @@
 import type { ComponentType } from "react";
-import Navbar from "@/components/site/landing/Navbar";
 import Hero from "@/components/site/landing/Hero";
 import Problem from "@/components/site/landing/Problem";
 import HowItWorks from "@/components/site/landing/HowItWorks";
@@ -9,6 +8,7 @@ import Team from "@/components/site/landing/Team";
 import CallToAction from "@/components/site/landing/CallToAction";
 import Faq from "@/components/site/landing/Faq";
 import Footer from "@/components/site/landing/Footer";
+import { Page } from "@/components/site/primitives";
 import { sections } from "@/content/landing";
 
 // Component của từng mục, theo thứ tự trong `sections`
@@ -19,8 +19,8 @@ const sectionComponents: Record<string, ComponentType<{ id: string }>> = {
 
 export default function Landing() {
   return (
-    <div className="page">
-      <Navbar />
+    <Page>
+      {/* Menu của landing nằm trong Hero (HeroNav); Navbar dùng chung vẫn giữ cho các trang app */}
       <main>
         <Hero />
         {sections.map((section) => {
@@ -29,6 +29,6 @@ export default function Landing() {
         })}
       </main>
       <Footer />
-    </div>
+    </Page>
   );
 }

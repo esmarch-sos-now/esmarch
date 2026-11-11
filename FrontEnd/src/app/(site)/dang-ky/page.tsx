@@ -1,6 +1,15 @@
-import AppPage from "@/components/site/app-page";
-import { authPages } from "@/content/app";
+import type { Metadata } from "next";
+import AuthShell from "@/components/auth/auth-shell";
+import RegisterForm from "@/components/auth/register-form";
+import { safeNext } from "@/lib/auth/paths";
 
-export default function Page() {
-  return <AppPage {...authPages[1]} />;
+export const metadata: Metadata = { title: "Đăng ký – SOS NOW" };
+
+export default async function Page({ searchParams }: PageProps<"/dang-ky">) {
+  const { next } = await searchParams;
+  return (
+    <AuthShell>
+      <RegisterForm next={safeNext(next)} />
+    </AuthShell>
+  );
 }
