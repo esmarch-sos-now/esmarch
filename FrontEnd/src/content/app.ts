@@ -28,6 +28,12 @@ export const appPages: AppPageDef[] = [
     title: 'Trợ lý sơ cứu bằng giọng nói',
     description: 'Nói chuyện với trợ lý để được hướng dẫn sơ cứu từng bước bằng giọng nói và hình 3D.'
   },
+  {
+    path: '/app/luyen-tap',
+    nav: 'Luyện tập',
+    title: 'Nhận biết đột quỵ',
+    description: 'Nhận dấu hiệu FAST trước camera và ghi năm động tác theo video. Bài luyện không chẩn đoán đột quỵ.'
+  },
   // Hai tính năng dưới đây chưa làm, trang chỉ hiện dòng Coming Soon
   {
     path: '/app/tre-em',
