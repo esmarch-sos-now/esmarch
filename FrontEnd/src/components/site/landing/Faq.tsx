@@ -4,16 +4,17 @@ import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import useInView from '@/hooks/useInView'
 import { faq } from '@/content/landing'
+import { inter } from './inter'
 
 export default function Faq({ id }: { id: string }) {
   const { label, title, subtitle, items } = faq
   const [open, setOpen] = useState(0)
   const [ref, inView] = useInView<HTMLDivElement>()
   return (
-    <section id={id} className="section faq" aria-labelledby={`${id}-title`}>
-      <div ref={ref} className={`container faq-inner reveal ${inView ? 'in-view' : ''}`}>
+    <section id={id} className={`section faq ${inter.className}`} aria-labelledby={`${id}-title`}>
+      <div ref={ref} className={`lp-container faq-inner reveal ${inView ? 'in-view' : ''}`}>
         <div className="faq-intro">
-          <span className="pill">{label}</span>
+          <span className="lp-pill">{label}</span>
           <h2 id={`${id}-title`} className="faq-title">{title[0]} <span>{title[1]}</span></h2>
           <p className="faq-subtitle">{subtitle}</p>
         </div>

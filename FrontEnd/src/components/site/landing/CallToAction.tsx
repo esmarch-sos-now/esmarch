@@ -3,7 +3,9 @@
 import Link from 'next/link'
 import { appStart } from '@/content/app'
 import useInView from '@/hooks/useInView'
-import { callToAction } from '@/content/landing'
+import { callToAction, hero } from '@/content/landing'
+import HeroPhone from './HeroPhone'
+import { inter } from './inter'
 
 const googlePlay = '/site/badge-google-play.webp'
 const appStore = '/site/badge-app-store.webp'
@@ -11,11 +13,11 @@ const appStore = '/site/badge-app-store.webp'
 const badges: Record<string, string> = { 'google-play': googlePlay, 'app-store': appStore }
 
 export default function CallToAction({ id }: { id: string }) {
-  const { title, stores, phone } = callToAction
+  const { title, stores } = callToAction
   const [ref, inView] = useInView<HTMLDivElement>()
   return (
-    <section id={id} className="cta-band" aria-labelledby={`${id}-title`}>
-      <div ref={ref} className={`container cta-inner reveal ${inView ? 'in-view' : ''}`}>
+    <section id={id} className={`cta-band ${inter.className}`} aria-labelledby={`${id}-title`}>
+      <div ref={ref} className={`lp-container cta-inner reveal ${inView ? 'in-view' : ''}`}>
         <div className="cta-copy">
           <h2 id={`${id}-title`} className="cta-title">{title}</h2>
           {/* App chưa phát hành nên cả hai nút tạm dẫn về trang Nút SOS của bản web */}
@@ -28,16 +30,9 @@ export default function CallToAction({ id }: { id: string }) {
           </div>
         </div>
 
-        {/* Điện thoại minh họa màn hình SOS, phần dưới bị cắt bởi đường kẻ cuối mục */}
-        <div className="cta-phone" aria-hidden="true">
-          <span className="cta-phone-island" />
-          <p className="sos-question">{phone.question}</p>
-          <p className="sos-hint">{phone.hint}</p>
-          <div className="sos-stage">
-            <span className="sos-ring" />
-            <span className="sos-ring sos-ring-2" />
-            <span className="sos-button">SOS</span>
-          </div>
+        {/* Cùng ảnh điện thoại + màn hình SOS như ở hero; phần dưới bị cắt bởi đường kẻ cuối mục */}
+        <div className="cta-phone">
+          <HeroPhone alt={hero.phoneAlt} />
         </div>
       </div>
     </section>
