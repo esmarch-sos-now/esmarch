@@ -9,6 +9,7 @@ import Team from "@/components/site/landing/Team";
 import CallToAction from "@/components/site/landing/CallToAction";
 import Faq from "@/components/site/landing/Faq";
 import Footer from "@/components/site/landing/Footer";
+import { Page } from "@/components/site/primitives";
 import { sections } from "@/content/landing";
 
 // Component của từng mục, theo thứ tự trong `sections`
@@ -19,7 +20,7 @@ const sectionComponents: Record<string, ComponentType<{ id: string }>> = {
 
 export default function Landing() {
   return (
-    <div className="page">
+    <Page>
       <Navbar />
       <main>
         <Hero />
@@ -29,6 +30,6 @@ export default function Landing() {
         })}
       </main>
       <Footer />
-    </div>
+    </Page>
   );
 }

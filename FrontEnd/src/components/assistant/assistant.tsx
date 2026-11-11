@@ -6,6 +6,7 @@ import { ArrowLeft, History, MicOff, Phone, PhoneOff, X } from "lucide-react";
 import { useVoiceCall, type Mode } from "@/hooks/useVoiceCall";
 import { PHASE_LABEL } from "@/lib/voice/protocol";
 import { assistantScreen } from "@/content/app";
+import { cn } from "@/lib/utils";
 import ChatHistory from "./chat-history";
 import StepOverlay from "./step-overlay";
 import VoiceOrb from "./voice-orb";
@@ -75,13 +76,47 @@ export default function Assistant() {
     else if (!connecting) void call.start();
   };
 
+  // Layout: a hero with the orb until a guide opens, then the 3D guide on stage with the controls docked.
+  // From 900px wide the stage fills the screen and the controls float as a pill in the bottom-right corner.
+  const dock = Boolean(step);
+  const noisy = call.noisy;
+  // Captions are a little larger in noisy places, to read instead of listen.
+  const captionSize = dock
+    ? noisy
+      ? "text-[clamp(17px,2.2vw,21px)] min-[900px]:text-[clamp(17px,1.5vw,19px)]"
+      : "text-[clamp(14px,1.8vw,17px)] min-[900px]:text-[clamp(14px,1.3vw,16px)]"
+    : noisy
+      ? "text-[clamp(26px,3.8vw,36px)]"
+      : "text-[clamp(22px,3.2vw,30px)]";
+  const captionClamp = dock ? "line-clamp-2" : "line-clamp-3";
+  const pillLink = cn(
+    "inline-flex items-center gap-1.75 rounded-full text-sm font-semibold [&_svg]:size-4.25",
+    dock ? "min-h-8.5 px-3 text-[13px]" : "min-h-10 px-3.5",
+  );
+  const iconButton = "grid size-11 cursor-pointer place-items-center rounded-full text-[#a1a1aa] hover:text-[#f4f4f5] aria-pressed:text-[#f4f4f5] [&_svg]:size-5";
+  const notice = "max-w-115 rounded-xl border px-3.5 py-2.5 text-sm leading-[1.45]";
+
   return (
-    <div className="fa" data-layout={step ? "dock" : "hero"} data-noisy={call.noisy || undefined}>
-      <header className="fa-top">
-        <Link className="fa-back" href="/app/sos">
+    <div
+      data-layout={dock ? "dock" : "hero"}
+      data-noisy={noisy || undefined}
+      className={cn(
+        "fixed inset-0 z-100 flex flex-col overflow-clip bg-[#0d1015] text-base text-[#f4f4f5]",
+        "[&_:is(button,a):focus-visible]:outline-3 [&_:is(button,a):focus-visible]:outline-offset-2 [&_:is(button,a):focus-visible]:outline-brand-yellow",
+        // Wide dock: fade the top of the 3D stage so the header and step bar stay readable.
+        dock &&
+          "min-[900px]:before:pointer-events-none min-[900px]:before:absolute min-[900px]:before:inset-x-0 min-[900px]:before:top-0 min-[900px]:before:z-2 min-[900px]:before:h-32.5 min-[900px]:before:bg-linear-to-b min-[900px]:before:from-[rgba(13,16,21,.88)] min-[900px]:before:to-transparent min-[900px]:before:content-['']",
+      )}
+    >
+      <header className={cn("relative z-3 flex flex-none items-center justify-between gap-3 px-[max(16px,env(safe-area-inset-left))]", dock ? "pt-2 pb-1" : "py-3")}>
+        <Link className={cn(pillLink, "text-[#a1a1aa] hover:text-[#f4f4f5]")} href="/app/sos">
           <ArrowLeft aria-hidden="true" /> <span>Thoát</span>
         </Link>
-        <a className="fa-115" href="tel:115" data-urgent={call.urgent || undefined}>
+        <a
+          className={cn(pillLink, "bg-[#e11d48] text-white hover:bg-[#be123c] data-urgent:animate-pulse-115 data-urgent:shadow-[0_0_0_3px_rgba(255,255,255,.85)] motion-reduce:animate-none")}
+          href="tel:115"
+          data-urgent={call.urgent || undefined}
+        >
           <Phone aria-hidden="true" /> Gọi 115
         </a>
       </header>
@@ -93,7 +128,7 @@ export default function Assistant() {
           <iframe
             ref={frame}
             key={step.guideId}
-            className="fa-stage"
+            className="relative z-1 min-h-0 w-full flex-1 border-0 bg-[#e6ebf0] min-[900px]:absolute min-[900px]:inset-0 min-[900px]:z-0 min-[900px]:h-full"
             src={`/guides/${step.file}`}
             title={step.title}
             sandbox="allow-scripts"
@@ -102,32 +137,53 @@ export default function Assistant() {
           />
         </>
       ) : (
-        <div className="fa-glow" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(200,16,46,.16),transparent_60%)]" aria-hidden="true" />
       )}
 
-      <div className="fa-console">
-        <div className="fa-caption" aria-live="polite">
+      <div
+        className={cn(
+          "relative z-3 flex flex-col items-center px-4 pb-[max(18px,env(safe-area-inset-bottom))] text-center",
+          dock
+            ? cn(
+                "flex-none gap-2 border-t border-white/8 bg-[#0d1015] pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))]",
+                "min-[900px]:absolute min-[900px]:right-4 min-[900px]:bottom-3.5 min-[900px]:z-4 min-[900px]:m-0 min-[900px]:w-auto min-[900px]:flex-row min-[900px]:gap-2.5 min-[900px]:rounded-full min-[900px]:border min-[900px]:border-white/10 min-[900px]:bg-[rgba(13,16,21,.72)] min-[900px]:px-3.5 min-[900px]:py-2 min-[900px]:shadow-[0_12px_36px_rgba(0,0,0,.35)] min-[900px]:backdrop-blur-[16px]",
+              )
+            : "flex-1 justify-center gap-6",
+        )}
+      >
+        {/* On the wide dock the AI part is just orb, bars and end button; the words are in the transcript panel. */}
+        <div className={cn("flex max-w-170 flex-col items-center gap-2", dock && "min-[900px]:hidden")} aria-live="polite">
           {caption ? (
-            <p>{caption}</p>
+            <p className={cn("leading-[1.35] font-medium text-balance", captionClamp, captionSize)}>{caption}</p>
           ) : (
             !live && (
               <>
-                <h1>{assistantScreen.title}</h1>
-                <p className="fa-lede">{assistantScreen.lede}</p>
+                <h1 className="text-[clamp(30px,5vw,40px)] leading-[1.15] font-semibold tracking-[-.01em]">{assistantScreen.title}</h1>
+                <p className={cn("max-w-110 leading-normal text-balance text-[#a1a1aa]", captionClamp, captionSize)}>{assistantScreen.lede}</p>
               </>
             )
           )}
-          {live && lastUser && <p className="fa-user-line">Bạn: {lastUser}</p>}
+          {live && lastUser && <p className={cn("line-clamp-1 leading-[1.4] text-[rgba(165,243,252,.8)]", captionSize)}>Bạn: {lastUser}</p>}
         </div>
 
-        <div className="fa-orbrow">
-          <button type="button" className="fa-icon fa-hide-idle" data-hidden={!live && call.lines.length === 0} onClick={() => setHistoryOpen((open) => !open)} aria-label="Lịch sử trò chuyện" aria-pressed={historyOpen}>
-            <History aria-hidden="true" />
-          </button>
-          <div className="fa-viz"><VoiceVisualizer bands={bands} tone={tone} mirror /></div>
+        <div className={cn("flex items-center justify-center gap-3.5 sm:gap-5", !dock && "gap-7 sm:gap-7", dock && "min-[900px]:gap-3")}>
           <button
             type="button"
-            className="fa-orbbtn"
+            className={cn(iconButton, !live && call.lines.length === 0 && "invisible")}
+            onClick={() => setHistoryOpen((open) => !open)}
+            aria-label="Lịch sử trò chuyện"
+            aria-pressed={historyOpen}
+          >
+            <History aria-hidden="true" />
+          </button>
+          <VoiceVisualizer bands={bands} tone={tone} mirror className={cn("hidden sm:flex", dock && "h-9 min-[900px]:h-7")} />
+          <button
+            type="button"
+            className={cn(
+              "relative flex-none cursor-pointer rounded-full",
+              dock ? "size-16 max-[599px]:size-14 min-[900px]:size-13" : "size-[clamp(160px,28vw,208px)]",
+              hold && "touch-none select-none [-webkit-tap-highlight-color:transparent] [-webkit-touch-callout:none] aria-pressed:shadow-[0_0_0_4px_rgba(103,232,249,.55)]",
+            )}
             onClick={onOrb}
             data-hold={hold || undefined}
             aria-pressed={hold ? call.micOn : undefined}
@@ -142,67 +198,95 @@ export default function Assistant() {
             onContextMenu={hold ? (event) => event.preventDefault() : undefined}
           >
             <VoiceOrb mode={live ? mode : "idle"} level={level} />
-            {live && !hold && !call.micOn && <MicOff className="fa-micoff" aria-hidden="true" />}
+            {live && !hold && !call.micOn && <MicOff className="absolute top-1/2 left-1/2 size-6.5 -translate-1/2 text-[#f4f4f5]" aria-hidden="true" />}
           </button>
-          <div className="fa-viz"><VoiceVisualizer bands={bands} tone={tone} /></div>
-          <span className="fa-spacer" aria-hidden="true" />
+          <VoiceVisualizer bands={bands} tone={tone} className={cn("hidden sm:flex", dock && "h-9 min-[900px]:h-7")} />
+          <span className="block w-11" aria-hidden="true" />
         </div>
 
         {live ? (
-          <div className="fa-status">
-            <span className="fa-status-text">
+          <div className={cn("flex items-center gap-3 text-sm text-[#71717a]", dock && "text-[13px] min-[900px]:gap-0")}>
+            <span className={cn(dock && "min-[900px]:hidden")}>
               {statusText}
               {call.phase && ` · ${PHASE_LABEL[call.phase]}`}
             </span>
-            <button type="button" className="fa-end" onClick={call.end} aria-label="Kết thúc cuộc gọi">
-              <PhoneOff aria-hidden="true" /> <span className="fa-end-label">Kết thúc</span>
+            <button
+              type="button"
+              onClick={call.end}
+              aria-label="Kết thúc cuộc gọi"
+              className={cn(
+                "inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full bg-[#be123c] px-3.5 text-[13px] font-semibold text-white hover:bg-[#e11d48] [&_svg]:size-4",
+                dock && "min-[900px]:min-h-10 min-[900px]:w-10 min-[900px]:justify-center min-[900px]:p-0",
+              )}
+            >
+              <PhoneOff aria-hidden="true" /> <span className={cn(dock && "min-[900px]:hidden")}>Kết thúc</span>
             </button>
           </div>
         ) : (
-          <div className="fa-start">
-            <button type="button" className="fa-startbtn" onClick={onOrb} disabled={connecting}>
+          <div className={cn("flex flex-col items-center gap-3", dock && "min-[900px]:hidden")}>
+            <button
+              type="button"
+              onClick={onOrb}
+              disabled={connecting}
+              className="inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-full bg-[#e11d48] px-6 text-base font-semibold text-white hover:not-disabled:bg-[#f43f5e] disabled:cursor-progress disabled:opacity-70 [&_svg]:size-4.75"
+            >
               <Phone aria-hidden="true" />
               {connecting ? "Đang kết nối…" : status === "idle" ? assistantScreen.start : assistantScreen.again}
             </button>
-            <p className="fa-consent">{assistantScreen.consent}</p>
+            <p className={cn("max-w-115 text-xs leading-normal text-[#71717a]", dock && "hidden")}>{assistantScreen.consent}</p>
           </div>
         )}
 
         {live && (
-          <div className="fa-talk" role="group" aria-label={assistantScreen.talkModeLabel}>
-            <button type="button" aria-pressed={!hold} onClick={() => call.setTalkMode("open")}>
-              {assistantScreen.talkFree}
-            </button>
-            <button type="button" aria-pressed={hold} onClick={() => call.setTalkMode("hold")}>
-              {assistantScreen.talkHold}
-            </button>
+          <div className="inline-flex rounded-full bg-white/8 p-0.75" role="group" aria-label={assistantScreen.talkModeLabel}>
+            {[
+              { pressed: !hold, mode: "open" as const, label: assistantScreen.talkFree },
+              { pressed: hold, mode: "hold" as const, label: assistantScreen.talkHold },
+            ].map((option) => (
+              <button
+                key={option.mode}
+                type="button"
+                aria-pressed={option.pressed}
+                onClick={() => call.setTalkMode(option.mode)}
+                className="min-h-8.5 cursor-pointer rounded-full px-3 text-[13px] font-semibold text-[#a1a1aa] aria-pressed:bg-white/16 aria-pressed:text-[#f4f4f5]"
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         )}
 
         {live && call.noiseHint && (
-          <div className="fa-notice fa-hint" role="status">
-            <span>{assistantScreen.noisyHint}</span>
-            <button type="button" onClick={call.acceptNoiseHint}>{assistantScreen.noisyEnable}</button>
-            <button type="button" className="fa-hint-x" onClick={call.dismissNoiseHint} aria-label={assistantScreen.noisyDismiss}>
+          <div className={cn(notice, "flex items-center gap-2.5 border-[rgba(251,191,36,.4)] bg-[rgba(251,191,36,.12)] text-left text-[#fde68a]")} role="status">
+            <span className="flex-1">{assistantScreen.noisyHint}</span>
+            <button type="button" onClick={call.acceptNoiseHint} className="min-h-8.5 flex-none cursor-pointer rounded-full bg-[#fbbf24] px-3.5 text-[13px] font-semibold text-[#1c1917]">
+              {assistantScreen.noisyEnable}
+            </button>
+            <button
+              type="button"
+              onClick={call.dismissNoiseHint}
+              aria-label={assistantScreen.noisyDismiss}
+              className="grid min-h-8.5 w-8.5 flex-none cursor-pointer place-items-center text-[#fde68a] [&_svg]:size-4"
+            >
               <X aria-hidden="true" />
             </button>
           </div>
         )}
 
         {call.notice && (
-          <p className="fa-notice" role="status">
+          <p className={cn(notice, "border-[rgba(251,191,36,.4)] bg-[rgba(251,191,36,.12)] text-[#fde68a]")} role="status">
             {call.notice}
           </p>
         )}
 
         {call.error && (
-          <p className="fa-error" role="alert">
+          <p className={cn(notice, "border-[rgba(251,113,133,.4)] bg-[rgba(225,29,72,.12)] text-[#fecdd3]")} role="alert">
             {call.error}
           </p>
         )}
       </div>
 
-      <ChatHistory lines={call.lines} handoff={call.handoff} open={historyOpen} onClose={() => setHistoryOpen(false)} />
+      <ChatHistory lines={call.lines} handoff={call.handoff} open={historyOpen} docked={dock} onClose={() => setHistoryOpen(false)} />
     </div>
   );
 }
