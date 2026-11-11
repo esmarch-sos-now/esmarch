@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
-import { cityCenter } from "@/content/facilities";
+import { cityCenter, formatDistance } from "@/content/facilities";
 import type { Facility } from "@/lib/api/types";
 import type { Point } from "@/lib/api/hooks";
+import { formatDuration, type Route } from "@/lib/directions";
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 const STYLE = "mapbox://styles/mapbox/streets-v12";
@@ -17,7 +18,36 @@ type Props = {
   selectedId: string | null;
   focusVersion: number;
   onSelect: (id: string) => void;
+  /** Tuyến đường đang chỉ (tuyến 0 là đề xuất); rỗng thì không vẽ */
+  routes?: Route[];
+  activeRoute?: number;
+  onSelectRoute?: (index: number) => void;
+  /** Đang chỉ đường tới cơ sở được chọn: không bay tới ghim / mở popup (popup che mất tuyến đường) */
+  navigating?: boolean;
 };
+
+const ROUTE_SOURCE = "directions";
+const ROUTE_BLUE = "#1a73e8";
+const ROUTE_GREY = "#9aa0a6";
+
+// Nhãn thời gian + quãng đường đặt giữa tuyến, như hộp chú thích trên Google Maps: tuyến đang chọn nền xanh, tuyến khác nền trắng.
+function routeLabel(route: Route, active: boolean): HTMLButtonElement {
+  const element = document.createElement("button");
+  element.type = "button";
+  element.className = [
+    "cursor-pointer rounded-md px-2.5 py-1.5 text-left leading-tight shadow-[0_2px_8px_rgb(0_0_0/25%)]",
+    active ? "z-2 bg-[#1a73e8] text-white" : "z-1 bg-white text-[#202124]",
+  ].join(" ");
+  element.setAttribute("aria-label", `Chọn tuyến ${formatDuration(route.duration)}, ${formatDistance(route.distance)}`);
+  const time = document.createElement("strong");
+  time.className = "block text-[15px] font-semibold";
+  time.textContent = formatDuration(route.duration);
+  const distance = document.createElement("span");
+  distance.className = "block text-[11px] opacity-85";
+  distance.textContent = formatDistance(route.distance);
+  element.append(time, distance);
+  return element;
+}
 
 // Popup content is built from text nodes: facility data is rendered as text, never as HTML.
 function facilityPopup(facility: Facility, onSelect: (id: string) => void): HTMLElement {
@@ -61,7 +91,7 @@ function facilityMarker(index: number, name: string): HTMLButtonElement {
   return element;
 }
 
-export default function FacilityMap({ facilities, location, selectedId, focusVersion, onSelect }: Props) {
+export default function FacilityMap({ facilities, location, selectedId, focusVersion, onSelect, routes = [], activeRoute = 0, onSelectRoute, navigating = false }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markers = useRef(new Map<string, mapboxgl.Marker>());
@@ -72,9 +102,12 @@ export default function FacilityMap({ facilities, location, selectedId, focusVer
   const [failed, setFailed] = useState(!TOKEN);
   const [retry, setRetry] = useState(0);
 
+  const onSelectRouteRef = useRef(onSelectRoute);
+
   useEffect(() => {
     selected.current = selectedId;
     onSelectRef.current = onSelect;
+    onSelectRouteRef.current = onSelectRoute;
   });
 
   // Create the map once per mount (official mapbox-gl usage: set accessToken, new Map({ container, style })).
@@ -161,9 +194,60 @@ export default function FacilityMap({ facilities, location, selectedId, focusVer
     const map = mapRef.current;
     const marker = selectedId ? markers.current.get(selectedId) : undefined;
     if (!map || !marker) return;
+    if (navigating) {
+      if (marker.getPopup()?.isOpen()) marker.togglePopup();
+      return; // khung nhìn do tuyến đường quyết định (fitBounds bên dưới)
+    }
     map.flyTo({ center: marker.getLngLat(), zoom: 16 });
     if (!marker.getPopup()?.isOpen()) marker.togglePopup();
-  }, [selectedId, focusVersion]);
+  }, [selectedId, focusVersion, navigating]);
+
+  // Tuyến đường: tuyến khác màu xám, tuyến đang chọn màu xanh có viền trắng (vẽ sau cùng để nằm trên), bấm tuyến xám để chọn.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const data = {
+      type: "FeatureCollection" as const,
+      features: routes.map((route, index) => ({
+        type: "Feature" as const,
+        properties: { index, active: index === activeRoute },
+        geometry: { type: "LineString" as const, coordinates: route.coordinates },
+      })),
+    };
+    const source = map.getSource<mapboxgl.GeoJSONSource>(ROUTE_SOURCE);
+    if (source) source.setData(data);
+    else {
+      map.addSource(ROUTE_SOURCE, { type: "geojson", data });
+      const line = { "line-join": "round", "line-cap": "round" } as const;
+      map.addLayer({ id: "route-alt", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "active"], false], layout: line, paint: { "line-color": ROUTE_GREY, "line-width": 6 } });
+      map.addLayer({ id: "route-casing", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "active"], true], layout: line, paint: { "line-color": "#ffffff", "line-width": 10 } });
+      map.addLayer({ id: "route-main", type: "line", source: ROUTE_SOURCE, filter: ["==", ["get", "active"], true], layout: line, paint: { "line-color": ROUTE_BLUE, "line-width": 6 } });
+      map.on("click", "route-alt", (event) => {
+        const feature = event.features?.[0] as { properties?: { index?: unknown } } | undefined;
+        const index = feature?.properties?.index;
+        if (typeof index === "number") onSelectRouteRef.current?.(index);
+      });
+      map.on("mouseenter", "route-alt", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "route-alt", () => { map.getCanvas().style.cursor = ""; });
+    }
+    // Nhãn ở khoảng giữa mỗi tuyến (lệch nhau một chút để hai nhãn không chồng lên nhau)
+    const labels = routes.map((route, index) => {
+      const at = route.coordinates[Math.floor(route.coordinates.length * (index === 0 ? 0.45 : 0.6))];
+      const element = routeLabel(route, index === activeRoute);
+      element.addEventListener("click", () => onSelectRouteRef.current?.(index));
+      return new mapboxgl.Marker({ element, anchor: "bottom" }).setLngLat(at).addTo(map);
+    });
+    return () => labels.forEach((label) => label.remove());
+  }, [routes, activeRoute, ready]);
+
+  // Có tuyến mới thì thu phóng để thấy trọn đường đi
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || routes.length === 0) return;
+    const bounds = new mapboxgl.LngLatBounds();
+    routes.forEach((route) => route.coordinates.forEach((point) => bounds.extend(point)));
+    map.fitBounds(bounds, { padding: { top: 70, bottom: 70, left: 60, right: 60 }, maxZoom: 16 });
+  }, [routes, ready]);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -185,6 +269,12 @@ export default function FacilityMap({ facilities, location, selectedId, focusVer
       />
       <p className="flex flex-none flex-wrap items-center gap-2.5 bg-white px-3.25 py-2.75 text-[11px]">
         <span className="inline-block size-2.5 rounded-full bg-[#bf2b2f]" /> Cơ sở y tế <span className="ml-3 inline-block size-2.5 rounded-full bg-[#2563eb]" /> Vị trí của bạn
+        {routes.length > 0 && (
+          <>
+            <span className="ml-3 inline-block h-1 w-4 rounded-full bg-[#1a73e8]" /> Tuyến đang chọn
+            {routes.length > 1 && <><span className="ml-3 inline-block h-1 w-4 rounded-full bg-[#9aa0a6]" /> Tuyến khác</>}
+          </>
+        )}
       </p>
       {failed && (
         <p className="my-3 px-3.5 text-[13px] leading-[1.7] text-[#942025]" role="status">
