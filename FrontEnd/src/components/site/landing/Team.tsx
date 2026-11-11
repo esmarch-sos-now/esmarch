@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Container, Pill, Section, reveal } from '@/components/site/primitives'
+import { FrameContainer, FramePill, Section, reveal } from '@/components/site/primitives'
 import useInView from '@/hooks/useInView'
 import { cn } from '@/lib/utils'
 import { team } from '@/content/landing'
+import { inter } from './inter'
 
 const myDung = '/site/team/my-dung.webp'
 const ngocHuu = '/site/team/ngoc-huu.webp'
@@ -57,13 +58,13 @@ export default function Team({ id }: { id: string }) {
 
   return (
     // clip (không phải hidden) để cuộn tới #doi-ngu không làm lệch ngang băng chuyền
-    <Section id={id} className="overflow-clip [--card-w:230px] max-md:[--card-w:180px]" aria-labelledby={`${id}-title`}>
-      <Container>
-        <Pill>{label}</Pill>
-        <div ref={ref} className={cn('mt-4 flex items-end justify-between gap-6 max-md:flex-col max-md:items-start', reveal(inView))}>
+    <Section id={id} className={cn(inter.className, 'overflow-clip [--card-w:230px] max-md:[--card-w:180px]')} aria-labelledby={`${id}-title`}>
+      <FrameContainer>
+        <FramePill>{label}</FramePill>
+        <div ref={ref} className={cn('mt-5 flex items-end justify-between gap-6 max-md:flex-col max-md:items-start', reveal(inView))}>
           <div>
-            <h2 id={`${id}-title`} className="text-[clamp(28px,3.4vw,42px)] leading-[1.2] font-black text-ink">{title[0]} <span className="text-brand-yellow">{title[1]}</span></h2>
-            <p className="mt-2 text-base text-muted-foreground">{subtitle}</p>
+            <h2 id={`${id}-title`} className="text-[min(3.011vw,43.4px)] leading-[1.1] font-bold tracking-[-.025em] text-[#111] max-lp:text-[clamp(28px,8vw,44px)] max-lp:leading-[1.12]">{title[0]} {title[1]}</h2>
+            <p className="mt-2.5 text-[17px] leading-normal text-[#6b6b6b] max-lp:text-[15px]">{subtitle}</p>
           </div>
           <div className="flex flex-none gap-3">
             {[{ step: -1, label: 'Thành viên trước', Icon: ChevronLeft }, { step: 1, label: 'Thành viên tiếp theo', Icon: ChevronRight }].map(({ step, label: arrowLabel, Icon }) => (
@@ -72,14 +73,14 @@ export default function Team({ id }: { id: string }) {
                 type="button"
                 onClick={() => go(step)}
                 aria-label={arrowLabel}
-                className="grid size-11.5 cursor-pointer place-items-center rounded-full border border-[#f0d9d4] bg-white text-brand transition-colors duration-200 hover:bg-brand hover:text-white [&_svg]:size-5.5"
+                className="grid size-11.5 cursor-pointer place-items-center rounded-full border border-[#dcdcdc] bg-white text-[#111] transition-colors duration-200 hover:border-[#111] hover:bg-[#111] hover:text-white [&_svg]:size-5.5"
               >
                 <Icon />
               </button>
             ))}
           </div>
         </div>
-      </Container>
+      </FrameContainer>
 
       {/* Băng chuyền 3D: thẻ giữa nổi bật, các thẻ hai bên nghiêng và mờ dần */}
       <div
@@ -135,7 +136,7 @@ export default function Team({ id }: { id: string }) {
             role="tab"
             aria-selected={index === active}
             aria-label={member.name}
-            className={cn('h-2.5 cursor-pointer rounded-full transition-[width,background] duration-300', index === active ? 'w-7 bg-brand' : 'w-2.5 bg-[#d9dbe6]')}
+            className={cn('h-2.5 cursor-pointer rounded-full transition-[width,background] duration-300', index === active ? 'w-7 bg-[#111]' : 'w-2.5 bg-[#d9d9d9]')}
             onClick={() => setActive(index)}
           />
         ))}
