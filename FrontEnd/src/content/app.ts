@@ -97,7 +97,22 @@ export const facilityScreen = {
   failed: 'Không lấy được vị trí, đang hiển thị các cơ sở gần trung tâm TP.HCM.',
   retry: 'Thử định vị lại',
   call115: 'Gọi 115',
-  showOnMap: 'Xem trên bản đồ',
+  // Nút gọi cạnh mỗi số tổng đài của cơ sở y tế (mở trình gọi điện qua tel:)
+  callNumber: 'Gọi',
+  // Dẫn đường tới cơ sở (Mapbox Directions): chỉ xe máy và ô tô
+  directions: {
+    start: 'Dẫn đường',
+    title: 'Chỉ đường tới',
+    vehicle: 'Phương tiện',
+    close: 'Đóng chỉ đường',
+    loading: 'Đang tìm đường đi…',
+    routes: 'Các tuyến đường',
+    best: 'Đề xuất',
+    alternative: 'Tuyến khác',
+    steps: 'Xem từng bước',
+    fromCenter: 'Chưa định vị được bạn: đang chỉ đường từ trung tâm TP.HCM.',
+    motorbikeNote: 'Xe máy: tuyến tránh đường cao tốc, thời gian là ước tính.'
+  },
   emergency: 'Có cấp cứu',
   hours24: 'Trực 24/24',
   distanceNote: 'đường chim bay',

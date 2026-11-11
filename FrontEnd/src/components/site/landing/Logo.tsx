@@ -8,7 +8,7 @@ const variants = {
   default: {
     link: 'gap-2 text-ink',
     img: 'h-8.5 max-lg:h-7.5',
-    text: '-translate-y-px font-[Arial,var(--font-geist)] text-xl font-black tracking-[-.02em] max-lg:text-lg max-xs:text-[17px]'
+    text: '-translate-y-px font-sans text-xl font-extrabold tracking-[-.02em] max-lg:text-lg max-xs:text-[17px]'
   },
   glass: {
     link: 'gap-[calc(8*var(--u))] text-white max-lp:gap-2',

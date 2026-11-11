@@ -38,7 +38,7 @@ export default function HeroPhone({ alt, className }: { alt: string; className?:
         {/* Màn hình SOS (390x844) ghép phối cảnh vào ô màn hình của khung điện thoại */}
         <div className="absolute top-0 left-0 flex h-[844px] w-[390px] origin-top-left transform-[matrix3d(1.4104664,0.13170189,0,0.00010929786,0.28793851,1.5652971,0,-0.000058255877,0,0,1,0,57.742839,17.111516,0,1)] flex-col items-center overflow-hidden bg-white pt-10 text-center font-sans text-ink">
           <div className="flex h-14 w-full shrink-0 items-center justify-between border-b border-line px-4">
-            <span className="inline-flex items-center gap-2 font-[Arial,sans-serif] text-[19px] leading-none font-black tracking-[-.02em]">
+            <span className="inline-flex items-center gap-2 font-sans text-[19px] leading-none font-extrabold tracking-[-.02em]">
               <img src={logoMark} alt="" width="46" height="62" className="h-8 w-auto" />
               <span>SOS NOW</span>
             </span>

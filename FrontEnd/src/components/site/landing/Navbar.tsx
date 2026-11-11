@@ -103,9 +103,14 @@ export default function Navbar({ appLinks }: { appLinks?: AppLink[] }) {
             </ul>
             <div className={cn('flex items-center gap-3 max-lg:justify-between max-lg:border-t max-lg:border-line max-lg:px-3 max-lg:pt-3 max-lg:pb-1', status === 'loading' && 'invisible')}>
               {user ? (
-                <Button asChild className="h-10 rounded-full px-5 text-base font-extrabold max-lg:h-11 max-lg:w-full max-lg:text-lg">
-                  <Link href={ACCOUNT_PATH} onClick={close}><UserRound data-icon="inline-start" />{user.displayName ?? authCopy.nav.account}</Link>
-                </Button>
+                // Đã đăng nhập: chỉ hiện tên (kèm biểu tượng), không có nền nút; bấm vào để mở trang Tài khoản
+                <Link
+                  href={ACCOUNT_PATH}
+                  onClick={close}
+                  className={cn('inline-flex items-center gap-1.5 text-[17px] font-extrabold text-ink no-underline max-lg:text-lg [&_svg]:size-4.5', linkHover)}
+                >
+                  <UserRound aria-hidden="true" />{user.displayName ?? authCopy.nav.account}
+                </Link>
               ) : (
                 <>
                   <Link className={cn('text-[17px] font-extrabold text-ink no-underline max-lg:text-lg', linkHover)} href="/dang-ky" onClick={close}>Sign up</Link>
