@@ -1,16 +1,10 @@
 import type { NextConfig } from "next";
 
-// Server-side URL of the FastAPI backend (docker compose service name by default for dev outside compose: localhost).
-const BACKEND_URL = (process.env.BACKEND_URL ?? "http://localhost:8000").replace(/\/+$/, "");
-
 const nextConfig: NextConfig = {
   // Dev server reached through a quick tunnel (cloudflared) for outside testers.
   allowedDevOrigins: ["*.trycloudflare.com"],
   reactCompiler: true,
-  async rewrites() {
-    // Browser -> /backend/api/... -> FastAPI /api/... (dedicated prefix, no clash with Next's own routes).
-    return [{ source: "/backend/:path*", destination: `${BACKEND_URL}/:path*` }];
-  },
+  // Browser -> /backend/api/... -> FastAPI /api/... is done in src/proxy.ts, which also adds the session's bearer token.
   async redirects() {
     return [{ source: "/app", destination: "/app/sos", permanent: false }];
   },

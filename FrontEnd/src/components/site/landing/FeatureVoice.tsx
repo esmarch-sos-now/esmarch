@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { Check } from 'lucide-react'
 import useInView from '@/hooks/useInView'
+import { cn } from '@/lib/utils'
 import { inter } from './inter'
 import NetworkGraph from './NetworkGraph'
 
@@ -96,28 +97,85 @@ function ParticleSphere() {
     }
   }, [])
 
-  return <canvas ref={canvasRef} className="lp-voice-sphere" aria-hidden="true" />
+  return <canvas ref={canvasRef} className="block size-full" aria-hidden="true" />
+}
+
+// Chữ hiện dần khi cuộn tới
+function rise(inView: boolean) {
+  return cn(
+    'transition-[opacity,translate] duration-700 ease-in-out motion-reduce:transition-none',
+    inView ? 'translate-y-0 opacity-100' : 'translate-y-[calc(20*var(--u))] opacity-0 max-lp:motion-safe:translate-y-5 motion-reduce:translate-y-0 motion-reduce:opacity-100',
+  )
 }
 
 // Bố cục tính năng nền đen: tiêu đề, dòng đỏ, danh sách trong thẻ kính (trái) + hình động (phải).
 // Dùng cho "AI Voice" (quả cầu hạt phản ứng theo "giọng nói") và "Tìm kiếm người hỗ trợ" (mạng lưới điểm), cùng cỡ chữ.
+// Toạ độ theo khung 1440x810 nhưng kéo cả khối lên 110 đơn vị để nối liền với khối SOS phía trên.
+// Dưới breakpoint `lp`: chữ lên trên, hình động ở dưới.
 export default function FeatureVoice({ item, titleId = 'ai-voice-title', visual = 'sphere' }: { item: VoiceFeature; titleId?: string; visual?: 'sphere' | 'network' }) {
   const [ref, inView] = useInView<HTMLDivElement>()
+  // Mạng lưới: đảo bố cục (hình bên trái, mô tả bên phải, chỉ trên desktop) để xen kẽ với khối AI Voice phía trên.
+  // Đây cũng là khối tính năng cuối nên có thêm dải chuyển từ đen sang nền trắng của phần Bảng giá.
+  const reverse = visual === 'network'
   return (
-    // Mạng lưới: đảo bố cục (hình bên trái, mô tả bên phải) để xen kẽ với khối AI Voice phía trên
-    <section className={`lp-voice ${visual === 'network' ? 'lp-voice-reverse' : ''} ${inter.className}`} aria-labelledby={titleId}>
-      <div ref={ref} className={`lp-voice-stage ${inView ? 'in-view' : ''}`}>
-        <div className="lp-voice-info">
-          <h3 id={titleId} className="lp-voice-title">{item.title}</h3>
-          <p className="lp-voice-lead">{item.subtitle}</p>
+    // Chồng 2px lên khối trên để không lộ vạch mảnh do làm tròn pixel ở chỗ nối hai khối nền đen
+    <section
+      aria-labelledby={titleId}
+      className={cn(
+        inter.className,
+        'relative -mt-0.5 overflow-clip bg-black text-white',
+        reverse && "pb-[calc(130*var(--u))] after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-[calc(130*var(--u))] after:bg-[linear-gradient(to_top,#fff_0%,#d9d9d9_14%,#9e9e9e_32%,#5a5a5a_52%,#262626_72%,#0a0a0a_88%,#000_100%)] after:content-['']",
+      )}
+    >
+      <div ref={ref} className="relative mx-auto h-[calc(560*var(--u))] w-[calc(1440*var(--u))] max-lp:flex max-lp:h-auto max-lp:w-auto max-lp:flex-col max-lp:px-5 max-lp:pt-12 max-lp:pb-10">
+        <div className="pointer-events-none absolute inset-0 *:pointer-events-auto max-lp:static max-lp:order-1 max-lp:flex max-lp:flex-col max-lp:items-start max-lp:*:static">
+          <h3
+            id={titleId}
+            className={cn(
+              'absolute top-[calc(90*var(--u))] left-[calc(81*var(--u))] text-[calc(49.9*var(--u))] leading-none font-semibold tracking-[-.025em] whitespace-nowrap max-lp:text-[clamp(26px,7.4vw,40px)] max-lp:leading-[1.15] max-lp:whitespace-normal',
+              reverse && 'lp:left-[calc(755*var(--u))]',
+              rise(inView),
+            )}
+          >
+            {item.title}
+          </h3>
+          <p
+            className={cn(
+              'absolute top-[calc(157*var(--u))] left-[calc(87*var(--u))] text-[calc(20.5*var(--u))] leading-[1.2] tracking-[-.01em] whitespace-nowrap text-[#ff6b4d] delay-80 max-lp:mt-2.5 max-lp:text-base max-lp:whitespace-normal',
+              reverse && 'lp:left-[calc(761*var(--u))]',
+              rise(inView),
+            )}
+          >
+            {item.subtitle}
+          </p>
           {/* Danh sách có dấu tích nằm trong thẻ kính mờ (liquid glass) giống khối SOS phía trên */}
-          <ul className="lp-voice-points lp-glass">
+          <ul
+            className={cn(
+              'glass absolute top-[calc(220*var(--u))] left-[calc(81*var(--u))] flex w-[calc(620*var(--u))] flex-col gap-[calc(22*var(--u))] rounded-[calc(24*var(--u))] px-[calc(32*var(--u))] py-[calc(30*var(--u))] delay-160',
+              'max-lp:mt-5.5 max-lp:w-full max-lp:gap-3.5 max-lp:rounded-[20px] max-lp:px-4.5 max-lp:py-5',
+              reverse && 'lp:left-[calc(755*var(--u))]',
+              rise(inView),
+            )}
+          >
             {item.points.map((point) => (
-              <li key={point}><span className="lp-voice-check"><Check aria-hidden="true" /></span><span>{point}</span></li>
+              <li key={point} className="flex items-center gap-[calc(17*var(--u))] text-[calc(21*var(--u))] leading-[1.3] text-[#ececec] max-lp:gap-3.5 max-lp:text-base">
+                <span className="grid size-[calc(40*var(--u))] flex-none place-items-center rounded-full bg-[#e6e9fb] text-[#4f5fd6] max-lp:size-8.5 [&_svg]:size-[calc(20*var(--u))] [&_svg]:stroke-[2.6] max-lp:[&_svg]:size-4.25">
+                  <Check aria-hidden="true" />
+                </span>
+                <span>{point}</span>
+              </li>
             ))}
           </ul>
         </div>
-        <div className="lp-voice-visual">{visual === 'network' ? <NetworkGraph /> : <ParticleSphere />}</div>
+        {/* Hình động: canvas vuông, nền trong suốt nên hoà vào nền đen */}
+        <div
+          className={cn(
+            'absolute top-0 left-[calc(812*var(--u))] size-[calc(520*var(--u))] max-lp:relative max-lp:top-auto max-lp:left-auto max-lp:order-2 max-lp:mx-auto max-lp:mt-5 max-lp:aspect-square max-lp:h-auto max-lp:w-[min(100%,380px)]',
+            reverse && 'lp:left-[calc(115*var(--u))]',
+          )}
+        >
+          {reverse ? <NetworkGraph /> : <ParticleSphere />}
+        </div>
       </div>
     </section>
   )

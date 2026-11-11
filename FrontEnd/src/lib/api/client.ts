@@ -1,5 +1,6 @@
-// Browser-side API client. Requests go to the Next origin and are proxied to the FastAPI backend
-// (see rewrites in next.config.ts), so no CORS and no backend URL in the bundle.
+// Browser-side API client for public data. Requests go to the Next origin and src/proxy.ts forwards them to FastAPI,
+// so no CORS and no backend URL in the bundle. Cookies are omitted on purpose: these calls stay anonymous.
+// Authenticated calls use useAuthFetch() from hooks/use-auth.
 export const API_BASE = "/backend";
 
 export class ApiError extends Error {

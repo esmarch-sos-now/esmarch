@@ -34,9 +34,14 @@ function facilityPopup(facility: Facility, onSelect: (id: string) => void): HTML
   return popup;
 }
 
+// Round numbered pin with a little tail (rotated square). Mapbox positions it absolutely.
+const MARKER =
+  "grid size-8 place-items-center rounded-full border-3 border-white p-0 text-[11px] leading-none font-bold text-white shadow-[0_2px_7px_rgb(34_38_41/32%)] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[#f5cc53] " +
+  "after:absolute after:-bottom-1.25 after:left-2 after:z-0 after:size-2.5 after:rotate-45 after:border-r-3 after:border-b-3 after:border-white after:bg-inherit after:content-[''] [&>span]:relative [&>span]:z-1";
+
 function userMarker(): HTMLElement {
   const element = document.createElement("div");
-  element.className = "facility-map-marker facility-map-marker--user";
+  element.className = `${MARKER} cursor-default bg-[#2563eb]`;
   element.setAttribute("role", "img");
   element.setAttribute("aria-label", "Vị trí của bạn");
   const text = document.createElement("span");
@@ -48,7 +53,7 @@ function userMarker(): HTMLElement {
 function facilityMarker(index: number, name: string): HTMLButtonElement {
   const element = document.createElement("button");
   element.type = "button";
-  element.className = "facility-map-marker facility-map-marker--facility";
+  element.className = `${MARKER} cursor-pointer bg-[#bf2b2f]`;
   element.setAttribute("aria-label", `${index + 1}. ${name}`);
   const text = document.createElement("span");
   text.textContent = String(index + 1);
@@ -161,23 +166,33 @@ export default function FacilityMap({ facilities, location, selectedId, focusVer
   }, [selectedId, focusVersion]);
 
   return (
-    <div className="facility-map-frame">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* Mapbox renders its own DOM (popups, controls); style it through descendant selectors. */}
       <div
         ref={container}
-        className="facility-map-canvas facility-map-canvas--vector"
+        className={[
+          "relative isolate z-0 min-h-0 w-full flex-1 overflow-hidden bg-[#e8efe8] text-[#292624]",
+          "[&_.mapboxgl-popup-content]:w-[min(260px,calc(100vw-128px))]! [&_.mapboxgl-popup-content]:wrap-anywhere",
+          "[&_.mapboxgl-popup-content_strong]:mb-1.75 [&_.mapboxgl-popup-content_strong]:block [&_.mapboxgl-popup-content_strong]:text-sm [&_.mapboxgl-popup-content_strong]:leading-normal",
+          "[&_.mapboxgl-popup-content_p]:mb-2.5 [&_.mapboxgl-popup-content_p]:text-xs [&_.mapboxgl-popup-content_p]:leading-[1.7]",
+          "[&_.mapboxgl-popup-content_button]:min-h-10 [&_.mapboxgl-popup-content_button]:cursor-pointer [&_.mapboxgl-popup-content_button]:rounded-sm [&_.mapboxgl-popup-content_button]:border [&_.mapboxgl-popup-content_button]:border-[#d8cfc5] [&_.mapboxgl-popup-content_button]:bg-white [&_.mapboxgl-popup-content_button]:px-2.5 [&_.mapboxgl-popup-content_button]:py-1.75 [&_.mapboxgl-popup-content_button]:text-[#942025]",
+          "[&_.mapboxgl-ctrl-group]:overflow-hidden [&_.mapboxgl-ctrl-group]:rounded-md [&_.mapboxgl-ctrl-group]:border [&_.mapboxgl-ctrl-group]:border-[#e7e0d8] [&_.mapboxgl-ctrl-group]:shadow-[0_2px_8px_rgb(34_38_41/18%)]",
+          "[&_.mapboxgl-ctrl-group_button]:size-8.5 [&_.mapboxgl-ctrl-group_button]:bg-white [&_.mapboxgl-ctrl-group_button]:text-[#292624] [&_.mapboxgl-ctrl-group_button:hover]:bg-[#f4f8f7]",
+          "[&_.mapboxgl-ctrl-attrib]:max-w-[min(70vw,390px)] [&_.mapboxgl-ctrl-attrib]:bg-white/92 [&_.mapboxgl-ctrl-attrib]:text-[10px] [&_.mapboxgl-ctrl-attrib]:text-[#46423e] [&_.mapboxgl-ctrl-attrib_a]:text-[#075985] [&_.mapboxgl-ctrl-attrib_a]:underline",
+        ].join(" ")}
         role="region"
         aria-label="Bản đồ cơ sở y tế. Kéo để di chuyển, dùng nút thu phóng hoặc chọn một ghim để xem thông tin."
       />
-      <p className="facility-map-legend">
-        <span className="facility-pin-dot" /> Cơ sở y tế <span className="facility-user-dot" /> Vị trí của bạn
+      <p className="flex flex-none flex-wrap items-center gap-2.5 bg-white px-3.25 py-2.75 text-[11px]">
+        <span className="inline-block size-2.5 rounded-full bg-[#bf2b2f]" /> Cơ sở y tế <span className="ml-3 inline-block size-2.5 rounded-full bg-[#2563eb]" /> Vị trí của bạn
       </p>
       {failed && (
-        <p className="facility-feedback" role="status">
+        <p className="my-3 px-3.5 text-[13px] leading-[1.7] text-[#942025]" role="status">
           {TOKEN
             ? "Bản đồ chưa tải được. Bạn vẫn có thể xem địa chỉ và gọi từ danh sách. "
             : "Chưa cấu hình NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN nên chưa hiện bản đồ. Danh sách bên dưới vẫn dùng được. "}
           {TOKEN && (
-            <button type="button" onClick={() => { setFailed(false); setRetry((value) => value + 1); }}>
+            <button type="button" className="min-h-11 cursor-pointer px-3 py-1 underline" onClick={() => { setFailed(false); setRetry((value) => value + 1); }}>
               Tải lại bản đồ
             </button>
           )}

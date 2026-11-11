@@ -12,6 +12,8 @@ from app.core.db import get_engine
 from app.core.middleware import PublicApiMiddleware
 from app.modules.aeds import router as aeds_router
 from app.modules.alerts import router as alerts_router
+from app.modules.auth import router as auth_router
+from app.modules.auth import service as auth_service
 from app.modules.capabilities import router as capabilities_router
 from app.modules.districts import router as districts_router
 from app.modules.facilities import catalog, road_distance
@@ -35,10 +37,23 @@ def _warm() -> None:
         catalog.all_facilities(session)  # warm public catalogue; no location-dependent work
 
 
+def _purge_auth() -> None:
+    if get_settings().auth_configured:
+        with Session(get_engine()) as session:
+            auth_service.purge(session)
+
+
 async def _purge_loop() -> None:
+    ticks = 0
     while True:
         await asyncio.sleep(30)
         support.purge()
+        ticks += 1
+        if ticks % 120 == 0:  # hourly: expired refresh tokens and email codes
+            try:
+                await asyncio.to_thread(_purge_auth)
+            except Exception:
+                log.exception("Auth purge failed.")
 
 
 @asynccontextmanager
@@ -65,13 +80,14 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=s.origins,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Accept", "Authorization", "X-Admin-Token"],
         expose_headers=["Retry-After"],
         max_age=3600,
     )
     for module in (
         health_router,
+        auth_router,
         facilities_router,
         districts_router,
         guides_router,
