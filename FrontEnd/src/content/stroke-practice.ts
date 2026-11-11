@@ -1,50 +1,32 @@
 // Nội dung bài luyện tránh đột quỵ. Chỉ là ôn tập, không phải chẩn đoán.
 
-export type QuizQuestion = {
-  question: string
-  options: string[]
-  answer: number
-}
-
 export const strokePractice = {
-  title: 'Luyện tập tránh đột quỵ',
-  lede: 'Ôn thói quen phòng ngừa, nhận dấu hiệu FAST, rồi thử thao tác trước camera. Bài này giúp bạn nhớ việc cần làm. Nó không kết luận bạn có bị đột quỵ hay không.',
-  prevention: {
-    label: 'Phòng ngừa',
-    title: 'Thói quen giảm nguy cơ',
-    intro: 'Đột quỵ thường đi cùng huyết áp cao, thuốc lá, ít vận động và ăn mặn. Đánh dấu việc bạn đang giữ. Danh sách chỉ lưu trên trình duyệt này.',
-    risks: [
-      { title: 'Huyết áp cao', text: 'Huyết áp tăng lâu ngày làm yếu mạch máu não. Hãy đo định kỳ và hỏi bác sĩ nếu chỉ số cao.' },
-      { title: 'Thuốc lá', text: 'Khói thuốc làm mạch máu dễ tổn thương. Bỏ thuốc là một cách giảm nguy cơ rõ nhất.' },
-      { title: 'Ít vận động', text: 'Ngồi nhiều đi cùng thừa cân và huyết áp cao. Đi bộ phần lớn các ngày trong tuần đã có ích.' },
-      { title: 'Ăn mặn', text: 'Muối kéo huyết áp lên. Bớt nước chấm, đồ hộp và đồ ăn sẵn.' }
-    ],
-    habits: [
-      { id: 'bp', label: 'Đo huyết áp và uống thuốc đúng chỉ định của bác sĩ' },
-      { id: 'move', label: 'Đi bộ hoặc vận động nhẹ hầu hết các ngày' },
-      { id: 'salt', label: 'Ăn nhạt hơn và không hút thuốc' },
-      { id: 'rest', label: 'Ngủ đủ và hạn chế rượu bia' }
-    ],
-    progress: (done: number, total: number) => `Đã chọn ${done}/${total} thói quen`
-  },
+  title: 'Nhận biết đột quỵ',
+  lede: 'Cười, giơ hai tay và nói một câu trước camera, rồi ghi năm động tác mỗi ngày.',
   fast: {
     label: 'Nhận biết',
-    title: 'FAST — việc cần làm ngay',
-    intro: 'Khi một bên mặt xệ, một tay yếu hoặc nói khó xuất hiện đột ngột, ghi lại giờ và gọi 115. Không chờ xem có tự khỏi.',
+    title: 'FAST — làm ngay',
+    intro: 'Mặt xệ, tay yếu hoặc nói khó: ghi giờ và gọi 115.',
     steps: [
-      { letter: 'F', title: 'Face — Mặt', text: 'Nhờ người đó cười. Quan sát một bên mặt hoặc khóe miệng có xệ xuống không.' },
-      { letter: 'A', title: 'Arms — Tay', text: 'Nhờ giơ hai tay về phía trước và giữ. Một tay có rơi xuống không.' },
-      { letter: 'S', title: 'Speech — Lời nói', text: 'Nhờ nhắc một câu đơn giản. Nghe xem có nói khó, lẫn hoặc không nói được không.' },
-      { letter: 'T', title: 'Time — Thời gian', text: 'Ghi lúc triệu chứng bắt đầu và gọi 115 ngay. Không tự lái xe đến bệnh viện.' }
+      { letter: 'F', title: 'Mặt', text: 'Nhờ cười. Một bên có xệ không?' },
+      { letter: 'A', title: 'Tay', text: 'Nhờ giơ hai tay. Một tay có rơi không?' },
+      { letter: 'S', title: 'Lời nói', text: 'Nhờ nói một câu. Có nói khó không?' },
+      { letter: 'T', title: 'Thời gian', text: 'Ghi giờ bắt đầu và gọi 115. Đừng tự lái xe.' }
     ],
-    avoid: 'Không cho ăn, uống hoặc tự dùng thuốc trong khi chờ trợ giúp.',
+    avoid: 'Không ăn, uống hay tự uống thuốc.',
     sos: 'Mở nút SOS',
     call: 'Gọi 115'
   },
   camera: {
     label: 'Trước camera',
-    title: 'Luyện thao tác FAST',
-    intro: 'Bấm bắt đầu để mở camera, đếm ngược, rồi lần lượt cười, giơ hai tay và nói một câu. Hình và giọng nói được xử lý trên máy bạn, không gửi lên máy chủ. Lần đầu trình duyệt có thể tải mô hình nhận diện về máy.',
+    title: 'Căn theo nét mẫu',
+    intro: 'Bấm nút tròn và căn người theo nét trắng.',
+    follow: 'Căn theo nét trắng',
+    frames: [
+      { id: 'face' as const, title: 'Cười', text: 'Nhìn thẳng camera và cười.' },
+      { id: 'arms' as const, title: 'Giơ hai tay', text: 'Giơ cả hai tay ngang vai và giữ.' },
+      { id: 'speech' as const, title: 'Nói một câu', text: 'Nói to: Hôm nay trời đẹp.' }
+    ],
     start: 'Bắt đầu bài luyện',
     again: 'Làm lại',
     preparing: 'Đang mở camera và chuẩn bị nhận diện…',
@@ -58,64 +40,69 @@ export const strokePractice = {
     modelError: 'Chưa tải được bộ nhận diện. Hãy kiểm tra mạng rồi thử lại.',
     genericError: 'Bài luyện bị dừng. Hãy thử lại. Nếu bạn đang có triệu chứng thật, hãy gọi 115.',
     summaries: {
-      attention: 'Có dấu hiệu cần chú ý trong bài luyện. Nếu đây là triệu chứng thật, hãy gọi 115.',
+      attention: 'Có lệch cần chú ý trong bài luyện. Nếu đây là triệu chứng thật, hãy gọi 115.',
       'no-clear-difference': 'Bài luyện không thấy lệch rõ. Bài này không loại trừ đột quỵ.',
-      incomplete: 'Chưa nhận được đủ thao tác mặt hoặc tay. Hãy làm lại ở nơi đủ sáng, nhìn thẳng vào camera.'
+      incomplete: (part: string) => `Chưa nhận được thao tác ${part}. Hãy làm lại ở nơi đủ sáng, nhìn thẳng vào camera.`
     },
+    note: 'Không dùng để chẩn đoán.',
     steps: { face: 'Mặt', arms: 'Tay', speech: 'Lời nói' },
     verdicts: {
-      even: 'Không thấy lệch rõ',
-      uneven: 'Có lệch cần chú ý',
-      missing: 'Chưa nhận được thao tác'
+      even: 'Đã nhận',
+      uneven: 'Cần chú ý',
+      missing: 'Chưa thấy'
+    },
+    details: {
+      face: {
+        even: 'Khóe miệng đều.',
+        uneven: 'Một bên miệng thấp hơn.',
+        missing: 'Chưa thấy mặt. Nhìn thẳng và cười.'
+      },
+      arms: {
+        even: 'Hai tay giơ đều.',
+        uneven: 'Một tay thấp hơn.',
+        missing: 'Chưa thấy hai tay. Giơ ngang vai và giữ.'
+      }
     },
     speech: {
-      heard: 'Đã nghe câu nói',
-      unclear: 'Chưa nghe rõ. Điều này không được tính là nói khó.',
-      skipped: 'Trình duyệt không hỗ trợ nhận giọng nói, bước nói được bỏ qua và không tính là nói khó.'
+      heard: 'Đã nghe',
+      unclear: 'Chưa rõ',
+      skipped: 'Bỏ qua'
+    },
+    speechDetail: {
+      heard: 'Nghe đúng câu mẫu.',
+      unclear: 'Chưa nghe rõ câu mẫu.',
+      skipped: 'Trình duyệt không nhận giọng nói.'
     }
   },
-  quiz: {
-    label: 'Kiểm tra',
-    title: 'Quiz nhanh',
-    intro: 'Năm câu về FAST và việc không được làm. Điểm lưu trên trình duyệt này.',
-    previous: (score: number, total: number) => `Lần trước: ${score}/${total} câu đúng`,
-    progress: (index: number, total: number) => `Câu ${index}/${total}`,
-    next: 'Câu tiếp theo',
-    finish: 'Xem kết quả',
-    resultLabel: 'Kết quả bài kiểm tra',
-    result: (score: number, total: number) => `${score}/${total} câu đúng`,
-    good: 'Bạn nhớ các việc cần làm. Nếu đang có người có triệu chứng thật, hãy gọi 115.',
-    review: 'Xem lại phần FAST phía trên, rồi làm lại.',
-    retry: 'Làm lại',
-    questions: [
-      {
-        question: 'Trong quy tắc FAST, chữ T nhắc bạn làm gì?',
-        options: ['Ghi thời điểm triệu chứng và gọi 115', 'Đo thân nhiệt', 'Cho uống thuốc ngay'],
-        answer: 0
-      },
-      {
-        question: 'Thấy méo miệng và một tay yếu xuất hiện đột ngột, việc đúng là gì?',
-        options: ['Gọi 115 ngay và ghi giờ bắt đầu', 'Cho uống nước đường rồi theo dõi', 'Đợi một giờ xem có tự khỏi'],
-        answer: 0
-      },
-      {
-        question: 'Khi nghi đột quỵ, có nên cho người đó ăn hoặc uống không?',
-        options: ['Không cho ăn, uống hay tự dùng thuốc', 'Có, để đỡ hạ đường huyết', 'Chỉ uống một ngụm nước'],
-        answer: 0
-      },
-      {
-        question: 'Một tay rơi xuống khi giơ hai tay là dấu hiệu của bước nào?',
-        options: ['Arms — Tay', 'Time — Thời gian', 'Chỉ là mệt, không cần để ý'],
-        answer: 0
-      },
-      {
-        question: 'Bài luyện trước camera dùng để làm gì?',
-        options: ['Ôn thao tác và không thay thế việc gọi 115', 'Kết luận chắc chắn là không bị đột quỵ nếu thao tác đều', 'Chẩn đoán đột quỵ tại nhà'],
-        answer: 0
-      }
-    ] satisfies QuizQuestion[]
+  daily: {
+    label: 'Mỗi ngày',
+    title: 'Năm động tác trong video',
+    intro: 'Đánh dấu động tác đã làm hôm nay.',
+    caution: 'Đừng nín thở. Chóng mặt, đau ngực hoặc khó thở thì dừng.',
+    moves: [
+      { id: 'fists', title: 'Nắm tay', text: 'Hít vào nắm chặt, thở ra thả lỏng. 100–200 lần.' },
+      { id: 'shoulders', title: 'Mở vai', text: 'Đưa khuỷu ra sau, mở ngực, rồi thả. 4–8 phút.' },
+      { id: 'neck', title: 'Cổ', text: 'Cúi đầu chậm theo hơi thở. Đừng ngửa quá.' },
+      { id: 'side', title: 'Nghiêng người', text: 'Tay qua đầu, nghiêng sang bên kia, rồi đổi bên.' },
+      { id: 'fengchi', title: 'Huyệt Phong trì', text: 'Day nhẹ hốc sau gáy, khoảng 3 phút.' }
+    ],
+    progress: (done: number, total: number) => `${done}/${total} động tác hôm nay`,
+    streak: (days: number) => days > 0 ? `${days} ngày liên tiếp` : 'Chưa có chuỗi ngày',
+    week: '7 ngày gần đây',
+    empty: 'Chưa có buổi nào. Đánh dấu động tác hoặc làm bài camera để bắt đầu.',
+    first: 'Đây là buổi đầu tiên được lưu.',
+    movesCompare: (today: number, before: number) => `Hôm nay ${today}/5 động tác. Buổi trước ${before}/5.`,
+    signs: {
+      face: { even: 'mặt đều', uneven: 'mặt lệch', missing: 'chưa đủ mẫu mặt' },
+      arms: { even: 'hai tay đều', uneven: 'tay lệch', missing: 'chưa đủ mẫu tay' },
+      speech: { heard: 'nghe rõ câu mẫu', unclear: 'chưa nghe rõ câu mẫu', skipped: 'không kiểm tra giọng nói' }
+    },
+    recognize: (text: string) => `Nhận biết hôm nay: ${text}.`,
+    recognizeCompare: (today: string, before: string) => `Nhận biết hôm nay: ${today}. Buổi trước: ${before}.`,
+    attentionNote: 'Nếu lệch này là triệu chứng thật, hãy gọi 115.',
+    note: 'Nhật ký chỉ lưu trên trình duyệt này.'
   }
 }
 
-export const HABIT_STORAGE_KEY = 'sos-now-stroke-habits'
-export const QUIZ_STORAGE_KEY = 'sos-now-stroke-quiz'
+export const DAY_STORAGE_KEY = 'sos-now-stroke-days'
+

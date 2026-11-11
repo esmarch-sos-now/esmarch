@@ -31,8 +31,8 @@ export const appPages: AppPageDef[] = [
   {
     path: '/app/luyen-tap',
     nav: 'Luyện tập',
-    title: 'Luyện tập tránh đột quỵ',
-    description: 'Ôn thói quen phòng ngừa, nhận dấu hiệu FAST, luyện thao tác trước camera và làm quiz. Bài luyện không chẩn đoán đột quỵ.'
+    title: 'Nhận biết đột quỵ',
+    description: 'Nhận dấu hiệu FAST trước camera và ghi năm động tác theo video. Bài luyện không chẩn đoán đột quỵ.'
   },
   // Hai tính năng dưới đây chưa làm, trang chỉ hiện dòng Coming Soon
   {

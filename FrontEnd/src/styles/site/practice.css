@@ -1,101 +1,37 @@
-/* Trang luyện tập tránh đột quỵ: phòng ngừa, FAST, camera và quiz.
-   Dev đã bỏ CSS global; các biến và nút dưới đây gắn vào theme Tailwind để trang này vẫn hiện đúng. */
-.page:has(.practice) { min-height: 100vh; background: var(--color-paper); }
-
-.practice {
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 32px var(--gutter) 72px;
-  --gutter: 16px;
-  --ink: var(--color-ink);
-  --muted: var(--color-gray);
-  --line: var(--color-line);
-  --paper: var(--color-paper);
-  --red-500: var(--color-brand);
-  --red-600: var(--color-brand-dark);
-  --yellow-500: var(--color-brand-yellow);
-  --font: var(--font-geist), system-ui, sans-serif;
-  --font-body: var(--font-geist), system-ui, sans-serif;
-  --font-heading: var(--font-geist), system-ui, sans-serif;
-  --font-number: var(--font-anton), var(--font-geist), sans-serif;
-}
-
-.practice .button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 24px; border: 0; border-radius: 999px; font: 600 16px var(--font); text-decoration: none; cursor: pointer; }
-.practice .button-primary { background: var(--red-500); color: #fff; }
-.practice .button-primary:hover { background: var(--red-600); }
-.practice .button-outline { background: none; color: var(--ink); box-shadow: inset 0 0 0 2px var(--line); }
-.practice .button-outline:hover { box-shadow: inset 0 0 0 2px var(--ink); }
-.practice .app-emergency { margin: 40px 0 0; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
-.practice .app-emergency a { color: var(--red-500); font-weight: 700; }
-.practice-title { margin: 0; color: var(--ink); font: 900 clamp(30px, 4vw, 44px)/1.15 var(--font-heading); letter-spacing: -.01em; }
-.practice-lede { max-width: 680px; margin: 12px 0 0; color: var(--muted); font: 400 17px/1.6 var(--font-body); }
-
-.practice-section { margin-top: 40px; padding-top: 28px; border-top: 1px solid var(--line); }
-.practice-kicker { margin: 0; color: var(--red-500); font: 700 13px/1 var(--font); letter-spacing: .08em; text-transform: uppercase; }
-.practice-section h2 { margin: 8px 0 0; color: var(--ink); font: 800 clamp(22px, 3vw, 28px)/1.25 var(--font-heading); }
-.practice-copy { max-width: 680px; margin: 8px 0 0; color: var(--muted); font: 400 16px/1.6 var(--font-body); }
-
-.practice-risks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 18px 0 0; padding: 0; list-style: none; }
-.practice-risks li { padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
-.practice-risks h3 { margin: 0; color: var(--ink); font: 800 16px/1.35 var(--font-heading); }
-.practice-risks p { margin: 6px 0 0; color: var(--muted); font: 400 14px/1.55 var(--font-body); }
-
-.practice-progress { margin: 18px 0 0; color: var(--ink); font: 700 14px var(--font); }
-.practice-habits { display: grid; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
-.practice-habits label { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font: 500 15px/1.45 var(--font-body); cursor: pointer; }
-.practice-habits label:hover { border-color: var(--red-500); }
-.practice-habits input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--red-500); }
-
-.practice-fast { display: grid; gap: 10px; margin: 18px 0 0; padding: 0; list-style: none; }
-.practice-fast li { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 12px; align-items: start; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
-.practice-fast strong { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: #fdf0ed; color: var(--red-500); font: 800 16px var(--font-heading); }
-.practice-fast h3 { margin: 0; color: var(--ink); font: 800 16px/1.3 var(--font-heading); }
-.practice-fast p { margin: 4px 0 0; color: var(--muted); font: 400 14px/1.5 var(--font-body); }
-.practice-avoid { margin: 14px 0 0; padding: 12px 14px; border-radius: 12px; background: #fff4d6; color: #6d4a00; font: 600 14px/1.5 var(--font-body); }
-.practice-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-.practice-actions .button { gap: 8px; }
-.practice .button:disabled { opacity: .45; cursor: default; }
-.practice-actions .button svg { width: 18px; height: 18px; }
-
-.practice-stage { position: relative; margin-top: 18px; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #1c1c1c; aspect-ratio: 4 / 3; }
-.practice-stage video { display: block; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-.practice-stage-empty { display: grid; place-items: center; height: 100%; padding: 24px; color: #fff; text-align: center; }
-.practice-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; padding: 16px; background: linear-gradient(transparent, rgba(0, 0, 0, .72)); color: #fff; pointer-events: none; }
-.practice-overlay strong { font: 800 18px/1.3 var(--font-heading); }
-.practice-count { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font: 900 96px/1 var(--font-number); text-shadow: 0 8px 24px rgba(0, 0, 0, .45); pointer-events: none; }
-.practice-status { min-height: 1.5em; margin: 12px 0 0; color: var(--ink); font: 600 15px/1.5 var(--font-body); }
-.practice-status.is-error { color: var(--red-500); }
-.practice-result { margin-top: 14px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
-.practice-result.is-attention { border-color: var(--red-500); background: #fdf0ed; }
-.practice-result h3 { margin: 0; color: var(--ink); font: 800 18px/1.35 var(--font-heading); }
-.practice-result ul { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
-.practice-result li { display: flex; justify-content: space-between; gap: 12px; color: var(--ink); font: 500 14px/1.45 var(--font-body); }
-.practice-result li span { color: var(--muted); text-align: right; }
-
-.practice-quiz-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 16px; color: var(--muted); font: 600 13px var(--font); }
-.practice-question { margin: 10px 0 0; color: var(--ink); font: 800 20px/1.4 var(--font-heading); }
-.practice-options { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
-.practice-options button { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); font: 500 15px/1.45 var(--font-body); text-align: left; cursor: pointer; }
-.practice-options button:hover:not(:disabled) { border-color: var(--ink); }
-.practice-options button:disabled { cursor: default; }
-.practice-options button b { display: grid; flex: none; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #f2f2f2; font: 700 13px var(--font); }
-.practice-options .is-correct { border-color: #1f7a4d; background: #eef8f2; }
-.practice-options .is-wrong { border-color: var(--red-500); background: #fdf0ed; }
-.practice-options .is-muted { opacity: .55; }
-.practice-score { margin: 8px 0 0; color: var(--ink); font: 900 clamp(32px, 5vw, 44px)/1 var(--font-heading); }
-.practice-previous { margin: 8px 0 0; color: var(--muted); font: 600 14px var(--font-body); }
-
-.practice .button:focus-visible,
-.practice-options button:focus-visible,
-.practice-habits input:focus-visible { outline: 3px solid var(--yellow-500); outline-offset: 3px; }
+/* Khung camera của trang nhận biết. Phần còn lại dùng cùng kiểu chữ và thẻ với các trang app. */
+.practice-stage { position: relative; display: flex; flex-direction: column; width: min(100%, 420px); margin: 22px auto 0; overflow: hidden; aspect-ratio: 3 / 4; border-radius: 28px; background: #161616; box-shadow: 0 22px 50px rgba(22, 22, 22, .18); }
+.practice-stage::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; z-index: 2; height: 42%; background: linear-gradient(transparent, rgba(0, 0, 0, .55)); pointer-events: none; }
+.practice-stage video { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; background: #111; }
+.practice-stage video[hidden] { display: none !important; }
+.practice-canvas { position: relative; z-index: 1; flex: 1; min-height: 0; }
+.practice-silhouette { position: absolute; inset: 7% 12% 2%; z-index: 1; width: auto; height: auto; color: #fff; pointer-events: none; filter: drop-shadow(0 0 1px rgba(0, 0, 0, .85)); }
+.practice-thumb { position: absolute; top: 14px; left: 14px; z-index: 4; width: 74px; padding: 6px; border-radius: 14px; background: rgba(255, 255, 255, .94); box-shadow: 0 10px 24px rgba(0, 0, 0, .28); }
+.practice-thumb-art { display: block; width: 100%; height: 64px; color: var(--color-ink); }
+.practice-step { position: absolute; top: 16px; right: 16px; left: 16px; z-index: 3; margin: 0; color: #fff; font: 700 13px/1.2 var(--font-geist), system-ui, sans-serif; letter-spacing: .04em; text-align: center; text-shadow: 0 1px 8px rgba(0, 0, 0, .65); pointer-events: none; }
+.practice-count { position: absolute; top: 44px; left: 50%; z-index: 4; display: grid; width: 64px; height: 64px; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, .42); color: #fff; font: 900 32px/1 var(--font-anton), var(--font-geist), sans-serif; transform: translateX(-50%); }
+.practice-caption { position: absolute; right: 16px; bottom: 8px; left: 16px; z-index: 4; display: grid; gap: 2px; justify-items: center; color: #fff; text-align: center; text-shadow: 0 1px 8px rgba(0, 0, 0, .7); pointer-events: none; }
+.practice-caption strong { font: 800 16px/1.35 var(--font-geist), system-ui, sans-serif; }
+.practice-caption span { font: 600 13px/1.3 var(--font-geist), system-ui, sans-serif; }
+.practice-wait { position: absolute; top: 50%; right: 20px; left: 20px; z-index: 4; margin: 0; padding: 10px 14px; border-radius: 999px; background: rgba(0, 0, 0, .55); color: #fff; font: 600 14px/1.4 var(--font-geist), system-ui, sans-serif; text-align: center; transform: translateY(-50%); }
+.practice-deck { position: relative; z-index: 4; display: grid; justify-items: center; gap: 10px; padding: 0 12px 14px; }
+.practice-shutter { display: grid; justify-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: #fff; cursor: pointer; }
+.practice-shutter i { width: 68px; height: 68px; border: 4px solid #fff; border-radius: 50%; background: radial-gradient(circle, var(--color-brand) 0 62%, transparent 64%); box-shadow: 0 10px 24px rgba(0, 0, 0, .35); }
+.practice-shutter em { font: 700 13px/1 var(--font-geist), system-ui, sans-serif; font-style: normal; text-shadow: 0 1px 8px rgba(0, 0, 0, .75); }
+.practice-shutter:hover i { transform: scale(1.04); }
+.practice-shutter:focus-visible { outline: 3px solid var(--color-brand-yellow); outline-offset: 4px; border-radius: 16px; }
+.practice-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; margin: 0; padding: 0; }
+.practice-strip button { display: grid; justify-items: center; gap: 2px; min-width: 0; padding: 6px 4px 8px; border: 2px solid transparent; border-radius: 14px; background: rgba(255, 255, 255, .94); color: var(--color-ink); cursor: pointer; }
+.practice-strip button.is-active { border-color: var(--color-brand); }
+.practice-strip button:disabled { opacity: 1; color: var(--color-ink); cursor: default; }
+.practice-strip button:focus-visible { outline: 3px solid var(--color-brand-yellow); outline-offset: 2px; }
+.practice-strip .practice-thumb-art { height: 42px; }
+.practice-strip span { font: 700 11px/1.2 var(--font-geist), system-ui, sans-serif; }
+.practice-thumb + .practice-step { left: 96px; right: 16px; }
 
 @media (max-width: 720px) {
-  .practice-risks { grid-template-columns: 1fr; }
-  .practice-count { font-size: 72px; }
+  .practice-stage { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .practice-actions .button,
-  .practice-options button,
-  .practice-habits label { transition: none; }
+  .practice-shutter i { transition: none; }
 }
