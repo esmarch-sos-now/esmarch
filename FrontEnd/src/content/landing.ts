@@ -6,11 +6,15 @@ export const navLinks = [
   { id: 'doi-ngu', label: 'Về chúng tôi' }
 ]
 
+// Hero theo mẫu thiết kế (khung 1440x810)
 export const hero = {
-  title: ['Ứng dụng', 'Sơ cứu', 'khẩn cấp'],
-  description: 'Ứng dụng sơ cứu khẩn cấp tích hợp giọng nói AI, đào tạo sơ cứu và kết nối với các dịch vụ hỗ trợ',
+  eyebrow: 'Sơ cứu khẩn cấp với',
+  title: 'SOS NOW',
+  description: 'Giọng nói AI hướng dẫn bạn sơ cứu từng bước, đào tạo kỹ năng và kết nối nhanh với 115 cùng cơ sở y tế gần nhất.',
+  prompt: 'Ấn để tìm hiểu thêm',
   cta: 'Bắt đầu ngay',
-  imageAlt: 'Quy trình SOS NOW: AI Voice hướng dẫn, bấm SOS gọi 115, định vị vị trí, tìm bệnh viện và được hỗ trợ'
+  tags: ['First Aid', 'AI Voice'],
+  phoneAlt: 'Màn hình SOS của ứng dụng SOS NOW: nút SOS lớn và nút gọi 115'
 }
 
 // Vấn đề: chưa đưa số liệu, khi có nguồn tin cậy thì bổ sung vào từng thẻ
@@ -29,26 +33,29 @@ export const problem = {
 }
 
 // Mô tả các bước là bản nháp, cần nhóm duyệt lại câu chữ
+// Hướng dẫn sử dụng theo mẫu thiết kế mới (4 bước, mỗi bước một ảnh minh họa trong /public/site/how)
 export const howItWorks = {
   label: 'HDSD',
-  title: ['Quy trình', 'cơ bản'],
+  title: 'Quy trình cơ bản:',
   steps: [
-    { title: 'Một lần ấn nút SOS', description: 'Chỉ cần một chạm vào nút SOS, ứng dụng lập tức bật chế độ khẩn cấp và hướng dẫn bạn bằng giọng nói.' },
-    { title: 'Chia sẻ vị trí', description: 'Vị trí của bạn được gửi ngay cho người thân và lực lượng hỗ trợ gần nhất để họ nắm rõ tình hình.' },
-    { title: 'Gọi hỗ trợ', description: 'Kết nối nhanh với 115 và người biết sơ cứu ở gần, trong khi AI tiếp tục hướng dẫn bạn từng bước.' },
-    { title: 'Dẫn đường', description: 'Chỉ đường tới cơ sở y tế gần nhất và giúp đội cứu hộ tìm đến bạn nhanh hơn.' }
+    // icon: tên biểu tượng trong nút tròn trắng trên thanh timeline (xem HowItWorks.tsx)
+    { title: 'Ấn nút SOS', description: 'Chỉ một lần ấn nút SOS, ứng dụng lập tức định vị và tìm kiếm bệnh viện hoặc cơ sở y tế gần nhất', icon: 'sos' },
+    { title: 'Chia sẻ vị trí', description: 'Vị trí được chia sẻ ngay lập tức để hỗ trợ tìm kiếm', icon: 'location' },
+    { title: 'Gọi hỗ trợ', description: 'Kết nối nhanh với 115 hoặc bệnh viện gần nhất. Trong khi AI tiếp tục hỗ trợ sơ cứu', icon: 'call' },
+    { title: 'Dẫn đường', description: 'Dẫn đường đến cơ sở y tế gần nhất giúp người trợ giúp tìm đến bạn nhanh hơn', icon: 'navigate' }
   ]
 }
 
 // Phần "Tính năng": mỗi mục có một khung minh họa giao diện app (voice | course | sos)
 export const features = {
   label: 'Tính năng',
-  title: ['SOS NOW', 'cung cấp gì?'],
+  // Tiêu đề tách 2 phần: chữ thương hiệu trong khung xanh + phần chữ trắng phía sau
+  title: { brand: 'SOS NOW', rest: 'cung cấp gì?' },
   items: [
     {
       visual: 'sos',
       tag: 'SOS khẩn cấp',
-      title: 'SOS khẩn cấp',
+      title: 'SOS Khẩn cấp',
       subtitle: 'Một lần chạm, tìm kiếm trợ giúp trong tình huống khẩn cấp',
       points: [
         'Phát tín hiệu SOS chỉ với một chạm',
@@ -69,14 +76,15 @@ export const features = {
       ]
     },
     {
-      visual: 'course',
-      tag: 'Khóa học',
-      title: 'Khóa học sơ cứu',
-      subtitle: 'Chuẩn bị cho các tình huống khẩn cấp nhất',
+      visual: 'network',
+      tag: 'Người hỗ trợ',
+      title: 'Tìm kiếm người hỗ trợ',
+      subtitle: 'Tìm kiếm người có khả năng sơ cứu gần bạn nhất',
       points: [
-        'Khóa học online tại nhà',
-        'Đăng ký tham gia lớp Sơ cứu cơ bản tại Hội Chữ thập đỏ',
-        'Làm quiz để ôn tập và kiểm tra kiến thức'
+        'Tìm người sơ cứu đã được xác minh ở gần bạn',
+        'Gửi yêu cầu hỗ trợ kèm vị trí hiện tại',
+        'Người hỗ trợ nhận yêu cầu và tìm đến bạn',
+        'Theo dõi trạng thái yêu cầu theo thời gian thực'
       ]
     }
   ]
@@ -84,8 +92,8 @@ export const features = {
 
 // Bảng giá: giá và quyền lợi là dữ liệu mẫu, nhóm sẽ chốt lại sau
 export const pricing = {
-  label: 'Bảng giá',
-  includesLabel: 'Bao gồm:',
+  title: 'Bảng giá',
+  cta: 'Bắt đầu ngay',
   plans: [
     {
       id: 'free',
@@ -169,11 +177,7 @@ export const callToAction = {
   stores: [
     { id: 'google-play', label: 'Tải SOS NOW trên Google Play' },
     { id: 'app-store', label: 'Tải SOS NOW trên App Store' }
-  ],
-  phone: {
-    question: 'Bạn đang gặp nguy hiểm?',
-    hint: 'Nhấn nút bên dưới, trợ giúp sẽ sớm tìm đến bạn.'
-  }
+  ]
 }
 
 // Link footer trỏ tới mục tương ứng trên landing hoặc trang app; mục chưa có trang riêng tạm về trang Nút SOS

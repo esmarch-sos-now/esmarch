@@ -1,19 +1,17 @@
-/* Phần "Tính năng": tiêu đề căn trái như "Quy trình cơ bản", 3 hàng chữ + khung minh họa xen kẽ trái/phải */
-.features-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 8px 0 40px; font-family: var(--font-heading); font-weight: 900; line-height: 1.2; text-transform: uppercase; text-shadow: 3px 4px 6px rgba(0, 0, 0, .25); }
-.features-title-brand { color: var(--red-500); font-size: clamp(32px, 3.6vw, 46px); }
-.features-title-rest { color: var(--ink); font-size: clamp(20px, 2vw, 26px); }
-.features-lightning { width: clamp(40px, 4.2vw, 56px); height: auto; margin-left: 8px; }
-
+/* Các tính năng chưa có mẫu thiết kế mới: hàng chữ + khung minh họa xen kẽ trái/phải. Nền đen như cả phần Tính năng. */
+.features { position: relative; margin-top: -2px; padding-bottom: 150px; background: #000; color: #fff; }
+/* Dải chuyển từ nền đen sang nền trắng của phần bên dưới */
+.features::after { content: ''; position: absolute; right: 0; bottom: 0; left: 0; height: 130px; background: linear-gradient(to bottom, #000 0%, #0a0a0a 12%, #262626 28%, #5a5a5a 48%, #9e9e9e 68%, #d9d9d9 86%, #fff 100%); pointer-events: none; }
 .feature-list { display: grid; gap: clamp(72px, 9vw, 120px); max-width: 1120px; margin: 0 auto; }
 .feature { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: clamp(32px, 6vw, 88px); }
 .feature-reverse .feature-text { order: 2; }
 
 .feature-text { max-width: 460px; }
 .feature-tag { display: inline-block; padding: 3px 12px; border-radius: 999px; background: #fde08f; color: var(--ink); font: 500 14px var(--font-nav); }
-.feature-title { margin: 14px 0 6px; color: var(--ink); font: 900 clamp(26px, 2.6vw, 34px)/1.2 var(--font-heading); letter-spacing: -.01em; }
+.feature-title { margin: 14px 0 6px; color: #fff; font: 900 clamp(26px, 2.6vw, 34px)/1.2 var(--font-heading); letter-spacing: -.01em; }
 .feature-subtitle { margin: 0 0 32px; color: var(--red-500); font: 400 17px/1.4 var(--font-nav); }
 .feature-points { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
-.feature-points li { display: flex; align-items: center; gap: 14px; color: #222; font: 400 16px/1.4 var(--font-nav); }
+.feature-points li { display: flex; align-items: center; gap: 14px; color: #ececec; font: 400 16px/1.4 var(--font-nav); }
 .feature-check { display: grid; flex: none; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #e6e9fb; color: #4f5fd6; }
 .feature-check svg { width: 16px; height: 16px; stroke-width: 2.5; }
 
@@ -21,22 +19,6 @@
 .feature-visual { display: flex; justify-content: center; height: 366px; padding: 0 9%; border: 1px solid #e3e7f3; border-radius: 48px; background: #fff; box-shadow: 0 30px 60px -24px rgba(70, 90, 200, .22); }
 .mock { display: flex; flex-direction: column; width: 100%; height: 100%; padding: 24px 28px; border: 1px solid #d9dde8; border-radius: 28px; background: #fff; box-shadow: 0 14px 30px rgba(20, 30, 80, .1); color: #222; font-family: var(--font-nav); }
 .mock-caption { margin: 0; color: #333; font-size: 14px; font-weight: 500; text-align: center; }
-
-/* AI Voice */
-.voice-prompt { margin: 22px 0 0; font-size: 17px; line-height: 1.3; }
-.voice-status { display: grid; justify-items: center; gap: 4px; margin: auto 0; }
-.voice-status strong { font-size: 30px; font-weight: 400; }
-.voice-status small { font-size: 14px; }
-.voice-wave { display: flex; align-items: center; gap: 4px; height: 22px; }
-.voice-wave span { width: 4px; height: 100%; border-radius: 2px; background: var(--red-500); transform: scaleY(.35); animation: voice-wave 1s ease-in-out infinite; animation-delay: calc(var(--i) * .12s); }
-@keyframes voice-wave { 50% { transform: scaleY(1); } }
-.voice-dots { display: inline-block; animation: voice-dots 1.4s steps(4) infinite; clip-path: inset(0 100% 0 0); }
-@keyframes voice-dots { to { clip-path: inset(0 -10% 0 0); } }
-.voice-input { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 -16px -12px; padding: 14px 14px 12px; border-radius: 20px; background: #f6f6f8; }
-.voice-orb { width: 22px; height: 22px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #e7ddff, #b9c4ff); }
-.voice-placeholder { flex: 1; color: #b5b8c2; font-size: 16px; }
-.voice-speak { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; padding: 6px 12px; border-radius: 999px; background: #fff; color: #555; font-size: 14px; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
-.voice-speak svg { width: 14px; height: 14px; }
 
 /* Khóa học */
 .course-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -63,17 +45,8 @@
 .course-quiz-button { padding: 6px 14px; border-radius: 999px; background: var(--red-500); color: #fff; font-size: 13px; font-weight: 500; }
 
 /* SOS khẩn cấp */
-.mock-sos { align-items: center; text-align: center; }
-.sos-question { margin: 0; font: 700 19px var(--font); }
-.sos-hint { max-width: 220px; margin: 8px 0 0; color: #999; font-size: 12px; line-height: 1.5; }
-.sos-stage { position: relative; display: grid; flex: 1; place-items: center; width: 100%; margin-top: 12px; }
-.sos-ring { position: absolute; width: 200px; height: 200px; border-radius: 50%; background: rgba(234, 84, 85, .1); animation: sos-pulse 2.4s ease-out infinite; }
-.sos-ring-2 { width: 160px; height: 160px; background: rgba(234, 84, 85, .14); animation-delay: .6s; }
-@keyframes sos-pulse { 0% { transform: scale(.85); opacity: 1; } 100% { transform: scale(1.15); opacity: 0; } }
-.sos-button { position: relative; display: grid; place-items: center; width: 132px; height: 132px; border-radius: 50%; background: linear-gradient(160deg, #e5484d, #f07b7b); color: #fff; font: 800 26px var(--font); letter-spacing: .04em; box-shadow: 0 12px 30px rgba(229, 72, 77, .4); }
 
 @media (max-width: 899px) {
-  .features-title { margin-bottom: 28px; }
   .feature { grid-template-columns: 1fr; gap: 28px; }
   .feature-reverse .feature-text { order: 0; }
   .feature-text { max-width: none; }
@@ -84,18 +57,11 @@
 }
 
 @media (max-width: 479px) {
-  .features-title-brand { font-size: 30px; }
-  .features-title-rest { font-size: 18px; }
-  .features-lightning { width: 34px; margin-left: 0; }
   .feature-visual { padding: 0 4%; border-radius: 28px; }
   .mock { min-height: 320px; padding: 18px 16px; }
-  .voice-prompt { font-size: 15px; }
-  .voice-status strong { font-size: 24px; }
   .feature-points li { font-size: 15px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .voice-wave span, .voice-dots, .sos-ring { animation: none; }
-  .voice-dots { clip-path: none; }
   .course-bar span { transition: none; }
 }
