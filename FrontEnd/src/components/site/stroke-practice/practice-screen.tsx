@@ -6,6 +6,7 @@ import { Phone } from 'lucide-react'
 import Navbar from '@/components/site/landing/Navbar'
 import { appNav } from '@/content/app'
 import { HABIT_STORAGE_KEY, QUIZ_STORAGE_KEY, strokePractice } from '@/content/stroke-practice'
+import CameraDrill from './camera-drill'
 
 type QuizSave = { score: number; total: number }
 
@@ -134,6 +135,8 @@ export default function PracticeScreen() {
             <a className="button button-outline" href="tel:115"><Phone aria-hidden="true" /> {fast.call}</a>
           </div>
         </section>
+
+        <CameraDrill />
 
         <section className="practice-section" aria-labelledby="practice-quiz">
           <p className="practice-kicker">{quiz.label}</p>
