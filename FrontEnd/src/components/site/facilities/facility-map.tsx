@@ -24,6 +24,8 @@ type Props = {
   onSelectRoute?: (index: number) => void;
   /** Đang chỉ đường tới cơ sở được chọn: không bay tới ghim / mở popup (popup che mất tuyến đường) */
   navigating?: boolean;
+  /** Chữ chú thích dưới bản đồ khi dùng lại bản đồ này cho việc khác (vd. "Người cần hỗ trợ") */
+  placeLabel?: string;
 };
 
 const ROUTE_SOURCE = "directions";
@@ -91,7 +93,7 @@ function facilityMarker(index: number, name: string): HTMLButtonElement {
   return element;
 }
 
-export default function FacilityMap({ facilities, location, selectedId, focusVersion, onSelect, routes = [], activeRoute = 0, onSelectRoute, navigating = false }: Props) {
+export default function FacilityMap({ facilities, location, selectedId, focusVersion, onSelect, routes = [], activeRoute = 0, onSelectRoute, navigating = false, placeLabel = "Cơ sở y tế" }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markers = useRef(new Map<string, mapboxgl.Marker>());
@@ -268,7 +270,7 @@ export default function FacilityMap({ facilities, location, selectedId, focusVer
         aria-label="Bản đồ cơ sở y tế. Kéo để di chuyển, dùng nút thu phóng hoặc chọn một ghim để xem thông tin."
       />
       <p className="flex flex-none flex-wrap items-center gap-2.5 bg-white px-3.25 py-2.75 text-[11px]">
-        <span className="inline-block size-2.5 rounded-full bg-[#bf2b2f]" /> Cơ sở y tế <span className="ml-3 inline-block size-2.5 rounded-full bg-[#2563eb]" /> Vị trí của bạn
+        <span className="inline-block size-2.5 rounded-full bg-[#bf2b2f]" /> {placeLabel} <span className="ml-3 inline-block size-2.5 rounded-full bg-[#2563eb]" /> Vị trí của bạn
         {routes.length > 0 && (
           <>
             <span className="ml-3 inline-block h-1 w-4 rounded-full bg-[#1a73e8]" /> Tuyến đang chọn

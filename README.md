@@ -58,9 +58,29 @@ Dùng `docker compose watch` nếu muốn container tự build lại khi đổi 
 | `NEXT_PUBLIC_VOICE_WS_URL` | `FrontEnd/.env` | Địa chỉ WebSocket của trợ lý giọng nói khi chạy qua tunnel |
 | `OPENAI_API_KEY` | `BackEnd/.env` | Bật trợ lý giọng nói AI |
 | `SUPPORT_ADMIN_TOKEN` | `BackEnd/.env` | Bật trang quản trị người hỗ trợ (tối thiểu 32 ký tự ngẫu nhiên) |
-| `CORS_ORIGINS` | `BackEnd/.env` | Các origin được gọi API và mở voice WebSocket |
+| `CORS_ORIGINS` | `BackEnd/.env` | Các origin được gọi API và mở WebSocket (voice, người hỗ trợ) |
+| `SUPPORT_DEMO_SELF_ENROLL` | `BackEnd/.env` | `true`: tài khoản đăng nhập tự đăng ký làm người hỗ trợ (chỉ dùng cho demo) |
+| `SUPPORT_RADIUS_METERS` | `BackEnd/.env` | Bán kính tìm người hỗ trợ, mặc định 3000 m |
+| `NEXT_PUBLIC_SUPPORT_WS_URL` | `FrontEnd/.env` | Địa chỉ WebSocket người hỗ trợ khi chạy qua HTTPS / tunnel (`wss://…/api/support/ws`) |
+| `NEXT_PUBLIC_DEMO_LOCATION` | `FrontEnd/.env` | `true`: hiện ô chọn vị trí giả lập trên trang người hỗ trợ (demo trên một máy) |
 
 Danh sách đầy đủ có trong `FrontEnd/.env.example` và `BackEnd/.env.example`.
+
+## Demo "Tìm kiếm người hỗ trợ"
+
+Người cần giúp mở `/app/nguoi-ho-tro` (không cần đăng nhập), người hỗ trợ mở `/app/san-sang-ho-tro` (cần đăng nhập).
+Hai bên kết nối qua WebSocket `/api/support/ws`; khi WebSocket không mở được, trang tự chuyển sang hỏi lại máy chủ mỗi 3 giây.
+
+**Trên một máy**
+1. `BackEnd/.env`: `SUPPORT_DEMO_SELF_ENROLL=true` (cần cả `AUTH_SECRET_KEY` để đăng nhập). `FrontEnd/.env`: `NEXT_PUBLIC_DEMO_LOCATION=true`.
+2. `docker compose up -d --build --renew-anon-volumes`
+3. Tab 1: đăng nhập → `/app/san-sang-ho-tro` → đăng ký, chọn vị trí giả lập "Thảo Cầm Viên", bấm **Bật sẵn sàng**.
+4. Tab 2: `/app/nguoi-ho-tro` → chọn "Chợ Bến Thành", nhập số điện thoại, tình huống, ảnh → **Gửi tín hiệu**.
+5. Tab 1 kêu và hiện yêu cầu → **Nhận** → thấy số điện thoại, ảnh, dẫn đường. Tab 2 thấy người hỗ trợ và khoảng cách cập nhật trực tiếp.
+
+**Trên hai điện thoại**: trình duyệt chỉ cho lấy vị trí và chụp ảnh qua HTTPS. Mở tunnel HTTPS (vd. `cloudflared tunnel --url http://localhost:3001` và một tunnel nữa cho `http://localhost:8000`), đặt `NEXT_PUBLIC_SUPPORT_WS_URL=wss://<tunnel-backend>/api/support/ws`, thêm địa chỉ tunnel frontend vào `CORS_ORIGINS`, rồi build lại.
+
+Giới hạn của bản web: người hỗ trợ phải đang mở trang mới nhận được tín hiệu (đóng tab hoặc tắt màn hình là mất kết nối). Nhận tín hiệu khi đã đóng tab cần Web Push, dự kiến ở giai đoạn 2.
 
 ## Kiểm tra code
 

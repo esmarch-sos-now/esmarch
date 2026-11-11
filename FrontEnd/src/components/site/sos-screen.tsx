@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Phone } from "lucide-react";
+import { HandHeart, Phone } from "lucide-react";
 import Navbar from "@/components/site/landing/Navbar";
 import { Page } from "@/components/site/primitives";
 import { appNav, sosScreen } from "@/content/app";
@@ -36,6 +37,13 @@ export default function SosScreen() {
 
         <p className="inline-flex items-center gap-2 text-lg font-bold text-brand [&_svg]:size-5"><Phone aria-hidden="true" /> {sosScreen.buttonLabel}</p>
         <p className="mt-2 text-[13px] leading-normal text-muted-foreground">{sosScreen.note}</p>
+        {/* Gửi tín hiệu tới người biết sơ cứu trong bán kính 3 km */}
+        <Link
+          href="/app/nguoi-ho-tro"
+          className="mt-6 inline-flex items-center gap-2 rounded-full border border-line bg-white px-5 py-2.5 text-[15px] font-bold text-ink no-underline shadow-[0_6px_18px_rgba(0,0,0,.06)] transition-colors hover:border-brand hover:text-brand [&_svg]:size-4.5"
+        >
+          <HandHeart aria-hidden="true" /> {sosScreen.findHelper}
+        </Link>
       </main>
     </Page>
   );

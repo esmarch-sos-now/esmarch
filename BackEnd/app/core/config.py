@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     guides_data_file: str = "data/seeds/guides.json"  # optional; reviewed content only
     aeds_data_file: str = "data/seeds/aeds.json"  # optional; verified devices only
     support_admin_token: str = ""
+    # "Tìm kiếm người hỗ trợ": default search radius, demo self-enrolment of signed-in users as responders (no admin
+    # verification; never enable in production), WebSocket limits and request photos (kept in RAM until it ends).
+    support_radius_meters: int = Field(default=3000, ge=100, le=50_000)
+    support_demo_self_enroll: bool = False
+    support_ws_connects_per_window: int = 30  # per IP, over public_api_rate_limit_window_seconds
+    support_offline_grace_seconds: float = Field(default=20, ge=0)  # a dropped responder socket stays available
+    support_max_photos: int = Field(default=3, ge=0, le=10)
+    support_photo_max_bytes: int = Field(default=5 * 1024 * 1024, ge=10_000)
 
     public_api_rate_limit_requests: int = 60
     public_api_rate_limit_window_seconds: float = 60
