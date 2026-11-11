@@ -42,6 +42,24 @@ class Settings(BaseSettings):
     voice_resume_grace_seconds: float = Field(default=20, ge=0)  # keep a call whose WebSocket dropped; 0 = no resume
     voice_connects_per_window: int = 6  # per IP, over public_api_rate_limit_window_seconds
 
+    # Accounts. JWT access tokens (HS256) plus opaque rotating refresh tokens. Disabled (503) while the key is short.
+    auth_secret_key: str = ""  # >= 32 chars; `openssl rand -hex 32`
+    access_token_ttl_seconds: int = Field(default=900, ge=60, le=3600)
+    refresh_token_ttl_days: int = Field(default=30, ge=1, le=365)
+    # A rotated refresh token presented again within this window gets a fresh sibling instead of revoking the family:
+    # the browser may fire parallel requests that all refresh with the same cookie.
+    refresh_reuse_grace_seconds: float = Field(default=10, ge=0, le=60)
+    otp_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    otp_resend_cooldown_seconds: int = Field(default=60, ge=0, le=600)
+    otp_max_attempts: int = Field(default=5, ge=1, le=20)
+    login_attempts_per_window: int = Field(default=10, ge=1)  # per email
+    login_window_seconds: float = Field(default=900, gt=0)
+
+    # Confirmation codes are mailed through Resend. Without a key, codes are only logged when AUTH_DEV_LOG_CODES is on.
+    resend_api_key: str = ""
+    resend_from: str = "SOS NOW <onboarding@resend.dev>"
+    auth_dev_log_codes: bool = False
+
     @model_validator(mode="after")
     def _validate(self) -> Settings:
         if not self.origins or any("*" in origin for origin in self.origins):
@@ -55,6 +73,10 @@ class Settings(BaseSettings):
     @property
     def voice_configured(self) -> bool:
         return bool(self.openai_api_key)
+
+    @property
+    def auth_configured(self) -> bool:
+        return len(self.auth_secret_key) >= 32
 
     @property
     def admin_configured(self) -> bool:

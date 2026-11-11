@@ -18,6 +18,8 @@ os.environ.update(
     CORS_ORIGINS="https://esmarch.example,http://localhost:3000",
     PUBLIC_API_RATE_LIMIT_REQUESTS="100000",
     OPENAI_API_KEY="",  # tests must not depend on the developer's .env
+    AUTH_SECRET_KEY="test-auth-secret-key-at-least-32-characters-long",
+    RESEND_API_KEY="",
 )
 
 
@@ -56,17 +58,19 @@ def reset_state(database):
 
     from app.core import clock
     from app.core.db import get_engine
+    from app.modules.auth.service import reset_login_limiter
     from app.modules.facilities import catalog
     from app.modules.guides.service import catalog as guides
     from app.modules.support.service import support
 
     clock.reset()
     with get_engine().begin() as c:
-        c.execute(text("TRUNCATE facility_phones, facilities, aeds, verified_responders, sos_alert CASCADE"))
+        c.execute(text("TRUNCATE facility_phones, facilities, aeds, verified_responders, sos_alert, users CASCADE"))
     catalog.invalidate()
     guides._guides = {}
     support.presence.clear()
     support.requests.clear()
+    reset_login_limiter()
 
 
 @pytest.fixture(scope="session")
