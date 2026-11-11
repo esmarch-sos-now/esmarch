@@ -15,6 +15,7 @@ import "@/styles/site/voice.css";
 import "@/styles/site/assistant.css";
 import "@/styles/site/facilities-page.css";
 import "@/styles/site/map.css";
+import "@/styles/site/practice.css";
 
 export default function SiteLayout({ children }: { children: ReactNode }) {
   return <SWRProvider>{children}</SWRProvider>;

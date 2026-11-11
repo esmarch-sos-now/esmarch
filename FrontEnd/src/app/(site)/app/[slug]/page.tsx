@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 import AppPage from "@/components/site/app-page";
 import { appPages } from "@/content/app";
 
-// Pages that already have a real screen live in their own folders (sos, co-so-y-te, tro-ly).
-const BUILT = new Set(["/app/sos", "/app/co-so-y-te", "/app/tro-ly"]);
+// Pages that already have a real screen live in their own folders (sos, co-so-y-te, tro-ly, luyen-tap).
+const BUILT = new Set(["/app/sos", "/app/co-so-y-te", "/app/tro-ly", "/app/luyen-tap"]);
 const placeholders = appPages.filter((page) => !BUILT.has(page.path));
 const slug = (path: string) => path.replace("/app/", "");
 
