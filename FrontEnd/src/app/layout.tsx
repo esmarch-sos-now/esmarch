@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { inter } from "@/components/site/landing/inter";
+import "./globals.css";
+
+// Inter is the only font: font-sans, font-heading, font-display and font-number all point to --font-inter (globals.css).
 
 export const metadata: Metadata = {
   title: "SOS NOW — ESMARCH",
@@ -7,10 +11,9 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg" },
 };
 
-// The site's plain CSS is attached in the (site) route group layout.
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="vi">
+    <html lang="vi" className={inter.variable}>
       <body>{children}</body>
     </html>
   );

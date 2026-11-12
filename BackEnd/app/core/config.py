@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     guides_data_file: str = "data/seeds/guides.json"  # optional; reviewed content only
     aeds_data_file: str = "data/seeds/aeds.json"  # optional; verified devices only
     support_admin_token: str = ""
+    # "Tìm kiếm người hỗ trợ": default search radius, demo self-enrolment of signed-in users as responders (no admin
+    # verification; never enable in production), WebSocket limits and request photos (kept in RAM until it ends).
+    support_radius_meters: int = Field(default=3000, ge=100, le=50_000)
+    support_demo_self_enroll: bool = False
+    support_ws_connects_per_window: int = 30  # per IP, over public_api_rate_limit_window_seconds
+    support_offline_grace_seconds: float = Field(default=20, ge=0)  # a dropped responder socket stays available
+    support_max_photos: int = Field(default=3, ge=0, le=10)
+    support_photo_max_bytes: int = Field(default=5 * 1024 * 1024, ge=10_000)
 
     public_api_rate_limit_requests: int = 60
     public_api_rate_limit_window_seconds: float = 60
@@ -42,6 +50,24 @@ class Settings(BaseSettings):
     voice_resume_grace_seconds: float = Field(default=20, ge=0)  # keep a call whose WebSocket dropped; 0 = no resume
     voice_connects_per_window: int = 6  # per IP, over public_api_rate_limit_window_seconds
 
+    # Accounts. JWT access tokens (HS256) plus opaque rotating refresh tokens. Disabled (503) while the key is short.
+    auth_secret_key: str = ""  # >= 32 chars; `openssl rand -hex 32`
+    access_token_ttl_seconds: int = Field(default=900, ge=60, le=3600)
+    refresh_token_ttl_days: int = Field(default=30, ge=1, le=365)
+    # A rotated refresh token presented again within this window gets a fresh sibling instead of revoking the family:
+    # the browser may fire parallel requests that all refresh with the same cookie.
+    refresh_reuse_grace_seconds: float = Field(default=10, ge=0, le=60)
+    otp_ttl_seconds: int = Field(default=600, ge=60, le=3600)
+    otp_resend_cooldown_seconds: int = Field(default=60, ge=0, le=600)
+    otp_max_attempts: int = Field(default=5, ge=1, le=20)
+    login_attempts_per_window: int = Field(default=10, ge=1)  # per email
+    login_window_seconds: float = Field(default=900, gt=0)
+
+    # Confirmation codes are mailed through Resend. Without a key, codes are only logged when AUTH_DEV_LOG_CODES is on.
+    resend_api_key: str = ""
+    resend_from: str = "SOS NOW <onboarding@resend.dev>"
+    auth_dev_log_codes: bool = False
+
     @model_validator(mode="after")
     def _validate(self) -> Settings:
         if not self.origins or any("*" in origin for origin in self.origins):
@@ -55,6 +81,10 @@ class Settings(BaseSettings):
     @property
     def voice_configured(self) -> bool:
         return bool(self.openai_api_key)
+
+    @property
+    def auth_configured(self) -> bool:
+        return len(self.auth_secret_key) >= 32
 
     @property
     def admin_configured(self) -> bool:

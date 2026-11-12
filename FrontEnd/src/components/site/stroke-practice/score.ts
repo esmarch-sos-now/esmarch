@@ -85,6 +85,40 @@ export function summarizeDrill(face: GestureVerdict, arms: GestureVerdict): Dril
   return 'no-clear-difference'
 }
 
+export type SpeechStep = SpeechVerdict | 'skipped'
+
+export type DrillReport = {
+  tone: 'clear' | 'attention' | 'incomplete'
+  title: string
+  body: string
+}
+
+/** Kết quả gộp sau đủ 3 động tác. Lời nói không rõ không bị tính là nói khó, và không kết luận đột quỵ. */
+export function buildReport(face: GestureVerdict, arms: GestureVerdict): DrillReport {
+  const uneven = [face === 'uneven' ? 'mặt' : '', arms === 'uneven' ? 'tay' : ''].filter(Boolean)
+
+  if (uneven.length > 0) {
+    const where = uneven.length === 2 ? 'mặt và tay' : uneven[0]
+    return {
+      tone: 'attention',
+      title: `Có lệch ở ${where}`,
+      body: 'Nếu đây là triệu chứng thật, hãy gọi 115.'
+    }
+  }
+  if (face === 'missing' || arms === 'missing') {
+    return {
+      tone: 'incomplete',
+      title: 'Chưa đủ để kết luận',
+      body: 'Làm lại ở nơi đủ sáng, nhìn thẳng camera.'
+    }
+  }
+  return {
+    tone: 'clear',
+    title: 'Không thấy lệch',
+    body: 'Kết quả này không loại trừ đột quỵ.'
+  }
+}
+
 function fold(text: string): string {
   return text
     .toLowerCase()

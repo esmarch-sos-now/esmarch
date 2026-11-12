@@ -155,5 +155,5 @@ export default function NetworkGraph() {
     }
   }, [])
 
-  return <canvas ref={canvasRef} className="lp-voice-sphere" aria-hidden="true" />
+  return <canvas ref={canvasRef} className="block size-full" aria-hidden="true" />
 }
