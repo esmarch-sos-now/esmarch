@@ -15,6 +15,7 @@ from app.modules.alerts import router as alerts_router
 from app.modules.auth import router as auth_router
 from app.modules.auth import service as auth_service
 from app.modules.capabilities import router as capabilities_router
+from app.modules.courses import router as courses_router
 from app.modules.districts import router as districts_router
 from app.modules.facilities import catalog, road_distance
 from app.modules.facilities import router as facilities_router
@@ -94,6 +95,7 @@ def create_app() -> FastAPI:
         guides_router,
         aeds_router,
         support_router,
+        courses_router,
         capabilities_router,
         alerts_router,
         voice_router,
