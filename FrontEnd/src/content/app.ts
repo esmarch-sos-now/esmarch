@@ -35,6 +35,13 @@ export const appPages: AppPageDef[] = [
     description: 'Nhận dấu hiệu FAST trước camera và ghi năm động tác theo video. Bài luyện không chẩn đoán đột quỵ.'
   },
   {
+    // Khóa học chỉ mở cho tài khoản đã đăng ký làm người hỗ trợ (xem /app/san-sang-ho-tro)
+    path: '/app/khoa-hoc',
+    nav: 'Khóa học',
+    title: 'Khóa học sơ cứu cho người hỗ trợ',
+    description: 'Bài học ngắn và câu hỏi kiểm tra dành riêng cho người đã đăng ký hỗ trợ dự án.'
+  },
+  {
     // Tìm người hỗ trợ đã có (/app/nguoi-ho-tro); phần tìm AED làm sau
     path: '/app/nguoi-ho-tro',
     nav: 'Tìm kiếm AED và người hỗ trợ',
@@ -123,6 +130,7 @@ export const supportCopy = {
     off: 'Chưa sẵn sàng',
     turnOn: 'Bật sẵn sàng',
     turnOff: 'Tắt',
+    courseLink: 'Học khóa sơ cứu',
     locating: 'Đang xác định vị trí của bạn…',
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí để nhận yêu cầu gần bạn.',
     connection: {
@@ -153,6 +161,41 @@ export const supportCopy = {
     routesHint: 'bấm tuyến xám trên bản đồ để đổi tuyến',
     requesterPin: 'Người cần hỗ trợ'
   }
+}
+
+// Khóa học sơ cứu: chỉ tài khoản đã đăng ký làm người hỗ trợ mới mở được nội dung
+export const courseCopy = {
+  eyebrow: 'Dành cho người hỗ trợ',
+  title: 'Khóa học sơ cứu',
+  subtitle: 'Bốn bài ngắn giúp bạn bình tĩnh xử lý tình huống khẩn cấp. Hoàn thành từng bài bằng câu hỏi kiểm tra.',
+  signIn: 'Đăng nhập để học khóa sơ cứu dành cho người hỗ trợ.',
+  signInButton: 'Đăng nhập',
+  loading: 'Đang tải khóa học…',
+  lockedTitle: 'Khóa học dành riêng cho người hỗ trợ',
+  lockedBody:
+    'Chỉ tài khoản đã đăng ký làm người hỗ trợ của dự án mới học được khóa này. Đăng ký (demo) mất chưa đến một phút, sau đó quay lại đây để mở khóa toàn bộ bài học.',
+  lockedAction: 'Đăng ký làm người hỗ trợ',
+  enrolledAs: (name: string) => `Bạn đang học với tư cách người hỗ trợ: ${name}`,
+  progress: (done: number, total: number) => `${done}/${total} bài đã hoàn thành`,
+  completed: 'Đã hoàn thành khóa học',
+  next: 'Học bài tiếp theo',
+  lesson: (index: number) => `Bài ${index}`,
+  minutes: (minutes: number) => `${minutes} phút`,
+  done: 'Đã học',
+  quizTitle: 'Kiểm tra nhanh',
+  quizHint: 'Trả lời đúng tất cả câu hỏi để hoàn thành bài học.',
+  submit: 'Nộp bài',
+  submitting: 'Đang chấm…',
+  retry: 'Làm lại',
+  passed: 'Chính xác! Bạn đã hoàn thành bài học này.',
+  lessonDone: 'Đã hoàn thành bài học',
+  failed: (correct: number, total: number) => `Đúng ${correct}/${total} câu. Xem giải thích rồi thử lại nhé.`,
+  correctAnswer: 'Đáp án đúng',
+  answerRequired: 'Hãy trả lời đủ các câu hỏi trước khi nộp.',
+  loadFailed: 'Chưa tải được khóa học. Hãy thử lại.',
+  lockedNotice: 'Tài khoản này chưa phải người hỗ trợ đã đăng ký nên nội dung khóa học được ẩn.',
+  retryLoad: 'Thử lại',
+  lessons: 'Nội dung khóa học',
 }
 
 // Menu trên các trang app; trang Cơ sở y tế được mở từ luồng SOS nên không nằm trong menu
