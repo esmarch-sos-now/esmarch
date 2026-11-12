@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Bike, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, Phone, Power, Volume2, X } from "lucide-react";
+import { Bike, BookOpenCheck, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, Phone, Power, Volume2, X } from "lucide-react";
 import Navbar from "@/components/site/landing/Navbar";
 import { Page } from "@/components/site/primitives";
 import DemoPlacePicker from "@/components/site/support/demo-place-picker";
@@ -205,6 +205,12 @@ export default function ResponderScreen() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <ConnectionChip status={socketStatus} />
+                <Link
+                  href="/app/khoa-hoc"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand hover:text-brand [&_svg]:size-3.5"
+                >
+                  <BookOpenCheck aria-hidden="true" /> {c.courseLink}
+                </Link>
                 <button
                   type="button"
                   onClick={() => { unlockAlarm(); ring(); }}
