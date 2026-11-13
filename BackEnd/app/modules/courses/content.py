@@ -1,7 +1,10 @@
 """Course content for registered responders ("Khóa học sơ cứu").
 
-Content is code-reviewed and versioned with the app. Progress lives in Postgres (`course_progress`), one row per
-user and lesson. The course is closed content: only signed-in users with a verified responder profile can read it.
+Each lesson is one real video from the first-aid playlist of Bệnh viện Hoàn Mỹ Đà Nẵng, embedded from YouTube
+unchanged and credited (see the SOURCE_* constants), followed by short key points and a quiz written by the ESMARCH
+team. Content is code-reviewed and versioned with the app. Progress lives in Postgres (`course_progress`), one row per
+user and lesson, keyed by lesson id, so lesson ids must be unique across all courses. The courses are closed content:
+only signed-in users with a verified responder profile can read them.
 """
 
 from dataclasses import dataclass
@@ -24,12 +27,19 @@ class Section:
 
 
 @dataclass(frozen=True)
+class Video:
+    youtube_id: str
+    title: str  # exact title on YouTube
+
+
+@dataclass(frozen=True)
 class Lesson:
     id: str
     title: str
     summary: str
     minutes: int
-    sections: tuple[Section, ...]
+    video: Video
+    sections: tuple[Section, ...]  # "ghi nhớ": key points shown under the video
     quiz: tuple[QuizQuestion, ...]
 
 
@@ -39,6 +49,7 @@ class Course:
     title: str
     summary: str
     audience: str
+    badge: str  # shown on the profile once every lesson is passed
     lessons: tuple[Lesson, ...]
 
 
@@ -47,148 +58,40 @@ DISCLAIMER = (
     "Trong nguy hiểm tính mạng, hãy gọi 115 trước."
 )
 
+SOURCE_NAME = "Bệnh viện Hoàn Mỹ Đà Nẵng"
+SOURCE_CHANNEL_URL = "https://www.youtube.com/channel/UCShk_eb2LdmzAEbPQ1Bhq_Q"
+SOURCE_PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLjGhUv8IOm2gwLOaenoifb11QUiLBrA_T"
+SOURCE_PLAYLIST_TITLE = "Hướng dẫn Sơ Cấp Cứu Chính xác, ngắn gọn - Bệnh viện Hoàn Mỹ Đà Nẵng"
+SOURCE_NOTE = (
+    "Video thuộc bản quyền của Bệnh viện Hoàn Mỹ Đà Nẵng, được nhúng nguyên vẹn từ YouTube, không chỉnh sửa. "
+    "Phần ghi nhớ và câu hỏi ôn tập do nhóm ESMARCH biên soạn để giúp bạn ôn lại nội dung video."
+)
+
+AUDIENCE = "Người đã đăng ký làm người hỗ trợ"
+
 COURSES: tuple[Course, ...] = (
     Course(
-        id="first-aid-basics",
-        title="Sơ cứu cơ bản cho người hỗ trợ",
+        id="airway-choking",
+        title="Xử trí hóc dị vật đường thở",
         summary=(
-            "Bốn bài ngắn giúp bạn bình tĩnh xử lý tình huống khẩn cấp: giữ an toàn, gọi trợ giúp, "
-            "CPR, hóc dị vật, đột quỵ và chảy máu nặng."
+            "Ba video ngắn của Bệnh viện Hoàn Mỹ Đà Nẵng: xử trí hóc dị vật cho người còn tỉnh, "
+            "tự xử trí khi bị hóc một mình và xử trí sặc sữa ở trẻ nhỏ."
         ),
-        audience="Người đã đăng ký làm người hỗ trợ",
+        audience=AUDIENCE,
+        badge="Hoàn thành khóa Xử trí hóc dị vật đường thở",
         lessons=(
             Lesson(
-                id="scene-safety",
-                title="An toàn hiện trường và gọi trợ giúp",
-                summary="Quan sát trước khi tiếp cận, gọi 115 đúng thông tin và kiểm tra phản ứng của nạn nhân.",
-                minutes=4,
-                sections=(
-                    Section(
-                        heading="Trước khi tiếp cận",
-                        paragraphs=(
-                            "Bạn không thể giúp ai nếu chính mình gặp nạn. Hãy dừng lại vài giây để nhìn quanh.",
-                        ),
-                        bullets=(
-                            "Quan sát dây điện, xe cộ, lửa, khói, vật sắc nhọn hoặc nguy cơ sập đổ.",
-                            "Chỉ tiếp cận khi hiện trường an toàn. Nếu không, giữ khoảng cách và gọi 115.",
-                            "Đeo găng tay hoặc dùng túi ni lông sạch để hạn chế tiếp xúc với máu.",
-                        ),
-                    ),
-                    Section(
-                        heading="Gọi 115 sớm",
-                        paragraphs=(
-                            "Gọi càng sớm càng tốt. Nói rõ vị trí, số người bị nạn và tình trạng hiện tại; "
-                            "làm theo hướng dẫn của tổng đài và không cúp máy trước khi được phép.",
-                        ),
-                        bullets=(
-                            "Nhờ người xung quanh lấy máy AED gần nhất nếu có.",
-                            "Cử một người đứng ở đầu đường để dẫn xe cấp cứu vào.",
-                        ),
-                    ),
-                    Section(
-                        heading="Kiểm tra phản ứng và hơi thở",
-                        paragraphs=(
-                            "Gọi lớn và vỗ nhẹ vào vai nạn nhân. Nếu nạn nhân không phản ứng và không thở bình thường, "
-                            "hãy bắt đầu CPR ngay và nhờ người khác gọi 115.",
-                        ),
-                    ),
-                ),
-                quiz=(
-                    QuizQuestion(
-                        id="scene-q1",
-                        question="Việc đầu tiên bạn nên làm khi chứng kiến một tai nạn là gì?",
-                        options=(
-                            "Chạy tới kéo nạn nhân ra khỏi hiện trường",
-                            "Quan sát và bảo đảm an toàn cho bản thân trước",
-                            "Cho nạn nhân uống nước",
-                        ),
-                        answer=1,
-                        explanation="An toàn của người cứu là điều kiện để giúp được nạn nhân.",
-                    ),
-                    QuizQuestion(
-                        id="scene-q2",
-                        question="Khi gọi 115, thông tin nào quan trọng nhất?",
-                        options=(
-                            "Vị trí chính xác và tình trạng nạn nhân",
-                            "Tên đầy đủ của bạn",
-                            "Nghề nghiệp của nạn nhân",
-                        ),
-                        answer=0,
-                        explanation="Vị trí và tình trạng giúp điều phối viên chọn đúng hỗ trợ.",
-                    ),
-                ),
-            ),
-            Lesson(
-                id="cpr",
-                title="CPR cho người lớn",
-                summary="Ép ngực đúng tốc độ và độ sâu, phối hợp với AED khi có.",
-                minutes=8,
-                sections=(
-                    Section(
-                        heading="Xác định có cần CPR không",
-                        paragraphs=(
-                            "Chỉ bắt đầu CPR khi nạn nhân không phản ứng và không thở bình thường "
-                            "(hoặc chỉ thở ngáp). Đặt nạn nhân nằm ngửa trên mặt phẳng cứng.",
-                        ),
-                    ),
-                    Section(
-                        heading="Ép ngực đúng cách",
-                        bullets=(
-                            "Đặt gót bàn tay giữa ngực, chồng bàn tay còn lại lên trên, các ngón đan vào nhau.",
-                            "Giữ khuỷu tay thẳng, dùng trọng lượng cơ thể để ép xuống.",
-                            "Ép sâu 5–6 cm với người lớn, tốc độ 100–120 lần mỗi phút.",
-                            "Để ngực nở hoàn toàn giữa các lần ép; hạn chế gián đoạn.",
-                        ),
-                    ),
-                    Section(
-                        heading="Chu kỳ 30 : 2",
-                        paragraphs=(
-                            "Nếu đã được huấn luyện, thực hiện 30 lần ép ngực và 2 lần thổi ngạt, lặp lại. "
-                            "Nếu không được huấn luyện hoặc không muốn thổi ngạt, hãy ép ngực liên tục.",
-                        ),
-                    ),
-                    Section(
-                        heading="Dùng AED",
-                        paragraphs=(
-                            "Bật máy và làm theo hướng dẫn bằng giọng nói. "
-                            "Dán điện cực lên ngực trần theo hình trên máy. "
-                            "Không chạm vào nạn nhân khi máy đang phân tích hoặc phát sốc.",
-                        ),
-                    ),
-                ),
-                quiz=(
-                    QuizQuestion(
-                        id="cpr-q1",
-                        question="Tốc độ ép ngực khuyến nghị cho người lớn là bao nhiêu?",
-                        options=("40–60 lần/phút", "70–80 lần/phút", "100–120 lần/phút"),
-                        answer=2,
-                        explanation="Ép ngực mạnh và nhanh 100–120 lần/phút giúp duy trì tuần hoàn.",
-                    ),
-                    QuizQuestion(
-                        id="cpr-q2",
-                        question="Độ sâu ép ngực phù hợp với người lớn là bao nhiêu?",
-                        options=("2–3 cm", "5–6 cm", "8–10 cm"),
-                        answer=1,
-                        explanation="Ép sâu 5–6 cm, sau đó để ngực nở hoàn toàn.",
-                    ),
-                    QuizQuestion(
-                        id="cpr-q3",
-                        question="Khi nào nên dùng AED?",
-                        options=(
-                            "Ngay khi có máy và nạn nhân không phản ứng, không thở bình thường",
-                            "Chỉ khi nạn nhân đã tỉnh lại",
-                            "Sau khi chờ xe cấp cứu đến",
-                        ),
-                        answer=0,
-                        explanation="AED càng được dùng sớm, cơ hội sống sót càng cao.",
-                    ),
-                ),
-            ),
-            Lesson(
-                id="choking",
-                title="Hóc dị vật ở người lớn",
-                summary="Nhận biết tắc nghẽn đường thở, vỗ lưng và ép bụng đúng cách.",
+                id="choking-conscious",
+                title="Hóc dị vật ở người lớn còn tỉnh",
+                summary="Nhận biết tắc nghẽn đường thở, luân phiên vỗ lưng và ép bụng đúng cách.",
                 minutes=5,
+                video=Video(
+                    youtube_id="EY1HGIfAgBs",
+                    title=(
+                        "[Hướng dẫn sơ cấp cứu] Xử trí dị vật đường thở cho nạn nhân tỉnh táo"
+                        " - Bệnh viện Hoàn Mỹ Đà Nẵng"
+                    ),
+                ),
                 sections=(
                     Section(
                         heading="Nhận biết",
@@ -198,55 +101,46 @@ COURSES: tuple[Course, ...] = (
                         ),
                     ),
                     Section(
-                        heading="Tắc nghẽn nặng",
+                        heading="Vỗ lưng và ép bụng",
                         bullets=(
                             "Gọi 115 hoặc nhờ người khác gọi ngay.",
-                            "Đứng sau lưng, đặt một tay lên ngực và nghiêng người nạn nhân về trước.",
-                            "Vỗ 5 lần bằng gót bàn tay vào giữa hai bả vai.",
-                            "Nếu chưa thông, thực hiện 5 lần ép bụng: nắm tay đặt trên rốn, "
-                            "dưới xương ức, kéo mạnh vào trong và lên trên.",
+                            "Đứng sau lưng, đỡ ngực cho nạn nhân cúi về trước, "
+                            "vỗ 5 lần bằng gót bàn tay vào giữa hai bả vai.",
+                            "Ép bụng 5 lần: nắm tay đặt trên rốn, dưới xương ức, tay kia ôm lấy nắm tay, "
+                            "kéo mạnh vào trong và lên trên.",
                             "Luân phiên 5 vỗ lưng và 5 ép bụng cho tới khi dị vật ra hoặc nạn nhân bất tỉnh.",
                         ),
                     ),
                     Section(
-                        heading="Khi nạn nhân bất tỉnh",
-                        paragraphs=(
-                            "Đặt nạn nhân xuống nền an toàn và bắt đầu CPR. "
-                            "Không dùng tay móc họng nếu không nhìn thấy dị vật.",
-                        ),
-                    ),
-                    Section(
-                        heading="Người béo phì hoặc đang mang thai",
-                        paragraphs=(
-                            "Thay ép bụng bằng ép ngực: đặt tay giữa ngực và ép mạnh tương tự CPR.",
+                        heading="Lưu ý",
+                        bullets=(
+                            "Phụ nữ mang thai hoặc người béo phì: thay ép bụng bằng ép ngực.",
+                            "Nạn nhân bất tỉnh: đặt nằm ngửa trên nền cứng và bắt đầu CPR.",
+                            "Không dùng ngón tay móc họng khi không nhìn thấy dị vật.",
                         ),
                     ),
                 ),
                 quiz=(
                     QuizQuestion(
-                        id="choking-q1",
-                        question="Nạn nhân hóc dị vật nhưng vẫn ho mạnh. Bạn nên làm gì?",
+                        id="choking-conscious-q1",
+                        question="Nạn nhân hóc dị vật nhưng vẫn ho mạnh được. Bạn nên làm gì?",
                         options=(
-                            "Khuyến khích nạn nhân tiếp tục ho",
                             "Ép bụng ngay lập tức",
-                            "Cho nạn nhân uống nước thật nhiều",
+                            "Khuyến khích nạn nhân tiếp tục ho và theo dõi",
+                            "Cho nạn nhân uống thật nhiều nước",
                         ),
-                        answer=0,
-                        explanation="Ho mạnh giúp đẩy dị vật ra; chỉ can thiệp khi ho yếu hoặc không thở được.",
+                        answer=1,
+                        explanation="Ho mạnh giúp đẩy dị vật ra; chỉ can thiệp khi ho yếu dần hoặc không thở được.",
                     ),
                     QuizQuestion(
-                        id="choking-q2",
-                        question="Vị trí đặt tay khi ép bụng (Heimlich) ở người lớn?",
-                        options=(
-                            "Trên xương ức",
-                            "Dưới rốn",
-                            "Trên rốn, dưới xương ức",
-                        ),
+                        id="choking-conscious-q2",
+                        question="Khi ép bụng cho người lớn, đặt nắm tay ở đâu?",
+                        options=("Trên xương ức", "Dưới rốn", "Trên rốn, dưới xương ức"),
                         answer=2,
-                        explanation="Nắm tay đặt trên rốn, dưới xương ức rồi kéo vào trong và lên trên.",
+                        explanation="Nắm tay đặt trên rốn, dưới xương ức rồi kéo mạnh vào trong và lên trên.",
                     ),
                     QuizQuestion(
-                        id="choking-q3",
+                        id="choking-conscious-q3",
                         question="Với phụ nữ đang mang thai bị hóc dị vật, nên thay ép bụng bằng gì?",
                         options=("Ép ngực", "Vỗ lưng mạnh hơn", "Dốc ngược nạn nhân"),
                         answer=0,
@@ -255,60 +149,346 @@ COURSES: tuple[Course, ...] = (
                 ),
             ),
             Lesson(
-                id="stroke-bleeding",
-                title="Đột quỵ và chảy máu nặng",
-                summary="Nhận diện đột quỵ bằng FAST và cầm máu bằng ép trực tiếp.",
-                minutes=7,
+                id="choking-self",
+                title="Tự xử trí khi bị hóc một mình",
+                summary=(
+                    "Khi không có ai bên cạnh, bạn vẫn có thể tự ép bụng hoặc tì bụng vào lưng ghế để đẩy dị vật ra."
+                ),
+                minutes=4,
+                video=Video(
+                    youtube_id="oVyBVKdlYNU",
+                    title=(
+                        "[Hướng dẫn sơ cấp cứu] Tự Xử Trí Dị Vật Đường Thở Cho Bản Thân | Bệnh viện Hoàn Mỹ Đà Nẵng"
+                    ),
+                ),
                 sections=(
                     Section(
-                        heading="Nhận biết đột quỵ bằng FAST",
+                        heading="Tự ép bụng",
                         bullets=(
-                            "F — Face: yêu cầu cười, xem một bên mặt có xệ xuống không.",
-                            "A — Arms: yêu cầu giơ hai tay, xem một tay có rơi xuống không.",
-                            "S — Speech: yêu cầu nói một câu đơn giản, nghe xem có khó nói hoặc lẫn không.",
-                            "T — Time: ghi lại thời điểm khởi phát và gọi 115 ngay.",
+                            "Gọi 115 hoặc ra hiệu cho người xung quanh nếu còn làm được.",
+                            "Nắm một tay, đặt phía trên rốn, dưới xương ức; tay kia ôm lấy nắm tay.",
+                            "Ấn mạnh và nhanh vào trong, hướng lên trên; lặp lại cho tới khi dị vật bật ra.",
                         ),
                     ),
                     Section(
-                        heading="Trong khi chờ cấp cứu",
-                        paragraphs=(
-                            "Không cho nạn nhân ăn, uống hoặc tự dùng thuốc. "
-                            "Nếu nạn nhân nôn, đặt nằm nghiêng an toàn. "
-                            "Không tự lái xe đưa nạn nhân đi cấp cứu.",
-                        ),
-                    ),
-                    Section(
-                        heading="Cầm máu vết thương nặng",
+                        heading="Dùng lưng ghế hoặc mép bàn",
                         bullets=(
-                            "Đeo găng hoặc dùng lớp vải sạch, ấn trực tiếp lên vết thương liên tục.",
-                            "Nếu máu thấm qua, chồng thêm lớp gạc mới; không bóc lớp đang ép.",
-                            "Gọi 115 nếu máu chảy nhiều, nạn nhân tái lạnh hoặc lơ mơ.",
-                            "Giữ nạn nhân ấm và yên, không cho ăn uống khi chờ trợ giúp.",
+                            "Cúi người, tì vùng bụng trên (trên rốn) vào lưng ghế chắc chắn hoặc mép bàn.",
+                            "Dồn mạnh trọng lượng cơ thể xuống để tạo lực ép, lặp lại nhiều lần.",
+                            "Sau khi dị vật ra, vẫn nên đi khám để kiểm tra tổn thương.",
                         ),
                     ),
                 ),
                 quiz=(
                     QuizQuestion(
-                        id="stroke-q1",
-                        question="Trong quy tắc FAST, chữ T nhắc bạn làm gì?",
-                        options=(
-                            "Ghi thời điểm khởi phát và gọi 115",
-                            "Đo thân nhiệt",
-                            "Cho nạn nhân dùng thuốc ngay",
-                        ),
-                        answer=0,
-                        explanation="Thời điểm khởi phát rất quan trọng với điều trị đột quỵ.",
+                        id="choking-self-q1",
+                        question="Khi tự ép bụng, bạn đặt nắm tay ở đâu?",
+                        options=("Dưới rốn", "Ngay trên xương ức", "Trên rốn, dưới xương ức"),
+                        answer=2,
+                        explanation="Vị trí giống như khi ép bụng cho người khác: trên rốn, dưới xương ức.",
                     ),
                     QuizQuestion(
-                        id="stroke-q2",
+                        id="choking-self-q2",
+                        question="Bị hóc khi ở một mình, ngoài tự ép bằng tay bạn có thể làm gì?",
+                        options=(
+                            "Tì mạnh bụng trên vào lưng ghế hoặc mép bàn",
+                            "Nằm ngửa và chờ dị vật tự trôi",
+                            "Uống nước để đẩy dị vật xuống",
+                        ),
+                        answer=0,
+                        explanation="Lưng ghế hoặc mép bàn giúp tạo lực ép bụng mạnh khi không có người giúp.",
+                    ),
+                    QuizQuestion(
+                        id="choking-self-q3",
+                        question="Lực ép bụng cần hướng theo chiều nào?",
+                        options=("Thẳng xuống dưới", "Vào trong và lên trên", "Sang hai bên"),
+                        answer=1,
+                        explanation="Ép vào trong và lên trên đẩy không khí trong phổi ra, tống dị vật khỏi đường thở.",
+                    ),
+                ),
+            ),
+            Lesson(
+                id="infant-milk-aspiration",
+                title="Sặc sữa và hóc dị vật ở trẻ dưới 1 tuổi",
+                summary="Vỗ lưng và ấn ngực đúng tư thế cho trẻ nhỏ; không ép bụng ở trẻ dưới 1 tuổi.",
+                minutes=5,
+                video=Video(
+                    youtube_id="_ArYhTpP32s",
+                    title="[Hướng dẫn sơ cấp cứu] Xử Trí Sặc Sữa Ở Trẻ Nhỏ - Bệnh viện Hoàn Mỹ Đà Nẵng",
+                ),
+                sections=(
+                    Section(
+                        heading="Vỗ lưng và ấn ngực",
+                        bullets=(
+                            "Đặt trẻ nằm sấp dọc theo cẳng tay, đầu thấp hơn thân, bàn tay đỡ lấy hàm trẻ.",
+                            "Dùng gót bàn tay vỗ 5 lần vào giữa hai bả vai.",
+                            "Lật trẻ nằm ngửa, đầu vẫn thấp; dùng 2 ngón tay ấn 5 lần vào giữa ngực, "
+                            "ngay dưới đường nối hai núm vú.",
+                            "Lặp lại 5 vỗ lưng và 5 ấn ngực cho tới khi trẻ khóc, ho hoặc thở lại được.",
+                        ),
+                    ),
+                    Section(
+                        heading="Lưu ý",
+                        bullets=(
+                            "Không ép bụng ở trẻ dưới 1 tuổi.",
+                            "Nếu trẻ lả đi, không phản ứng: gọi 115 và bắt đầu CPR cho trẻ nhũ nhi.",
+                        ),
+                    ),
+                    Section(
+                        heading="Phòng ngừa sặc sữa",
+                        bullets=(
+                            "Cho trẻ ợ hơi sau mỗi cữ bú.",
+                            "Không cho trẻ bú khi đang nằm thẳng.",
+                        ),
+                    ),
+                ),
+                quiz=(
+                    QuizQuestion(
+                        id="infant-milk-aspiration-q1",
+                        question="Khi vỗ lưng cho trẻ dưới 1 tuổi bị sặc, đặt trẻ ở tư thế nào?",
+                        options=(
+                            "Nằm ngửa trên giường",
+                            "Nằm sấp dọc cẳng tay, đầu thấp hơn thân",
+                            "Bế đứng, đầu cao hơn thân",
+                        ),
+                        answer=1,
+                        explanation="Đầu thấp hơn thân giúp dị vật hoặc sữa dễ thoát ra ngoài.",
+                    ),
+                    QuizQuestion(
+                        id="infant-milk-aspiration-q2",
+                        question="Ấn ngực cho trẻ nhũ nhi như thế nào?",
+                        options=(
+                            "2 ngón tay ấn giữa ngực, ngay dưới đường nối hai núm vú",
+                            "Cả bàn tay ấn lên bụng trẻ",
+                            "Gót bàn tay ấn lên xương ức như người lớn",
+                        ),
+                        answer=0,
+                        explanation="Trẻ nhỏ chỉ cần lực của 2 ngón tay, đặt giữa ngực ngay dưới đường nối hai núm vú.",
+                    ),
+                    QuizQuestion(
+                        id="infant-milk-aspiration-q3",
+                        question="Với trẻ dưới 1 tuổi bị hóc, việc nào KHÔNG nên làm?",
+                        options=(
+                            "Vỗ lưng 5 lần giữa hai bả vai",
+                            "Gọi 115 nếu trẻ không còn phản ứng",
+                            "Ép bụng như với người lớn",
+                        ),
+                        answer=2,
+                        explanation="Ép bụng có thể làm tổn thương gan và nội tạng của trẻ nhỏ.",
+                    ),
+                ),
+            ),
+        ),
+    ),
+    Course(
+        id="breathing-bleeding-fainting",
+        title="Hô hấp nhân tạo, cầm máu và sơ cứu ngất",
+        summary=(
+            "Ba video ngắn của Bệnh viện Hoàn Mỹ Đà Nẵng: hô hấp nhân tạo cho người lớn, "
+            "sơ cứu vết thương chảy máu và sơ cứu choáng ngất."
+        ),
+        audience=AUDIENCE,
+        badge="Hoàn thành khóa Hô hấp nhân tạo, cầm máu và sơ cứu ngất",
+        lessons=(
+            Lesson(
+                id="rescue-breathing",
+                title="Hô hấp nhân tạo cho người lớn",
+                summary="Khai thông đường thở, thổi ngạt đúng cách và phối hợp 30 lần ép ngực với 2 lần thổi.",
+                minutes=6,
+                video=Video(
+                    youtube_id="Ei1UsHqtUvo",
+                    title="[Hướng dẫn sơ cấp cứu] Hô Hấp Nhân Tạo Cho Người Lớn - Bệnh viện Hoàn Mỹ Đà Nẵng",
+                ),
+                sections=(
+                    Section(
+                        heading="Hành động ngay",
+                        paragraphs=(
+                            "Não có thể bắt đầu tổn thương sau khoảng 4–6 phút thiếu oxy. Khi nạn nhân không phản ứng "
+                            "và không thở bình thường, gọi 115, nhờ người lấy AED và bắt đầu cấp cứu ngay.",
+                        ),
+                    ),
+                    Section(
+                        heading="Thổi ngạt",
+                        bullets=(
+                            "Ngửa đầu, nâng cằm để khai thông đường thở.",
+                            "Bịt mũi nạn nhân, áp kín miệng mình lên miệng nạn nhân.",
+                            "Thổi 2 lần, mỗi lần khoảng 1 giây, nhìn thấy lồng ngực nhô lên.",
+                        ),
+                    ),
+                    Section(
+                        heading="Phối hợp với ép ngực",
+                        bullets=(
+                            "30 lần ép ngực (sâu 5–6 cm, 100–120 lần/phút) rồi 2 lần thổi, lặp lại liên tục.",
+                            "Chưa được huấn luyện hoặc không muốn thổi ngạt: ép ngực liên tục.",
+                        ),
+                    ),
+                ),
+                quiz=(
+                    QuizQuestion(
+                        id="rescue-breathing-q1",
+                        question="Trước khi thổi ngạt, làm sao để khai thông đường thở?",
+                        options=("Ngửa đầu, nâng cằm", "Kê gối cao dưới đầu", "Cúi đầu nạn nhân về trước"),
+                        answer=0,
+                        explanation="Ngửa đầu, nâng cằm kéo lưỡi ra khỏi thành họng để không khí đi vào phổi.",
+                    ),
+                    QuizQuestion(
+                        id="rescue-breathing-q2",
+                        question="Tỉ lệ ép ngực và thổi ngạt cho người lớn là bao nhiêu?",
+                        options=("15 lần ép : 1 lần thổi", "30 lần ép : 2 lần thổi", "5 lần ép : 5 lần thổi"),
+                        answer=1,
+                        explanation="Chu kỳ 30 : 2 được áp dụng cho người lớn, kể cả khi chỉ có một người cứu.",
+                    ),
+                    QuizQuestion(
+                        id="rescue-breathing-q3",
+                        question="Mỗi lần thổi ngạt nên kéo dài bao lâu?",
+                        options=(
+                            "Thổi thật mạnh và lâu nhất có thể",
+                            "Thổi liên tục, không cần quan sát",
+                            "Khoảng 1 giây, đủ thấy lồng ngực nhô lên",
+                        ),
+                        answer=2,
+                        explanation="Thổi quá mạnh đẩy khí vào dạ dày; chỉ cần đủ để lồng ngực nhô lên.",
+                    ),
+                ),
+            ),
+            Lesson(
+                id="bleeding-wounds",
+                title="Sơ cứu vết thương chảy máu",
+                summary="Phân biệt chảy máu tĩnh mạch và động mạch, ép trực tiếp để cầm máu và biết khi nào cần garô.",
+                minutes=5,
+                video=Video(
+                    youtube_id="6a3ge4UD4Lc",
+                    title="[Hướng dẫn sơ cấp cứu] Sơ Cứu Vết Thương Chảy Máu - Bệnh viện Hoàn Mỹ Đà Nẵng",
+                ),
+                sections=(
+                    Section(
+                        heading="Nhận biết",
+                        bullets=(
+                            "Máu tĩnh mạch: đỏ sẫm, chảy đều và liên tục.",
+                            "Máu động mạch: đỏ tươi, phun thành tia theo nhịp mạch, nguy hiểm hơn.",
+                        ),
+                    ),
+                    Section(
+                        heading="Ép trực tiếp",
+                        bullets=(
+                            "Đeo găng hoặc dùng lớp vải sạch, ấn chặt trực tiếp lên vết thương liên tục.",
+                            "Nếu máu thấm qua, chồng thêm lớp gạc mới; không bóc lớp đang ép.",
+                            "Nâng cao chi bị thương nếu không nghi gãy xương.",
+                        ),
+                    ),
+                    Section(
+                        heading="Chảy máu nặng",
+                        bullets=(
+                            "Gọi 115 nếu máu chảy nhiều, nạn nhân tái lạnh hoặc lơ mơ.",
+                            "Chỉ dùng garô khi chảy máu ở tay chân đe dọa tính mạng mà ép trực tiếp không cầm được; "
+                            "ghi lại thời điểm đặt garô.",
+                            "Giữ nạn nhân ấm và nằm yên trong khi chờ trợ giúp.",
+                        ),
+                    ),
+                ),
+                quiz=(
+                    QuizQuestion(
+                        id="bleeding-wounds-q1",
+                        question="Máu chảy từ động mạch có đặc điểm gì?",
+                        options=(
+                            "Đỏ sẫm, rỉ ra chậm",
+                            "Đỏ tươi, phun thành tia theo nhịp mạch",
+                            "Chảy rất ít rồi tự ngừng",
+                        ),
+                        answer=1,
+                        explanation="Máu động mạch đỏ tươi và phun theo nhịp tim nên mất máu rất nhanh.",
+                    ),
+                    QuizQuestion(
+                        id="bleeding-wounds-q2",
                         question="Đang ép trực tiếp vết thương mà máu thấm qua lớp gạc, bạn nên làm gì?",
                         options=(
                             "Bóc lớp gạc cũ ra rồi thay lớp mới",
-                            "Chồng thêm lớp gạc mới và tiếp tục ép",
                             "Rửa vết thương bằng nước",
+                            "Chồng thêm lớp gạc mới và tiếp tục ép",
+                        ),
+                        answer=2,
+                        explanation="Bóc lớp cũ làm bong cục máu đông; chồng thêm lớp mới để tiếp tục cầm máu.",
+                    ),
+                    QuizQuestion(
+                        id="bleeding-wounds-q3",
+                        question="Khi nào nên dùng garô?",
+                        options=(
+                            "Chảy máu ở tay chân đe dọa tính mạng mà ép trực tiếp không cầm được",
+                            "Với mọi vết thương chảy máu",
+                            "Khi vết thương nhỏ nhưng đau nhiều",
+                        ),
+                        answer=0,
+                        explanation="Garô là biện pháp cuối cùng; nhớ ghi lại thời điểm đặt để báo cho nhân viên y tế.",
+                    ),
+                ),
+            ),
+            Lesson(
+                id="fainting",
+                title="Sơ cứu choáng ngất",
+                summary="Nhận biết dấu hiệu sắp ngất, đặt nạn nhân nằm kê cao chân và biết khi nào cần gọi 115.",
+                minutes=4,
+                video=Video(
+                    youtube_id="jNi1nCk_sNc",
+                    title="[Hướng dẫn sơ cấp cứu] Sơ Cứu Choáng Ngất - Bệnh viện Hoàn Mỹ Đà Nẵng",
+                ),
+                sections=(
+                    Section(
+                        heading="Dấu hiệu báo trước",
+                        paragraphs=(
+                            "Chóng mặt, da tái, vã mồ hôi, nhìn mờ, buồn nôn. "
+                            "Khi thấy các dấu hiệu này, giúp người đó ngồi hoặc nằm xuống ngay để tránh ngã.",
+                        ),
+                    ),
+                    Section(
+                        heading="Khi nạn nhân ngất",
+                        bullets=(
+                            "Đặt nằm ngửa, kê cao chân khoảng 20–30 cm.",
+                            "Nới lỏng quần áo chật như cổ áo, thắt lưng.",
+                            "Giữ nơi thoáng khí, không để người xung quanh vây kín.",
+                        ),
+                    ),
+                    Section(
+                        heading="Khi nào gọi 115",
+                        bullets=(
+                            "Không tỉnh lại sau khoảng 1 phút: gọi 115 và kiểm tra hơi thở.",
+                            "Không thở bình thường: bắt đầu CPR ngay.",
+                            "Không cho ăn uống cho tới khi nạn nhân tỉnh táo hoàn toàn.",
+                        ),
+                    ),
+                ),
+                quiz=(
+                    QuizQuestion(
+                        id="fainting-q1",
+                        question="Người vừa ngất và vẫn thở bình thường. Nên đặt nạn nhân thế nào?",
+                        options=(
+                            "Ngồi dựa tường, cúi đầu xuống",
+                            "Đỡ dậy đi lại cho tỉnh",
+                            "Nằm ngửa, kê cao chân khoảng 20–30 cm",
+                        ),
+                        answer=2,
+                        explanation="Kê cao chân giúp máu về tim và não nhiều hơn.",
+                    ),
+                    QuizQuestion(
+                        id="fainting-q2",
+                        question="Nạn nhân không tỉnh lại sau khoảng 1 phút. Bạn nên làm gì?",
+                        options=(
+                            "Gọi 115, kiểm tra hơi thở và bắt đầu CPR nếu không thở bình thường",
+                            "Tạt nước lạnh vào mặt rồi chờ thêm",
+                            "Cho nạn nhân uống nước đường",
+                        ),
+                        answer=0,
+                        explanation="Ngất kéo dài có thể là dấu hiệu bệnh nặng hoặc ngừng tim, cần cấp cứu ngay.",
+                    ),
+                    QuizQuestion(
+                        id="fainting-q3",
+                        question="Khi nào có thể cho người vừa ngất ăn uống?",
+                        options=(
+                            "Ngay khi nạn nhân mở mắt",
+                            "Khi nạn nhân đã tỉnh táo hoàn toàn",
+                            "Trong lúc còn lơ mơ để lấy lại sức",
                         ),
                         answer=1,
-                        explanation="Chồng thêm lớp mới giúp giữ cục máu đông và tiếp tục cầm máu.",
+                        explanation="Cho ăn uống khi còn lơ mơ có thể gây sặc vào đường thở.",
                     ),
                 ),
             ),
