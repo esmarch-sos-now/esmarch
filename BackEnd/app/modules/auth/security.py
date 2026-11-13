@@ -6,6 +6,7 @@ hasher, with a dummy-hash check for unknown accounts so response time does not r
 
 import hashlib
 import hmac
+import re
 import secrets
 from datetime import timedelta
 
@@ -42,6 +43,19 @@ def normalize_email(value: str) -> str | None:
         return validate_email(value.strip(), check_deliverability=False).normalized.lower()
     except EmailNotValidError:
         return None
+
+
+_VN_MOBILE = re.compile(r"\+84[35789]\d{8}")
+
+
+def normalize_phone(value: str) -> str | None:
+    """Vietnamese mobile number to E.164: accepts 0912 345 678, 84912345678 or +84 912-345-678."""
+    digits = re.sub(r"[\s.()-]", "", value)
+    if digits.startswith("0"):
+        digits = "+84" + digits[1:]
+    elif digits.startswith("84"):
+        digits = "+" + digits
+    return digits if _VN_MOBILE.fullmatch(digits) else None
 
 
 def create_access_token(user_id: str) -> tuple[str, int]:

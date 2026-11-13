@@ -6,6 +6,7 @@ from app.common.schemas import CamelModel
 
 Password = Field(min_length=8, max_length=128)
 Code = Field(pattern=r"^\d{6}$")
+FirebaseToken = Field(min_length=20, max_length=4096)  # Firebase ID token (JWT) from the browser's SMS sign-in
 
 
 class TokenPair(BaseModel):
@@ -56,9 +57,22 @@ class Accepted(CamelModel):
     status: str = "accepted"
 
 
+class PhoneRegister(CamelModel):
+    id_token: str = FirebaseToken
+    password: str = Password
+    display_name: str | None = Field(default=None, max_length=100)
+
+
+class PhoneReset(CamelModel):
+    id_token: str = FirebaseToken
+    new_password: str = Password
+
+
 class UserOut(CamelModel):
     id: str
-    email: str
+    email: str | None
+    phone: str | None
     display_name: str | None
     email_verified: bool
+    phone_verified: bool
     created_at: datetime

@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useSession } from "@/hooks/use-auth";
 import { authCopy } from "@/content/auth";
 import { AuthError } from "@/lib/auth/client";
+import { SmsError, type SmsErrorCode } from "@/lib/auth/firebase";
 
 const { errors } = authCopy;
 
@@ -32,10 +33,27 @@ export function FormAlert({ error, success }: { error?: string; success?: string
   return null;
 }
 
-/** Maps a backend/BFF error to a Vietnamese message. Backend details are stable English strings. */
+const smsMessages: Record<SmsErrorCode, string> = {
+  "not-configured": errors.smsNotConfigured,
+  "invalid-phone": errors.invalidPhone,
+  "invalid-code": errors.invalidCode,
+  "code-expired": errors.codeExpired,
+  "too-many-requests": errors.tooMany,
+  "quota-exceeded": errors.smsQuota,
+  "captcha-failed": errors.captchaFailed,
+  network: errors.unavailable,
+  unknown: errors.generic,
+};
+
+/** Maps a backend/BFF error or a Firebase SMS error to a Vietnamese message. Backend details are stable English strings. */
 export function errorMessage(error: unknown, context: "login" | "default" = "default"): string {
+  if (error instanceof SmsError) return smsMessages[error.code];
   if (!(error instanceof AuthError)) return errors.generic;
+  if (error.detail === "Phone verification is not configured.") return errors.smsNotConfigured;
   if (error.status === 0 || error.status >= 500) return errors.unavailable;
+  if (error.detail === "Phone number already registered.") return errors.phoneTaken;
+  if (error.detail === "No account for this phone number.") return errors.phoneUnknown;
+  if (error.detail === "Invalid or expired phone verification.") return errors.phoneSessionExpired;
   if (error.status === 429) return errors.tooMany;
   if (error.status === 401 && context === "login") return errors.invalidLogin;
   if (error.detail === "Invalid or expired code.") return errors.invalidCode;

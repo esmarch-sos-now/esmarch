@@ -11,6 +11,8 @@ from app.modules.auth.schemas import (
     Accepted,
     ChangePassword,
     EmailOnly,
+    PhoneRegister,
+    PhoneReset,
     RefreshRequest,
     Register,
     ResetPassword,
@@ -30,6 +32,22 @@ def register(body: Register, session: Db, background: BackgroundTasks) -> Accept
     return Accepted()
 
 
+@router.post("/phone/register")
+def register_phone(body: PhoneRegister, session: Db) -> TokenPair:
+    """Creates an account for the phone number in a fresh Firebase SMS sign-in (ID token) and signs it in.
+
+    409 when the number already has an account.
+    """
+    return service.register_phone(session, body.id_token, body.password, body.display_name)
+
+
+@router.post("/phone/reset-password", status_code=204)
+def reset_password_phone(body: PhoneReset, session: Db) -> Response:
+    """Sets a new password after a fresh Firebase SMS sign-in and signs out every session. 404 for unknown numbers."""
+    service.reset_password_phone(session, body.id_token, body.new_password)
+    return Response(status_code=204)
+
+
 @router.post("/verify-email")
 def verify_email(body: VerifyEmail, session: Db) -> TokenPair:
     """Confirms the email with the mailed code and signs the user in."""
@@ -44,7 +62,7 @@ def resend_verification(body: EmailOnly, session: Db, background: BackgroundTask
 
 @router.post("/token")
 def login(form: Annotated[OAuth2PasswordRequestForm, Depends()], session: Db) -> TokenPair:
-    """OAuth2 password grant: `username` is the email."""
+    """OAuth2 password grant: `username` is the phone number (or the email of an older account)."""
     return service.login(session, form.username, form.password)
 
 

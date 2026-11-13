@@ -30,7 +30,7 @@ def get_optional_user(session: Db, token: Token) -> User | None:
         return None
     user_id = decode_access_token(token)
     user = session.get(User, user_id) if user_id else None
-    if user is None or not user.is_active or user.email_verified_at is None:
+    if user is None or not user.is_active or not user.verified:
         return None
     return user
 

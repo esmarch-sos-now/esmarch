@@ -15,7 +15,7 @@ import { useChangePassword, useLogout, useSession, useUpdateProfile } from "@/ho
 import { authCopy } from "@/content/auth";
 import type { User } from "@/lib/auth/client";
 import { LOGIN_PATH } from "@/lib/auth/paths";
-import { changePasswordSchema, profileSchema } from "@/lib/auth/schemas";
+import { changePasswordSchema, formatPhone, profileSchema } from "@/lib/auth/schemas";
 import { FormAlert, reportError } from "./form-fields";
 
 const copy = authCopy.account;
@@ -193,7 +193,7 @@ export default function AccountPanel() {
         <CardHeader>
           <CardTitle className="text-3xl font-black text-ink">{copy.title}</CardTitle>
           <CardDescription className="text-base">
-            {copy.signedInAs} <strong className="text-ink" data-testid="account-email">{user.email}</strong> · {copy.memberSince} {since}
+            {copy.signedInAs} <strong className="text-ink" data-testid="account-login">{user.phone ? formatPhone(user.phone) : user.email}</strong> · {copy.memberSince} {since}
           </CardDescription>
         </CardHeader>
       </Card>

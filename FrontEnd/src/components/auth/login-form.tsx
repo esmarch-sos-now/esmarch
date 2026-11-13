@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import type * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,11 +25,10 @@ export default function LoginForm({ next, notice }: { next: string; notice?: str
   const resend = useResendVerification();
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { username: "", password: "" },
   });
-  // An unverified account signs in through the code step instead.
+  // An unverified (older, email) account signs in through the email code step instead.
   const [verify, setVerify] = useState<string | null>(null);
-  const email = useWatch({ control: form.control, name: "email" });
   useRedirectIfSignedIn(next, !form.formState.isSubmitting && !form.formState.isSubmitSuccessful);
 
   async function onSubmit(data: z.infer<typeof loginSchema>) {
@@ -38,8 +37,8 @@ export default function LoginForm({ next, notice }: { next: string; notice?: str
       router.replace(next);
     } catch (error) {
       if (!isUnverified(error)) return reportError(form.setError, error, {}, "login");
-      await resend.trigger({ email: data.email }).catch(() => undefined);
-      setVerify(data.email);
+      await resend.trigger({ email: data.username }).catch(() => undefined);
+      setVerify(data.username);
     }
   }
 
@@ -56,12 +55,21 @@ export default function LoginForm({ next, notice }: { next: string; notice?: str
           <FieldGroup>
             <FormAlert success={notice} />
             <Controller
-              name="email"
+              name="username"
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="form-login-email">{authCopy.fields.email}</FieldLabel>
-                  <Input {...field} id="form-login-email" type="email" autoComplete="email" aria-invalid={fieldState.invalid} />
+                  <FieldLabel htmlFor="form-login-phone">{authCopy.fields.phone}</FieldLabel>
+                  <Input
+                    {...field}
+                    id="form-login-phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="username"
+                    placeholder="0912 345 678"
+                    maxLength={254}
+                    aria-invalid={fieldState.invalid}
+                  />
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
               )}
@@ -73,7 +81,7 @@ export default function LoginForm({ next, notice }: { next: string; notice?: str
                 <Field data-invalid={fieldState.invalid}>
                   <div className="flex items-center justify-between">
                     <FieldLabel htmlFor="form-login-password">{authCopy.fields.password}</FieldLabel>
-                    <Link className="text-sm font-medium text-brand hover:underline" href={`/quen-mat-khau?email=${encodeURIComponent(email)}`}>
+                    <Link className="text-sm font-medium text-brand hover:underline" href="/quen-mat-khau">
                       {copy.forgot}
                     </Link>
                   </div>
