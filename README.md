@@ -16,7 +16,7 @@ Hiện tại hỗ trợ:
 - AI Voice: trợ lý giọng nói tiếng Việt hướng dẫn sơ cứu theo thời gian thực
 - Hướng dẫn sơ cứu từng bước (kèm mô phỏng 3D)
 - Bản đồ cơ sở y tế và máy AED gần bạn
-- Khóa học và quiz sơ cứu (chỉ mở cho tài khoản đã đăng ký làm người hỗ trợ)
+- Hai khóa học sơ cứu bằng video của Bệnh viện Hoàn Mỹ Đà Nẵng (xem video rồi làm quiz, hoàn thành được ghi lên hồ sơ; chỉ mở cho tài khoản đã đăng ký làm người hỗ trợ)
 
 Trước đây: khi có người bất tỉnh, hóc dị vật hay đột quỵ, bạn phải tự tìm số điện thoại, tra cách sơ cứu trên mạng và hỏi đường đến bệnh viện, trong khi từng phút đều quý giá.
 
