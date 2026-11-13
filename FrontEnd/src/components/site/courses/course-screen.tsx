@@ -31,9 +31,9 @@ const RESPONDER_PATH = "/app/san-sang-ho-tro";
 
 const watchKey = (courseId: string, lessonId: string) => `${courseId}:${lessonId}`;
 
-// Khóa học sơ cứu: chỉ tài khoản đã đăng ký làm người hỗ trợ mới thấy nội dung. Người chưa đăng ký thấy thẻ khóa
-// kèm lối sang trang "Sẵn sàng hỗ trợ"; máy chủ cũng trả 403 nên nội dung không lộ khi gọi thẳng API.
-// Mỗi bài: xem video (YouTube, Bệnh viện Hoàn Mỹ Đà Nẵng) trước, rồi mới mở câu hỏi kiểm tra.
+// First-aid courses: only accounts registered as responders see the content. Others get a locked card with a link to
+// the "Sẵn sàng hỗ trợ" page; the server also answers 403, so calling the API directly does not leak the content.
+// Each lesson: watch the video (YouTube, Bệnh viện Hoàn Mỹ Đà Nẵng) first, then the quiz unlocks.
 export default function CourseScreen() {
   const c = courseCopy;
   const { user, status: sessionStatus } = useSession();
@@ -52,9 +52,9 @@ export default function CourseScreen() {
   const courses = overview.data?.courses ?? [];
   const [courseId, setCourseId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
-  // Bài đã bấm "đã xem xong video" trong phiên này (bài đã hoàn thành thì không cần)
+  // Lessons marked as "video watched" in this session (completed lessons do not need it)
   const [watched, setWatched] = useState<ReadonlySet<string>>(() => new Set());
-  // Chưa chọn: khóa đầu tiên chưa xong, nếu đã xong hết thì khóa đầu tiên
+  // Nothing selected: the first unfinished course, or the first course when all are done
   const course = courses.find((item) => item.id === courseId) ?? courses.find((item) => !item.completed) ?? courses[0];
 
   const selectCourse = (id: string) => {
@@ -118,7 +118,7 @@ export default function CourseScreen() {
             watched={watched}
             onWatched={(lessonId) => setWatched((current) => new Set(current).add(watchKey(course.id, lessonId)))}
             onPassed={(lessonId) => {
-              // Giữ nguyên khóa và bài đang học khi dữ liệu được tải lại (nextLessonId sẽ đổi sau khi qua bài)
+              // Keep the current course and lesson when the data reloads (nextLessonId changes once a lesson is passed)
               setCourseId(course.id);
               setActiveId(lessonId);
               void overview.mutate();
