@@ -11,7 +11,8 @@ request id.
 
 Privacy: before accepting, a responder only sees the situation, a short description and a distance rounded to 100 m.
 The exact location, the requester's phone number and photos go to the accepting responder only, and are dropped when
-the request completes, is cancelled or expires.
+the request completes, is cancelled or expires. Once a responder accepts, the requester also sees the courses that
+responder has completed (`completedCourses`), the same record shown on the responder's own profile.
 """
 
 import logging
@@ -33,6 +34,7 @@ from app.core import clock
 from app.core.config import get_settings
 from app.core.errors import error
 from app.modules.auth.models import User
+from app.modules.courses.service import course_service
 from app.modules.guides.schemas import Audience
 from app.modules.guides.service import catalog
 from app.modules.support.models import Responder, Skill
@@ -105,6 +107,14 @@ class Ticket:
 
 def _rounded(d: float) -> int:
     return round(d / 100) * 100
+
+
+def _completed_courses(session: Session, user_id: str) -> list[dict[str, Any]]:
+    """Finished courses for profile views ("Đã hoàn thành khóa ..."); camelCase like every dict in this module."""
+    return [
+        {"id": c.id, "title": c.title, "badge": c.badge, "completedAt": c.completed_at}
+        for c in course_service.completed_courses(session, user_id)
+    ]
 
 
 def _phone(value: str | None) -> str:
@@ -191,7 +201,7 @@ class SupportService:
             view["approximateDistanceMeters"] = _rounded(meters(live.latitude, live.longitude, t.latitude, t.longitude))
         return view
 
-    def _requester_view(self, t: Ticket, responder: Responder | None) -> dict[str, Any]:
+    def _requester_view(self, session: Session, t: Ticket, responder: Responder | None) -> dict[str, Any]:
         view: dict[str, Any] = {
             "id": t.id,
             "status": t.state,
@@ -206,6 +216,7 @@ class SupportService:
                 "id": responder.id,
                 "displayName": responder.display_name,
                 "contactPhone": responder.contact_phone,
+                "completedCourses": _completed_courses(session, responder.id),
             }
             live = self.presence.get(responder.id)
             if live is not None:
@@ -323,6 +334,7 @@ class SupportService:
                 "contactPhone": profile.contact_phone,
                 "skills": sorted(profile.skills),
                 "available": profile.id in self.presence,
+                "completedCourses": _completed_courses(session, user.id),
             }
 
     # ---- responders (shared core: by profile) --------------------------------------------------
@@ -385,7 +397,7 @@ class SupportService:
                     views.append(self._responder_view(t, live, mine))
             return views
 
-    def accept_for(self, profile: Responder, request_id: str) -> dict:
+    def accept_for(self, session: Session, profile: Responder, request_id: str) -> dict:
         with self.lock:
             self.purge()
             ticket = self._find(request_id)
@@ -396,9 +408,8 @@ class SupportService:
             if profile.id not in self.presence or not self._eligible(profile, ticket):
                 raise error(409, "Responder is not currently eligible.")
             ticket.state, ticket.accepted_by = State.ACCEPTED, profile.id
-            self._emit(
-                "request", request_id, {"type": "request.accepted", "request": self._requester_view(ticket, profile)}
-            )
+            accepted = {"type": "request.accepted", "request": self._requester_view(session, ticket, profile)}
+            self._emit("request", request_id, accepted)
             for other in ticket.invited - {profile.id}:
                 self._emit("responder", other, {"type": "request.taken", "requestId": request_id})
             return {
@@ -473,7 +484,7 @@ class SupportService:
 
     def accept(self, session: Session, authorization: str | None, request_id: str) -> dict:
         with self.lock:
-            return self.accept_for(self._authenticate(session, authorization), request_id)
+            return self.accept_for(session, self._authenticate(session, authorization), request_id)
 
     def complete(self, session: Session, authorization: str | None, request_id: str) -> None:
         with self.lock:
@@ -539,7 +550,7 @@ class SupportService:
     def requester_state(self, session: Session, ticket: Ticket) -> dict:
         with self.lock:
             responder = session.get(Responder, ticket.accepted_by) if ticket.accepted_by else None
-            return self._requester_view(ticket, responder)
+            return self._requester_view(session, ticket, responder)
 
     def owned(self, authorization: str | None, request_id: str) -> Ticket:
         with self.lock:

@@ -146,7 +146,7 @@ def my_requests(user: CurrentUser, session: Db) -> list[dict]:
 
 @me.post("/me/requests/{request_id}/accept")
 def my_accept(request_id: str, user: CurrentUser, session: Db) -> dict:
-    return support.accept_for(support.profile_for_user(session, user), request_id)
+    return support.accept_for(session, support.profile_for_user(session, user), request_id)
 
 
 @me.post("/me/requests/{request_id}/decline", status_code=204)

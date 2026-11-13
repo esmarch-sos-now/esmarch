@@ -181,6 +181,11 @@ def _requester_state(requester_token: object, request_id: object) -> dict[str, A
         return None
 
 
+def _accept(profile: Responder, request_id: str) -> dict[str, Any]:
+    with Session(get_engine()) as session:
+        return support.accept_for(session, profile, request_id)
+
+
 @router.websocket("/ws")
 async def support_ws(ws: WebSocket) -> None:
     s = get_settings()
@@ -238,7 +243,7 @@ async def _responder_session(ws: WebSocket, profile: Responder) -> None:
                     lat, lng = _number(message, "latitude"), _number(message, "longitude")
                     await asyncio.to_thread(support.update_location, profile.id, lat, lng)
                 elif kind == "accept":
-                    detail = await asyncio.to_thread(support.accept_for, profile, _request_id(message))
+                    detail = await asyncio.to_thread(_accept, profile, _request_id(message))
                     await send(ws, {"type": "request.detail", "request": detail})
                 elif kind == "decline":
                     await asyncio.to_thread(support.decline_for, profile.id, _request_id(message))
