@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Camera, HandHeart, Loader2, MapPin, Phone, X } from "lucide-react";
+import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
 import Navbar from "@/components/site/landing/Navbar";
 import { Page } from "@/components/site/primitives";
 import DemoPlacePicker from "@/components/site/support/demo-place-picker";
 import PointMap from "@/components/site/support/point-map";
 import { Button } from "@/components/ui/button";
-import { appNav, supportCopy } from "@/content/app";
+import { appNav, courseCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useLivePosition } from "@/hooks/useLivePosition";
 import { useSupportSocket } from "@/hooks/useSupportSocket";
@@ -328,6 +329,7 @@ export default function RequesterScreen() {
             <div className="rounded-2xl border border-[#cdebd6] bg-[#f1fbf4] p-4.5">
               <p className="text-sm font-semibold text-[#1e7d3a]">{c.accepted}</p>
               <h2 className="mt-1 text-2xl font-black text-ink">{responder.displayName}</h2>
+              <CompletedCourseChips courses={responder.completedCourses ?? []} label={courseCopy.responderCompleted} className="mt-1.5" />
               <p className="mt-1 text-[15px] text-muted-foreground">
                 {responder.distanceMeters !== undefined ? c.distance(formatDistance(responder.distanceMeters)) : c.onTheWay}
               </p>

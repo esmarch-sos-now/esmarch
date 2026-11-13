@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { LogOut, MonitorSmartphone } from "lucide-react";
 import type * as z from "zod";
+import { CourseRecordCard } from "@/components/site/courses/completed-courses";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -198,6 +199,7 @@ export default function AccountPanel() {
         </CardHeader>
       </Card>
       <ProfileCard user={user} />
+      <CourseRecordCard />
       <PasswordCard />
       <SessionsCard />
     </>
