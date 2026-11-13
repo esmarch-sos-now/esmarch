@@ -2,10 +2,13 @@
 
 The course is closed content for registered responders: `_responder` runs before every read or write, so a signed-in
 user without a verified responder profile gets 403 and never receives lesson content. Progress rows are upserted when
-a lesson quiz is passed; the course is complete when every lesson has a row.
+a lesson quiz is passed; the course is complete when every lesson has a row. Completed courses are also part of the
+responder's profile (`completed_courses`, used by `/api/support/me` and the requester's view of the responder), which
+needs no responder check: it only reads the user's own progress rows.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlmodel import Session, select
 
@@ -13,9 +16,20 @@ from app.common.checks import require, reviewed
 from app.core import clock
 from app.core.errors import error
 from app.modules.auth.models import User
-from app.modules.courses.content import COURSES, DISCLAIMER, Course, Lesson
+from app.modules.courses.content import (
+    COURSES,
+    DISCLAIMER,
+    SOURCE_CHANNEL_URL,
+    SOURCE_NAME,
+    SOURCE_NOTE,
+    SOURCE_PLAYLIST_TITLE,
+    SOURCE_PLAYLIST_URL,
+    Course,
+    Lesson,
+)
 from app.modules.courses.models import CourseProgress
 from app.modules.courses.schemas import (
+    CompletedCourseView,
     CourseOverview,
     CourseView,
     LessonView,
@@ -23,8 +37,35 @@ from app.modules.courses.schemas import (
     QuizQuestionView,
     QuizResult,
     SectionView,
+    SourceView,
+    VideoView,
 )
 from app.modules.support.models import Responder
+
+SOURCE = SourceView(
+    name=SOURCE_NAME,
+    channel_url=SOURCE_CHANNEL_URL,
+    playlist_url=SOURCE_PLAYLIST_URL,
+    playlist_title=SOURCE_PLAYLIST_TITLE,
+    note=SOURCE_NOTE,
+)
+
+
+def _video(lesson: Lesson) -> VideoView:
+    vid = lesson.video.youtube_id
+    return VideoView(
+        youtube_id=vid,
+        title=lesson.video.title,
+        url=f"https://www.youtube.com/watch?v={vid}",
+        embed_url=f"https://www.youtube-nocookie.com/embed/{vid}?rel=0",
+    )
+
+
+def _finished_at(course: Course, done: dict[str, CourseProgress]) -> datetime | None:
+    """When the last lesson was passed, or None while any lesson is still open."""
+    if not course.lessons or any(lesson.id not in done for lesson in course.lessons):
+        return None
+    return max(done[lesson.id].completed_at for lesson in course.lessons)
 
 
 @dataclass
@@ -64,6 +105,7 @@ class CourseService:
             title=lesson.title,
             summary=lesson.summary,
             minutes=lesson.minutes,
+            video=_video(lesson),
             sections=[
                 SectionView(heading=s.heading, paragraphs=list(s.paragraphs), bullets=list(s.bullets))
                 for s in lesson.sections
@@ -83,14 +125,32 @@ class CourseService:
             title=course.title,
             summary=course.summary,
             audience=course.audience,
+            badge=course.badge,
             disclaimer=DISCLAIMER,
             lesson_count=len(lessons),
             completed_lessons=completed_lessons,
             progress_percent=round(completed_lessons / len(lessons) * 100) if lessons else 0,
             completed=next_lesson is None and bool(lessons),
+            completed_at=_finished_at(course, done),
             next_lesson_id=next_lesson,
+            source=SOURCE,
             lessons=lessons,
         )
+
+    def completed_courses(self, session: Session, user_id: str) -> list[CompletedCourseView]:
+        """Courses whose every lesson the user has passed, oldest completion first. No responder check."""
+        rows = session.exec(select(CourseProgress).where(CourseProgress.user_id == user_id)).all()
+        done: dict[str, dict[str, CourseProgress]] = {}
+        for row in rows:
+            done.setdefault(row.course_id, {})[row.lesson_id] = row
+        finished = [
+            (at, course) for course in COURSES if (at := _finished_at(course, done.get(course.id, {}))) is not None
+        ]
+        finished.sort(key=lambda item: item[0])
+        return [
+            CompletedCourseView(id=course.id, title=course.title, badge=course.badge, completed_at=at)
+            for at, course in finished
+        ]
 
     def overview(self, session: Session, user: User) -> CourseOverview:
         profile = self._responder(session, user)
@@ -98,6 +158,7 @@ class CourseService:
             responder_name=profile.display_name,
             responder_skills=sorted(profile.skills),
             courses=[self._course_view(session, user, course) for course in COURSES],
+            completed_courses=self.completed_courses(session, user.id),
         )
 
     def submit_quiz(

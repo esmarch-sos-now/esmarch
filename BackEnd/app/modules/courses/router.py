@@ -24,8 +24,6 @@ def overview(user: CurrentUser, session: Db) -> CourseOverview:
 
 
 @router.post("/{course_id}/lessons/{lesson_id}/quiz", response_model=QuizResult)
-def quiz(
-    course_id: str, lesson_id: str, submission: QuizSubmission, user: CurrentUser, session: Db
-) -> QuizResult:
+def quiz(course_id: str, lesson_id: str, submission: QuizSubmission, user: CurrentUser, session: Db) -> QuizResult:
     """Grade a lesson quiz and record the lesson as completed when every answer is correct."""
     return course_service.submit_quiz(session, user, course_id, lesson_id, submission.answers)
