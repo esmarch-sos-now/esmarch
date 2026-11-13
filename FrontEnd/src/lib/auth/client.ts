@@ -4,9 +4,11 @@ import { API_BASE } from "@/lib/api/client";
 
 export type User = {
   id: string;
-  email: string;
+  email: string | null;
+  phone: string | null; // E.164, e.g. +84912345678
   displayName: string | null;
   emailVerified: boolean;
+  phoneVerified: boolean;
   createdAt: string;
 };
 
@@ -52,14 +54,13 @@ type WithUser = { user: User | null };
 
 export const authApi = {
   session: () => call<WithUser>("session", "GET").then((r) => r.user),
-  login: (email: string, password: string) => call<WithUser>("login", "POST", { email, password }).then((r) => r.user),
-  register: (email: string, password: string, displayName?: string) =>
-    call<void>("register", "POST", { email, password, displayName: displayName || null }),
+  login: (username: string, password: string) => call<WithUser>("login", "POST", { username, password }).then((r) => r.user),
+  phoneRegister: (idToken: string, password: string, displayName?: string) =>
+    call<WithUser>("phone-register", "POST", { idToken, password, displayName: displayName || null }).then((r) => r.user),
+  phoneResetPassword: (idToken: string, newPassword: string) =>
+    call<void>("phone-reset-password", "POST", { idToken, newPassword }),
   verifyEmail: (email: string, code: string) => call<WithUser>("verify-email", "POST", { email, code }).then((r) => r.user),
   resendVerification: (email: string) => call<void>("resend-verification", "POST", { email }),
-  forgotPassword: (email: string) => call<void>("forgot-password", "POST", { email }),
-  resetPassword: (email: string, code: string, newPassword: string) =>
-    call<void>("reset-password", "POST", { email, code, newPassword }),
   changePassword: (currentPassword: string, newPassword: string) =>
     call<WithUser>("change-password", "POST", { currentPassword, newPassword }).then((r) => r.user),
   updateProfile: (displayName: string | null) => call<User>("profile", "PATCH", { displayName }),

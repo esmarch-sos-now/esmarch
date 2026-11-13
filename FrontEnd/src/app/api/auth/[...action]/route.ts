@@ -86,8 +86,9 @@ async function signIn(request: NextRequest, response: Response) {
 const handlers: Record<string, Record<string, Handler>> = {
   POST: {
     login: async (request) => {
-      const { email, password } = await readJson(request);
-      const form = new URLSearchParams({ username: String(email ?? ""), password: String(password ?? "") });
+      // `username` is the phone number (or the email of an older account).
+      const { username, password } = await readJson(request);
+      const form = new URLSearchParams({ username: String(username ?? ""), password: String(password ?? "") });
       const response = await backend("/api/auth/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -95,14 +96,17 @@ const handlers: Record<string, Record<string, Handler>> = {
       });
       return signIn(request, response);
     },
-    register: forward("/api/auth/register", ["email", "password", "displayName"]),
+    // Phone sign-up / reset: `idToken` comes from the browser's Firebase SMS sign-in; the backend verifies it.
+    "phone-register": async (request) => {
+      const { idToken, password, displayName } = await readJson(request);
+      return signIn(request, await post("/api/auth/phone/register", { idToken, password, displayName }));
+    },
+    "phone-reset-password": forward("/api/auth/phone/reset-password", ["idToken", "newPassword"]),
     "verify-email": async (request) => {
       const { email, code } = await readJson(request);
       return signIn(request, await post("/api/auth/verify-email", { email, code }));
     },
     "resend-verification": forward("/api/auth/resend-verification", ["email"]),
-    "forgot-password": forward("/api/auth/password/forgot", ["email"]),
-    "reset-password": forward("/api/auth/password/reset", ["email", "code", "newPassword"]),
     "change-password": async (request) => {
       const token = request.cookies.get(ACCESS_COOKIE)?.value;
       if (!token) return json({ status: 401, detail: "Not signed in." }, 401);

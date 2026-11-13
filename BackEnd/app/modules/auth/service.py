@@ -1,7 +1,11 @@
-"""Account flows: register + email OTP, login, refresh-token rotation with reuse detection, password reset.
+"""Account flows: register, login, refresh-token rotation with reuse detection, password reset.
 
-Public endpoints answer the same way whether or not an email has an account (no enumeration); emails are sent
-from background tasks so timing does not tell either.
+New accounts sign up with a phone number: the browser proves it with a Firebase SMS OTP and we read the number from
+the verified ID token (see firebase.py). Sign-in is phone number (or, for older accounts, email) plus password.
+
+The email flows answer the same way whether or not an email has an account (no enumeration); emails are sent from
+background tasks so timing does not tell either. The phone flows can say whether a number is registered, because the
+caller has just proven they own it.
 """
 
 import re
@@ -11,6 +15,7 @@ from collections.abc import Callable
 from datetime import timedelta
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, delete, select, update
 
 from app.common import tokens
@@ -18,15 +23,18 @@ from app.core import clock
 from app.core.config import get_settings
 from app.core.errors import error
 from app.core.ratelimit import IpRateLimiter
-from app.modules.auth import mailer, security
+from app.modules.auth import firebase, mailer, security
 from app.modules.auth.models import CodePurpose, EmailCode, RefreshToken, User
 from app.modules.auth.schemas import TokenPair, UserOut
 
 Schedule = Callable[..., None]  # BackgroundTasks.add_task
 
-INVALID_LOGIN = "Incorrect email or password."
+INVALID_LOGIN = "Incorrect phone number or password."
 INVALID_CODE = "Invalid or expired code."
 INVALID_REFRESH = "Invalid refresh token."
+INVALID_PHONE_TOKEN = "Invalid or expired phone verification."
+PHONE_TAKEN = "Phone number already registered."
+PHONE_UNKNOWN = "No account for this phone number."
 
 _limiter_lock = threading.Lock()
 _login_limiter: IpRateLimiter | None = None
@@ -51,8 +59,10 @@ def user_out(user: User) -> UserOut:
     return UserOut(
         id=user.id,
         email=user.email,
+        phone=user.phone,
         display_name=user.display_name,
         email_verified=user.email_verified_at is not None,
+        phone_verified=user.phone_verified_at is not None,
         created_at=user.created_at,
     )
 
@@ -62,6 +72,31 @@ def _by_email(session: Session, raw: str) -> tuple[str | None, User | None]:
     if email is None:
         return None, None
     return email, session.exec(select(User).where(User.email == email)).first()
+
+
+def _by_phone(session: Session, phone: str) -> User | None:
+    return session.exec(select(User).where(User.phone == phone)).first()
+
+
+def _by_login(session: Session, raw: str) -> tuple[str | None, User | None]:
+    """The login name is a phone number, or an email for accounts made before phone sign-up."""
+    phone = security.normalize_phone(raw)
+    if phone is not None:
+        return phone, _by_phone(session, phone)
+    return _by_email(session, raw)
+
+
+def _proven_phone(id_token: str) -> str:
+    if not get_settings().firebase_project_id:
+        raise error(503, "Phone verification is not configured.")
+    try:
+        phone = firebase.verified_phone(id_token)
+    except firebase.FirebaseUnavailable as exc:
+        raise error(503, "Phone verification is temporarily unavailable.") from exc
+    normalized = security.normalize_phone(phone) if phone else None
+    if normalized is None:
+        raise error(400, INVALID_PHONE_TOKEN)
+    return normalized
 
 
 def _clean_name(name: str | None) -> str | None:
@@ -92,7 +127,8 @@ def _issue_code(session: Session, user: User, purpose: CodePurpose, schedule: Sc
         )
     )
     session.commit()
-    schedule(mailer.send_code, user.email, purpose, code, s.otp_ttl_seconds // 60)
+    if user.email is not None:  # always set here: email codes are only issued to accounts found by email
+        schedule(mailer.send_code, user.email, purpose, code, s.otp_ttl_seconds // 60)
 
 
 def _consume_code(session: Session, user: User | None, purpose: CodePurpose, code: str) -> User:
@@ -146,7 +182,7 @@ def _revoke(session: Session, *conditions) -> None:
 
 
 def _usable(user: User | None) -> bool:
-    return user is not None and user.is_active and user.email_verified_at is not None
+    return user is not None and user.is_active and user.verified
 
 
 # ---- flows ------------------------------------------------------------------------------------------------------
@@ -156,7 +192,7 @@ def register(session: Session, raw_email: str, password: str, name: str | None, 
         raise error(400, "Invalid email address.")
     hashed = security.hash_password(password)  # always hash: same cost whether or not the account exists
     if user is not None and user.email_verified_at is not None:
-        schedule(mailer.send_already_registered, user.email)
+        schedule(mailer.send_already_registered, email)
         return
     if user is None:
         user = User(email=email, password_hash=hashed, display_name=_clean_name(name), created_at=clock.now())
@@ -183,8 +219,41 @@ def verify_email(session: Session, raw_email: str, code: str) -> TokenPair:
     return _issue_tokens(session, user)
 
 
-def login(session: Session, raw_email: str, password: str) -> TokenPair:
-    email, user = _by_email(session, raw_email)
+def register_phone(session: Session, id_token: str, password: str, name: str | None) -> TokenPair:
+    """Creates an account for the phone number proven by a fresh Firebase SMS OTP and signs it in."""
+    phone = _proven_phone(id_token)
+    hashed = security.hash_password(password)
+    if _by_phone(session, phone) is not None:
+        raise error(409, PHONE_TAKEN)
+    now = clock.now()
+    user = User(
+        phone=phone, phone_verified_at=now, password_hash=hashed, display_name=_clean_name(name), created_at=now
+    )
+    session.add(user)
+    try:
+        session.commit()
+    except IntegrityError as exc:  # the same number registered concurrently
+        session.rollback()
+        raise error(409, PHONE_TAKEN) from exc
+    return _issue_tokens(session, user)
+
+
+def reset_password_phone(session: Session, id_token: str, new_password: str) -> None:
+    """Sets a new password for the account of the phone number proven by a fresh SMS OTP; signs out every session."""
+    phone = _proven_phone(id_token)
+    user = _by_phone(session, phone)
+    if user is None:
+        raise error(404, PHONE_UNKNOWN)
+    if not user.is_active:
+        raise error(403, "This account is disabled.")
+    user.password_hash = security.hash_password(new_password)
+    user.phone_verified_at = user.phone_verified_at or clock.now()
+    _revoke(session, col(RefreshToken.user_id) == user.id)
+    session.commit()
+
+
+def login(session: Session, raw_login: str, password: str) -> TokenPair:
+    email, user = _by_login(session, raw_login)
     if email is not None and not _login_allowed(email):
         retry = str(int(get_settings().login_window_seconds))
         raise HTTPException(429, "Too many sign-in attempts. Please retry later.", {"Retry-After": retry})
@@ -196,7 +265,7 @@ def login(session: Session, raw_email: str, password: str) -> TokenPair:
         session.commit()
     if not user.is_active:
         raise error(403, "This account is disabled.")
-    if user.email_verified_at is None:
+    if not user.verified:
         raise error(403, "Email address is not verified.")
     return _issue_tokens(session, user)
 
