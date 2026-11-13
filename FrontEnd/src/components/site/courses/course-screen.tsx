@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { appNav, courseCopy, formatCourseDate } from "@/content/app";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
 import { ACCOUNT_PATH, loginUrl } from "@/lib/auth/paths";
-import type { Course, CourseLesson, CourseOverview, QuizResult } from "@/lib/courses/types";
+import type { Course, CourseLesson, CourseOverview, CourseVideo, QuizResult } from "@/lib/courses/types";
 import { cn } from "@/lib/utils";
 
 type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string };
@@ -298,30 +298,19 @@ function CourseBody({
           <h2 id="active-lesson" className="mt-1 text-2xl font-black text-ink">{active.title}</h2>
           <p className="mt-1.5 text-[15px] leading-[1.6] text-muted-foreground">{active.summary}</p>
 
-          <div className="relative mt-4 aspect-video w-full overflow-hidden rounded-xl bg-black">
-            <iframe
-              key={active.video.youtubeId}
-              src={active.video.embedUrl}
-              title={active.video.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              referrerPolicy="strict-origin-when-cross-origin"
-              loading="lazy"
-              className="absolute inset-0 size-full border-0"
-            />
+          <VideoPlayer key={`${course.id}:${active.id}`} video={active.video} />
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <p className="min-w-0 flex-1 text-xs leading-[1.55] text-muted-foreground">
+              {c.videoCredit(active.video.title, course.source.name)}
+            </p>
+            <Button asChild variant="outline" className="h-9 shrink-0 rounded-full font-semibold">
+              <a href={active.video.url} target="_blank" rel="noopener noreferrer">
+                <PlayCircle aria-hidden="true" /> {c.watchOnYouTube} <ExternalLink aria-hidden="true" />
+                <span className="sr-only">{c.newTab}</span>
+              </a>
+            </Button>
           </div>
-          <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-[1.55] text-muted-foreground">
-            <span>{c.videoCredit(active.video.title, course.source.name)}</span>
-            <a
-              href={active.video.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 font-semibold text-brand hover:underline"
-            >
-              {c.watchOnYouTube} <ExternalLink aria-hidden="true" className="size-3.5" />
-              <span className="sr-only">{c.newTab}</span>
-            </a>
-          </p>
+          <p className="mt-1.5 text-xs leading-[1.55] text-muted-foreground">{c.videoBlockedHint}</p>
 
           {active.sections.length > 0 && (
             <div className="mt-5 rounded-xl bg-[#fafafa] p-4">
@@ -388,6 +377,49 @@ function CourseBody({
         <p className="mt-2">{course.disclaimer}</p>
       </footer>
     </>
+  );
+}
+
+// Thumbnail with a play button; the YouTube iframe only loads once the learner presses play. The frame is never an
+// empty black box: if a browser or extension blocks the iframe, the thumbnail and the "Xem trên YouTube" button remain.
+function VideoPlayer({ video }: { video: CourseVideo }) {
+  const c = courseCopy;
+  const [playing, setPlaying] = useState(false);
+  const separator = video.embedUrl.includes("?") ? "&" : "?";
+
+  return (
+    <div className="relative mt-4 aspect-video w-full overflow-hidden rounded-xl bg-[#111]">
+      {playing ? (
+        <iframe
+          src={`${video.embedUrl}${separator}autoplay=1`}
+          title={video.title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+          className="absolute inset-0 size-full border-0"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setPlaying(true)}
+          aria-label={c.playVideo(video.title)}
+          className="group absolute inset-0 size-full cursor-pointer"
+        >
+          <img
+            src={`https://i.ytimg.com/vi/${video.youtubeId}/hqdefault.jpg`}
+            alt=""
+            className="absolute inset-0 size-full object-cover transition duration-300 group-hover:scale-[1.02]"
+          />
+          <span className="absolute inset-0 bg-black/25 transition group-hover:bg-black/15" aria-hidden="true" />
+          <span
+            className="absolute top-1/2 left-1/2 grid h-14 w-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-2xl bg-[#ff0000] shadow-lg transition group-hover:scale-105"
+            aria-hidden="true"
+          >
+            <span className="ml-1 size-0 border-y-[11px] border-l-[18px] border-y-transparent border-l-white" />
+          </span>
+        </button>
+      )}
+    </div>
   );
 }
 

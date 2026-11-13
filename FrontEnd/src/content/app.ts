@@ -204,6 +204,8 @@ export const courseCopy = {
   // Video và ghi chú dưới video
   videoCredit: (title: string, source: string) => `Video: ${title} — ${source}`,
   watchOnYouTube: 'Xem trên YouTube',
+  playVideo: (title: string) => `Phát video: ${title}`,
+  videoBlockedHint: 'Video không phát được trên trang (do trình duyệt hoặc tiện ích chặn quảng cáo)? Bấm "Xem trên YouTube".',
   newTab: '(mở thẻ mới)',
   keyPoints: 'Ghi nhớ',
   // Xem video trước rồi mới làm bài kiểm tra
