@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.common import tokens
 from app.common.checks import location, meters, need, require, reviewed, text
@@ -51,6 +51,7 @@ REQUEST_TTL = timedelta(minutes=10)
 _PHONE = r"\+?[0-9]{8,15}"
 PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
 DEMO_SOURCE = "Demo self-enrolment (SUPPORT_DEMO_SELF_ENROLL); qualification not verified"
+ADMIN_SOURCE = "Reinstated by an administrator on the admin page"
 
 Notify = Callable[[str, str, dict[str, Any]], None]
 
@@ -129,7 +130,10 @@ class SupportService:
         except Exception:
             log.exception("Support notification failed.")
 
-    def _admin(self, credential: str | None) -> None:
+    def _admin(self, credential: str | None, user: User | None = None) -> None:
+        """Responder administration: a signed-in ADMIN account, or the shared X-Admin-Token for scripts."""
+        if user is not None and user.is_admin:
+            return
         admin = get_settings().support_admin_token
         if len(admin) < 32:
             raise error(503, "Responder administration is not configured.")
@@ -257,21 +261,77 @@ class SupportService:
             session.commit()
             return {"responderId": rid, "accessToken": token, "tokenType": "Bearer", "showTokenOnce": True}
 
-    def revoke(self, session: Session, credential: str | None, rid: str) -> None:
+    def withdraw(self, rid: str) -> None:
+        """Takes a responder off duty now: no presence, no invitations, and a request it accepted is cancelled."""
+        self.presence.pop(rid, None)
+        for t in self.requests.values():
+            t.invited.discard(rid)
+            if t.accepted_by == rid and t.state == State.ACCEPTED:
+                t.state = State.CANCELLED
+                t.clear_location()
+
+    def revoke(self, session: Session, credential: str | None, rid: str, user: User | None = None) -> None:
         with self.lock:
-            self._admin(credential)
+            self._admin(credential, user)
             self.purge()
             profile = session.get(Responder, rid)
             if profile is None:
                 raise error(404, "Responder not found.")
-            self.presence.pop(rid, None)
-            for t in self.requests.values():
-                t.invited.discard(rid)
-                if t.accepted_by == rid:
-                    t.state = State.CANCELLED
-                    t.clear_location()
+            self.withdraw(rid)
             session.delete(profile)
             session.commit()
+
+    def _admin_view(self, profile: Responder, account: User | None) -> dict[str, Any]:
+        return {
+            "id": profile.id,
+            "displayName": profile.display_name,
+            "contactPhone": profile.contact_phone,
+            "skills": sorted(profile.skills),
+            "verified": reviewed(profile.verified_at, clock.now()),
+            "verifiedAt": profile.verified_at,
+            "verificationSource": profile.verification_source,
+            "online": profile.id in self.presence,
+            # Self-enrolled responders share their id with the account; admin-enrolled ones have no account.
+            "account": None
+            if account is None
+            else {
+                "id": account.id,
+                "phone": account.phone,
+                "email": account.email,
+                "displayName": account.display_name,
+            },
+        }
+
+    def admin_list(self, session: Session, user: User) -> list[dict[str, Any]]:
+        """Every responder profile for the admin page, with its linked account and whether it is on duty."""
+        with self.lock:
+            self._admin(None, user)
+            self.purge()
+            profiles = session.exec(select(Responder).order_by(col(Responder.display_name))).all()
+            ids = [p.id for p in profiles]
+            accounts = {u.id: u for u in session.exec(select(User).where(col(User.id).in_(ids))).all()} if ids else {}
+            return [self._admin_view(p, accounts.get(p.id)) for p in profiles]
+
+    def admin_update(
+        self, session: Session, user: User, rid: str, verified: bool | None, skills: list[Skill] | None
+    ) -> dict[str, Any]:
+        """Suspends (verified=False) or reinstates a responder, or changes its skills."""
+        with self.lock:
+            self._admin(None, user)
+            profile = session.get(Responder, rid)
+            if profile is None:
+                raise error(404, "Responder not found.")
+            if skills is not None:
+                profile.skills = sorted({s.value for s in need(skills or None, "Verified skills are required.")})
+            if verified is False:
+                profile.verified_at = None
+                self.withdraw(rid)
+            elif verified and not reviewed(profile.verified_at, clock.now()):
+                profile.verified_at = clock.now()
+                if profile.verification_source == DEMO_SOURCE:
+                    profile.verification_source = ADMIN_SOURCE
+            session.commit()
+            return self._admin_view(profile, session.get(User, rid))
 
     def rotate(self, session: Session, credential: str | None, rid: str) -> dict:
         with self.lock:

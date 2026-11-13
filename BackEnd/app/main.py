@@ -10,6 +10,7 @@ from app.core import errors, registry  # noqa: F401
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.middleware import PublicApiMiddleware
+from app.modules.admin import router as admin_router
 from app.modules.aeds import router as aeds_router
 from app.modules.alerts import router as alerts_router
 from app.modules.auth import router as auth_router
@@ -94,6 +95,7 @@ def create_app() -> FastAPI:
         guides_router,
         aeds_router,
         support_router,
+        admin_router,
         capabilities_router,
         alerts_router,
         voice_router,

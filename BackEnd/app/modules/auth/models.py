@@ -11,6 +11,11 @@ def _uuid() -> str:
     return str(uuid.uuid4())
 
 
+class Role(StrEnum):
+    USER = "USER"
+    ADMIN = "ADMIN"  # can open /admin: manage accounts, roles and responders
+
+
 class User(SQLModel, table=True):
     __tablename__ = "users"  # pyrefly: ignore[bad-override]
 
@@ -21,6 +26,7 @@ class User(SQLModel, table=True):
     password_hash: str = Field(max_length=255)
     display_name: str | None = Field(default=None, max_length=100)
     is_active: bool = True
+    role: str = Field(default=Role.USER, max_length=10)
     email_verified_at: datetime | None = Field(default=None, sa_column=tstz())
     phone_verified_at: datetime | None = Field(default=None, sa_column=tstz())
     created_at: datetime = Field(sa_column=tstz(nullable=False))
@@ -29,6 +35,10 @@ class User(SQLModel, table=True):
     def verified(self) -> bool:
         """The account proved it owns its phone number (or, for older accounts, its mailbox)."""
         return self.phone_verified_at is not None or self.email_verified_at is not None
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == Role.ADMIN
 
 
 class RefreshToken(SQLModel, table=True):
