@@ -39,7 +39,7 @@ export const appPages: AppPageDef[] = [
     path: '/app/khoa-hoc',
     nav: 'Khóa học',
     title: 'Khóa học sơ cứu cho người hỗ trợ',
-    description: 'Bài học ngắn và câu hỏi kiểm tra dành riêng cho người đã đăng ký hỗ trợ dự án.'
+    description: 'Video sơ cứu ngắn và câu hỏi kiểm tra dành riêng cho người đã đăng ký hỗ trợ dự án.'
   },
   {
     // Tìm người hỗ trợ đã có (/app/nguoi-ho-tro); phần tìm AED làm sau
@@ -167,7 +167,8 @@ export const supportCopy = {
 export const courseCopy = {
   eyebrow: 'Dành cho người hỗ trợ',
   title: 'Khóa học sơ cứu',
-  subtitle: 'Bốn bài ngắn giúp bạn bình tĩnh xử lý tình huống khẩn cấp. Hoàn thành từng bài bằng câu hỏi kiểm tra.',
+  subtitle:
+    'Hai khóa ngắn từ video của bác sĩ Bệnh viện Hoàn Mỹ Đà Nẵng. Xem video từng bài rồi làm câu hỏi kiểm tra; khóa đã hoàn thành được ghi nhận lên hồ sơ của bạn.',
   signIn: 'Đăng nhập để học khóa sơ cứu dành cho người hỗ trợ.',
   signInButton: 'Đăng nhập',
   loading: 'Đang tải khóa học…',
@@ -196,6 +197,46 @@ export const courseCopy = {
   lockedNotice: 'Tài khoản này chưa phải người hỗ trợ đã đăng ký nên nội dung khóa học được ẩn.',
   retryLoad: 'Thử lại',
   lessons: 'Nội dung khóa học',
+  // Chọn khóa
+  pickCourse: 'Chọn khóa học',
+  lessonCount: (done: number, total: number) => `${done}/${total} bài`,
+  courseDone: 'Đã hoàn thành',
+  // Video và ghi chú dưới video
+  videoCredit: (title: string, source: string) => `Video: ${title} — ${source}`,
+  watchOnYouTube: 'Xem trên YouTube',
+  newTab: '(mở thẻ mới)',
+  keyPoints: 'Ghi nhớ',
+  // Xem video trước rồi mới làm bài kiểm tra
+  watchedButton: 'Tôi đã xem xong video — làm bài kiểm tra',
+  quizLocked: 'Xem hết video ở trên, sau đó bấm nút để mở bài kiểm tra.',
+  // Ghi nhận lên hồ sơ khi xong khóa
+  recorded: (badge: string) => `Đã ghi nhận lên hồ sơ: ${badge}`,
+  completedOn: (date: string) => `Hoàn thành ngày ${date}`,
+  viewProfile: 'Xem hồ sơ',
+  // Nguồn video
+  sourceTitle: 'Nguồn video',
+  sourcePlaylist: 'Danh sách phát',
+  // Thẻ "Khóa học sơ cứu" trên trang Tài khoản
+  profile: {
+    title: 'Khóa học sơ cứu',
+    loading: 'Đang tải…',
+    loadFailed: 'Chưa tải được thông tin khóa học.',
+    none: 'Chưa hoàn thành khóa học nào.',
+    start: 'Vào học',
+    notEnrolled: 'Khóa học sơ cứu dành cho người hỗ trợ.',
+    enroll: 'Đăng ký làm người hỗ trợ',
+    completedOn: (date: string) => `Hoàn thành ${date}`,
+  },
+  // Chip trên màn người hỗ trợ / người cần giúp
+  earned: 'Khóa đã hoàn thành',
+  responderCompleted: 'Đã hoàn thành:',
+}
+
+/** Ngày hoàn thành khóa học theo kiểu Việt Nam (dd/mm/yyyy); chuỗi rỗng nếu không đọc được. */
+export function formatCourseDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('vi-VN')
 }
 
 // Menu trên các trang app; trang Cơ sở y tế được mở từ luồng SOS nên không nằm trong menu

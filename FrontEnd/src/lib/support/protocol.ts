@@ -1,6 +1,7 @@
 // "Tìm kiếm người hỗ trợ": message types of the /api/support/ws channel and the HTTP calls around it.
 // The backend protocol is documented in BackEnd/app/modules/support/realtime.py.
 import { API_BASE } from "@/lib/api/client";
+import type { CompletedCourse } from "@/lib/courses/types";
 
 export type ResponderRequest = {
   id: string;
@@ -30,6 +31,8 @@ export type RequesterState = {
     latitude?: number;
     longitude?: number;
     distanceMeters?: number;
+    /** First-aid courses the responder has finished (shown to build trust). */
+    completedCourses?: CompletedCourse[];
   };
 };
 
