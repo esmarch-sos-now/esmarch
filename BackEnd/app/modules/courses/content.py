@@ -1,22 +1,15 @@
 """Course content for registered responders ("Khóa học sơ cứu").
 
 Each lesson is one real video from the first-aid playlist of Bệnh viện Hoàn Mỹ Đà Nẵng, embedded from YouTube
-unchanged and credited (see the SOURCE_* constants), followed by short key points and a quiz written by the ESMARCH
-team. Content is code-reviewed and versioned with the app. Progress lives in Postgres (`course_progress`), one row per
-user and lesson, keyed by lesson id, so lesson ids must be unique across all courses. The courses are closed content:
-only signed-in users with a verified responder profile can read them.
+unchanged and credited (see the SOURCE_* constants), followed by short key points written by the ESMARCH team and a
+quiz generated per attempt from the first-aid spreadsheet (`question_bank.py`, `quiz.py`): `bank_topics` lists the
+rows ("STT") of the sheet a lesson's questions are drawn from. Content is code-reviewed and versioned with the app.
+Progress lives in Postgres (`course_progress`), one row per user and lesson, keyed by lesson id, so lesson ids must be
+unique across all courses. The courses are closed content: only signed-in users with a verified responder profile can
+read them.
 """
 
 from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class QuizQuestion:
-    id: str
-    question: str
-    options: tuple[str, ...]
-    answer: int
-    explanation: str
 
 
 @dataclass(frozen=True)
@@ -40,7 +33,7 @@ class Lesson:
     minutes: int
     video: Video
     sections: tuple[Section, ...]  # "ghi nhớ": key points shown under the video
-    quiz: tuple[QuizQuestion, ...]
+    bank_topics: tuple[int, ...]  # "STT" of the spreadsheet rows the quiz is generated from
 
 
 @dataclass(frozen=True)
@@ -64,7 +57,7 @@ SOURCE_PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLjGhUv8IOm2gwLOaen
 SOURCE_PLAYLIST_TITLE = "Hướng dẫn Sơ Cấp Cứu Chính xác, ngắn gọn - Bệnh viện Hoàn Mỹ Đà Nẵng"
 SOURCE_NOTE = (
     "Video thuộc bản quyền của Bệnh viện Hoàn Mỹ Đà Nẵng, được nhúng nguyên vẹn từ YouTube, không chỉnh sửa. "
-    "Phần ghi nhớ và câu hỏi ôn tập do nhóm ESMARCH biên soạn để giúp bạn ôn lại nội dung video."
+    "Phần ghi nhớ do nhóm ESMARCH biên soạn; câu hỏi ôn tập được tạo ngẫu nhiên từ tài liệu sơ cứu của nhóm."
 )
 
 AUDIENCE = "Người đã đăng ký làm người hỗ trợ"
@@ -120,33 +113,7 @@ COURSES: tuple[Course, ...] = (
                         ),
                     ),
                 ),
-                quiz=(
-                    QuizQuestion(
-                        id="choking-conscious-q1",
-                        question="Nạn nhân hóc dị vật nhưng vẫn ho mạnh được. Bạn nên làm gì?",
-                        options=(
-                            "Ép bụng ngay lập tức",
-                            "Khuyến khích nạn nhân tiếp tục ho và theo dõi",
-                            "Cho nạn nhân uống thật nhiều nước",
-                        ),
-                        answer=1,
-                        explanation="Ho mạnh giúp đẩy dị vật ra; chỉ can thiệp khi ho yếu dần hoặc không thở được.",
-                    ),
-                    QuizQuestion(
-                        id="choking-conscious-q2",
-                        question="Khi ép bụng cho người lớn, đặt nắm tay ở đâu?",
-                        options=("Trên xương ức", "Dưới rốn", "Trên rốn, dưới xương ức"),
-                        answer=2,
-                        explanation="Nắm tay đặt trên rốn, dưới xương ức rồi kéo mạnh vào trong và lên trên.",
-                    ),
-                    QuizQuestion(
-                        id="choking-conscious-q3",
-                        question="Với phụ nữ đang mang thai bị hóc dị vật, nên thay ép bụng bằng gì?",
-                        options=("Ép ngực", "Vỗ lưng mạnh hơn", "Dốc ngược nạn nhân"),
-                        answer=0,
-                        explanation="Ép ngực tránh gây tổn thương vùng bụng và thai nhi.",
-                    ),
-                ),
+                bank_topics=(13, 14, 15, 16),
             ),
             Lesson(
                 id="choking-self",
@@ -179,33 +146,7 @@ COURSES: tuple[Course, ...] = (
                         ),
                     ),
                 ),
-                quiz=(
-                    QuizQuestion(
-                        id="choking-self-q1",
-                        question="Khi tự ép bụng, bạn đặt nắm tay ở đâu?",
-                        options=("Dưới rốn", "Ngay trên xương ức", "Trên rốn, dưới xương ức"),
-                        answer=2,
-                        explanation="Vị trí giống như khi ép bụng cho người khác: trên rốn, dưới xương ức.",
-                    ),
-                    QuizQuestion(
-                        id="choking-self-q2",
-                        question="Bị hóc khi ở một mình, ngoài tự ép bằng tay bạn có thể làm gì?",
-                        options=(
-                            "Tì mạnh bụng trên vào lưng ghế hoặc mép bàn",
-                            "Nằm ngửa và chờ dị vật tự trôi",
-                            "Uống nước để đẩy dị vật xuống",
-                        ),
-                        answer=0,
-                        explanation="Lưng ghế hoặc mép bàn giúp tạo lực ép bụng mạnh khi không có người giúp.",
-                    ),
-                    QuizQuestion(
-                        id="choking-self-q3",
-                        question="Lực ép bụng cần hướng theo chiều nào?",
-                        options=("Thẳng xuống dưới", "Vào trong và lên trên", "Sang hai bên"),
-                        answer=1,
-                        explanation="Ép vào trong và lên trên đẩy không khí trong phổi ra, tống dị vật khỏi đường thở.",
-                    ),
-                ),
+                bank_topics=(13, 15, 16),
             ),
             Lesson(
                 id="infant-milk-aspiration",
@@ -242,41 +183,7 @@ COURSES: tuple[Course, ...] = (
                         ),
                     ),
                 ),
-                quiz=(
-                    QuizQuestion(
-                        id="infant-milk-aspiration-q1",
-                        question="Khi vỗ lưng cho trẻ dưới 1 tuổi bị sặc, đặt trẻ ở tư thế nào?",
-                        options=(
-                            "Nằm ngửa trên giường",
-                            "Nằm sấp dọc cẳng tay, đầu thấp hơn thân",
-                            "Bế đứng, đầu cao hơn thân",
-                        ),
-                        answer=1,
-                        explanation="Đầu thấp hơn thân giúp dị vật hoặc sữa dễ thoát ra ngoài.",
-                    ),
-                    QuizQuestion(
-                        id="infant-milk-aspiration-q2",
-                        question="Ấn ngực cho trẻ nhũ nhi như thế nào?",
-                        options=(
-                            "2 ngón tay ấn giữa ngực, ngay dưới đường nối hai núm vú",
-                            "Cả bàn tay ấn lên bụng trẻ",
-                            "Gót bàn tay ấn lên xương ức như người lớn",
-                        ),
-                        answer=0,
-                        explanation="Trẻ nhỏ chỉ cần lực của 2 ngón tay, đặt giữa ngực ngay dưới đường nối hai núm vú.",
-                    ),
-                    QuizQuestion(
-                        id="infant-milk-aspiration-q3",
-                        question="Với trẻ dưới 1 tuổi bị hóc, việc nào KHÔNG nên làm?",
-                        options=(
-                            "Vỗ lưng 5 lần giữa hai bả vai",
-                            "Gọi 115 nếu trẻ không còn phản ứng",
-                            "Ép bụng như với người lớn",
-                        ),
-                        answer=2,
-                        explanation="Ép bụng có thể làm tổn thương gan và nội tạng của trẻ nhỏ.",
-                    ),
-                ),
+                bank_topics=(13, 20, 21, 22),
             ),
         ),
     ),
@@ -323,33 +230,7 @@ COURSES: tuple[Course, ...] = (
                         ),
                     ),
                 ),
-                quiz=(
-                    QuizQuestion(
-                        id="rescue-breathing-q1",
-                        question="Trước khi thổi ngạt, làm sao để khai thông đường thở?",
-                        options=("Ngửa đầu, nâng cằm", "Kê gối cao dưới đầu", "Cúi đầu nạn nhân về trước"),
-                        answer=0,
-                        explanation="Ngửa đầu, nâng cằm kéo lưỡi ra khỏi thành họng để không khí đi vào phổi.",
-                    ),
-                    QuizQuestion(
-                        id="rescue-breathing-q2",
-                        question="Tỉ lệ ép ngực và thổi ngạt cho người lớn là bao nhiêu?",
-                        options=("15 lần ép : 1 lần thổi", "30 lần ép : 2 lần thổi", "5 lần ép : 5 lần thổi"),
-                        answer=1,
-                        explanation="Chu kỳ 30 : 2 được áp dụng cho người lớn, kể cả khi chỉ có một người cứu.",
-                    ),
-                    QuizQuestion(
-                        id="rescue-breathing-q3",
-                        question="Mỗi lần thổi ngạt nên kéo dài bao lâu?",
-                        options=(
-                            "Thổi thật mạnh và lâu nhất có thể",
-                            "Thổi liên tục, không cần quan sát",
-                            "Khoảng 1 giây, đủ thấy lồng ngực nhô lên",
-                        ),
-                        answer=2,
-                        explanation="Thổi quá mạnh đẩy khí vào dạ dày; chỉ cần đủ để lồng ngực nhô lên.",
-                    ),
-                ),
+                bank_topics=(23, 26, 64),
             ),
             Lesson(
                 id="bleeding-wounds",
@@ -386,41 +267,7 @@ COURSES: tuple[Course, ...] = (
                         ),
                     ),
                 ),
-                quiz=(
-                    QuizQuestion(
-                        id="bleeding-wounds-q1",
-                        question="Máu chảy từ động mạch có đặc điểm gì?",
-                        options=(
-                            "Đỏ sẫm, rỉ ra chậm",
-                            "Đỏ tươi, phun thành tia theo nhịp mạch",
-                            "Chảy rất ít rồi tự ngừng",
-                        ),
-                        answer=1,
-                        explanation="Máu động mạch đỏ tươi và phun theo nhịp tim nên mất máu rất nhanh.",
-                    ),
-                    QuizQuestion(
-                        id="bleeding-wounds-q2",
-                        question="Đang ép trực tiếp vết thương mà máu thấm qua lớp gạc, bạn nên làm gì?",
-                        options=(
-                            "Bóc lớp gạc cũ ra rồi thay lớp mới",
-                            "Rửa vết thương bằng nước",
-                            "Chồng thêm lớp gạc mới và tiếp tục ép",
-                        ),
-                        answer=2,
-                        explanation="Bóc lớp cũ làm bong cục máu đông; chồng thêm lớp mới để tiếp tục cầm máu.",
-                    ),
-                    QuizQuestion(
-                        id="bleeding-wounds-q3",
-                        question="Khi nào nên dùng garô?",
-                        options=(
-                            "Chảy máu ở tay chân đe dọa tính mạng mà ép trực tiếp không cầm được",
-                            "Với mọi vết thương chảy máu",
-                            "Khi vết thương nhỏ nhưng đau nhiều",
-                        ),
-                        answer=0,
-                        explanation="Garô là biện pháp cuối cùng; nhớ ghi lại thời điểm đặt để báo cho nhân viên y tế.",
-                    ),
-                ),
+                bank_topics=(27, 28, 29, 33),
             ),
             Lesson(
                 id="fainting",
@@ -456,41 +303,7 @@ COURSES: tuple[Course, ...] = (
                         ),
                     ),
                 ),
-                quiz=(
-                    QuizQuestion(
-                        id="fainting-q1",
-                        question="Người vừa ngất và vẫn thở bình thường. Nên đặt nạn nhân thế nào?",
-                        options=(
-                            "Ngồi dựa tường, cúi đầu xuống",
-                            "Đỡ dậy đi lại cho tỉnh",
-                            "Nằm ngửa, kê cao chân khoảng 20–30 cm",
-                        ),
-                        answer=2,
-                        explanation="Kê cao chân giúp máu về tim và não nhiều hơn.",
-                    ),
-                    QuizQuestion(
-                        id="fainting-q2",
-                        question="Nạn nhân không tỉnh lại sau khoảng 1 phút. Bạn nên làm gì?",
-                        options=(
-                            "Gọi 115, kiểm tra hơi thở và bắt đầu CPR nếu không thở bình thường",
-                            "Tạt nước lạnh vào mặt rồi chờ thêm",
-                            "Cho nạn nhân uống nước đường",
-                        ),
-                        answer=0,
-                        explanation="Ngất kéo dài có thể là dấu hiệu bệnh nặng hoặc ngừng tim, cần cấp cứu ngay.",
-                    ),
-                    QuizQuestion(
-                        id="fainting-q3",
-                        question="Khi nào có thể cho người vừa ngất ăn uống?",
-                        options=(
-                            "Ngay khi nạn nhân mở mắt",
-                            "Khi nạn nhân đã tỉnh táo hoàn toàn",
-                            "Trong lúc còn lơ mơ để lấy lại sức",
-                        ),
-                        answer=1,
-                        explanation="Cho ăn uống khi còn lơ mơ có thể gây sặc vào đường thở.",
-                    ),
-                ),
+                bank_topics=(23, 30, 139),
             ),
         ),
     ),

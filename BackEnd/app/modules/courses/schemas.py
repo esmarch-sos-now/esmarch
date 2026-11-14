@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from pydantic import Field
+
 from app.common.schemas import CamelModel
 
 
@@ -39,7 +41,6 @@ class LessonView(CamelModel):
     minutes: int
     video: VideoView
     sections: list[SectionView]
-    quiz: list[QuizQuestionView]
     completed: bool
     quiz_score: int | None = None
 
@@ -77,8 +78,16 @@ class CourseOverview(CamelModel):
     completed_courses: list[CompletedCourseView]
 
 
+class QuizView(CamelModel):
+    """A freshly generated quiz. `token` is signed and must be sent back with the answers."""
+
+    token: str
+    questions: list[QuizQuestionView]
+
+
 class QuizSubmission(CamelModel):
-    answers: list[int]
+    token: str = Field(max_length=1000)
+    answers: list[int] = Field(max_length=50)  # bounded before grading; the exact count is checked there
 
 
 class QuizAnswerResult(CamelModel):

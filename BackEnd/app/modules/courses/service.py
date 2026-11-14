@@ -5,8 +5,20 @@ user without a verified responder profile gets 403 and never receives lesson con
 a lesson quiz is passed; the course is complete when every lesson has a row. Completed courses are also part of the
 responder's profile (`completed_courses`, used by `/api/support/me` and the requester's view of the responder), which
 needs no responder check: it only reads the user's own progress rows.
+
+Quizzes are generated per attempt from the spreadsheet question bank (`quiz.py`). Attempts are not stored: `new_quiz`
+signs (user, course, lesson, nonce, bank version, expiry) into a token, and `submit_quiz` verifies it and regenerates
+the same questions to grade them. The seed is derived from the nonce with the server secret, so the answer key cannot be
+computed from the token. A token is graded once (the result reveals the correct answers), expires after
+QUIZ_TOKEN_TTL_SECONDS, and a token from an older version of the spreadsheet gets 409.
 """
 
+import base64
+import hashlib
+import hmac
+import logging
+import secrets
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -14,6 +26,7 @@ from sqlmodel import Session, select
 
 from app.common.checks import require, reviewed
 from app.core import clock
+from app.core.config import get_settings
 from app.core.errors import error
 from app.modules.auth.models import User
 from app.modules.courses.content import (
@@ -28,6 +41,8 @@ from app.modules.courses.content import (
     Lesson,
 )
 from app.modules.courses.models import CourseProgress
+from app.modules.courses.question_bank import QuestionBank, QuestionBankError, load_bank
+from app.modules.courses.quiz import QUIZ_SIZE, GeneratedQuestion, generate_quiz
 from app.modules.courses.schemas import (
     CompletedCourseView,
     CourseOverview,
@@ -36,11 +51,16 @@ from app.modules.courses.schemas import (
     QuizAnswerResult,
     QuizQuestionView,
     QuizResult,
+    QuizView,
     SectionView,
     SourceView,
     VideoView,
 )
 from app.modules.support.models import Responder
+
+log = logging.getLogger("app.courses")
+
+QUIZ_TOKEN_TTL_SECONDS = 2 * 3600  # time to watch the video and answer; a new quiz can always be requested
 
 SOURCE = SourceView(
     name=SOURCE_NAME,
@@ -59,6 +79,85 @@ def _video(lesson: Lesson) -> VideoView:
         url=f"https://www.youtube.com/watch?v={vid}",
         embed_url=f"https://www.youtube-nocookie.com/embed/{vid}?rel=0",
     )
+
+
+def _bank() -> QuestionBank:
+    try:
+        return load_bank(get_settings().course_question_bank_file)
+    except QuestionBankError as exc:
+        log.warning("Course question bank unavailable: %s", exc)
+        raise error(503, "Chưa tải được bộ câu hỏi sơ cứu.") from exc
+
+
+def _mac(purpose: str, message: str) -> bytes:
+    key = get_settings().auth_secret_key.encode()
+    return hmac.new(key, f"course-quiz-{purpose}:{message}".encode(), hashlib.sha256).digest()
+
+
+@dataclass(frozen=True)
+class QuizTicket:
+    """The verified content of a quiz token."""
+
+    nonce: str
+    version: str  # question bank version the quiz was generated from
+    expires_at: int  # Unix seconds
+
+    @property
+    def seed(self) -> int:
+        """Derived with the server secret: the token alone does not give away the answer key."""
+        return int.from_bytes(_mac("seed", self.nonce)[:8], "big")
+
+
+def _token(user_id: str, course_id: str, lesson_id: str, version: str) -> tuple[str, QuizTicket]:
+    ticket = QuizTicket(
+        nonce=secrets.token_urlsafe(16),
+        version=version,
+        expires_at=int(clock.now().timestamp()) + QUIZ_TOKEN_TTL_SECONDS,
+    )
+    payload = "|".join((user_id, course_id, lesson_id, ticket.nonce, ticket.version, str(ticket.expires_at)))
+    encoded = base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
+    return f"{encoded}.{_mac('sign', payload).hex()}", ticket
+
+
+def _read_token(token: str, user_id: str, course_id: str, lesson_id: str) -> QuizTicket:
+    """The ticket of a token issued to this user for this lesson: 400 when invalid, 409 when expired."""
+    ticket = None
+    try:
+        encoded, signature = token.split(".", 1)
+        payload = base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)).decode()
+        if hmac.compare_digest(signature.encode(), _mac("sign", payload).hex().encode()):
+            owner, course, lesson, nonce, version, expires_at = payload.split("|")
+            if (owner, course, lesson) == (user_id, course_id, lesson_id):
+                ticket = QuizTicket(nonce=nonce, version=version, expires_at=int(expires_at))
+    except ValueError:  # malformed: bad base64 or UTF-8 (both ValueError), wrong field count
+        pass
+    if ticket is None:
+        raise error(400, "Invalid quiz token.")
+    if clock.now().timestamp() >= ticket.expires_at:
+        raise error(409, "Bộ câu hỏi đã hết hạn. Hãy làm bộ câu hỏi mới.")
+    return ticket
+
+
+class _GradedTokens:
+    """Nonces of tokens already graded, kept until they expire. In process memory: the app runs a single worker."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._expiry: dict[str, int] = {}
+
+    def claim(self, ticket: QuizTicket) -> bool:
+        """True the first time a ticket is graded, False on a replay."""
+        now = clock.now().timestamp()
+        with self._lock:
+            if len(self._expiry) >= 1000:  # prune now and then rather than on every call
+                self._expiry = {nonce: at for nonce, at in self._expiry.items() if at > now}
+            if ticket.nonce in self._expiry:
+                return False
+            self._expiry[ticket.nonce] = ticket.expires_at
+            return True
+
+
+_graded = _GradedTokens()
 
 
 def _finished_at(course: Course, done: dict[str, CourseProgress]) -> datetime | None:
@@ -90,14 +189,13 @@ class CourseService:
             raise error(404, "Lesson not found.")
         return lesson
 
-    def _completed(self, session: Session, user_id: str, course: Course) -> dict[str, CourseProgress]:
-        rows = session.exec(
-            select(CourseProgress).where(
-                CourseProgress.user_id == user_id,
-                CourseProgress.course_id == course.id,
-            )
-        ).all()
-        return {row.lesson_id: row for row in rows}
+    def _progress(self, session: Session, user_id: str) -> dict[str, dict[str, CourseProgress]]:
+        """The user's progress rows by course and lesson, in one query."""
+        rows = session.exec(select(CourseProgress).where(CourseProgress.user_id == user_id)).all()
+        done: dict[str, dict[str, CourseProgress]] = {}
+        for row in rows:
+            done.setdefault(row.course_id, {})[row.lesson_id] = row
+        return done
 
     def _lesson_view(self, lesson: Lesson, progress: CourseProgress | None) -> LessonView:
         return LessonView(
@@ -110,13 +208,11 @@ class CourseService:
                 SectionView(heading=s.heading, paragraphs=list(s.paragraphs), bullets=list(s.bullets))
                 for s in lesson.sections
             ],
-            quiz=[QuizQuestionView(id=q.id, question=q.question, options=list(q.options)) for q in lesson.quiz],
             completed=progress is not None,
             quiz_score=progress.quiz_score if progress is not None else None,
         )
 
-    def _course_view(self, session: Session, user: User, course: Course) -> CourseView:
-        done = self._completed(session, user.id, course)
+    def _course_view(self, course: Course, done: dict[str, CourseProgress]) -> CourseView:
         lessons = [self._lesson_view(lesson, done.get(lesson.id)) for lesson in course.lessons]
         completed_lessons = sum(1 for lesson in course.lessons if lesson.id in done)
         next_lesson = next((lesson.id for lesson in lessons if not lesson.completed), None)
@@ -139,10 +235,9 @@ class CourseService:
 
     def completed_courses(self, session: Session, user_id: str) -> list[CompletedCourseView]:
         """Courses whose every lesson the user has passed, oldest completion first. No responder check."""
-        rows = session.exec(select(CourseProgress).where(CourseProgress.user_id == user_id)).all()
-        done: dict[str, dict[str, CourseProgress]] = {}
-        for row in rows:
-            done.setdefault(row.course_id, {})[row.lesson_id] = row
+        return self._finished_courses(self._progress(session, user_id))
+
+    def _finished_courses(self, done: dict[str, dict[str, CourseProgress]]) -> list[CompletedCourseView]:
         finished = [
             (at, course) for course in COURSES if (at := _finished_at(course, done.get(course.id, {}))) is not None
         ]
@@ -154,22 +249,50 @@ class CourseService:
 
     def overview(self, session: Session, user: User) -> CourseOverview:
         profile = self._responder(session, user)
+        done = self._progress(session, user.id)
         return CourseOverview(
             responder_name=profile.display_name,
             responder_skills=sorted(profile.skills),
-            courses=[self._course_view(session, user, course) for course in COURSES],
-            completed_courses=self.completed_courses(session, user.id),
+            courses=[self._course_view(course, done.get(course.id, {})) for course in COURSES],
+            completed_courses=self._finished_courses(done),
+        )
+
+    def _questions(self, bank: QuestionBank, lesson: Lesson, seed: int) -> list[GeneratedQuestion]:
+        questions = generate_quiz(bank, lesson.id, lesson.bank_topics, seed)
+        if len(questions) < QUIZ_SIZE:  # the sheet lost the lesson's rows: a shorter quiz must not pass the lesson
+            log.warning("Lesson %s: %d of %d questions from the question bank", lesson.id, len(questions), QUIZ_SIZE)
+            raise error(503, "Chưa có câu hỏi cho bài học này.")
+        return questions
+
+    def new_quiz(self, session: Session, user: User, course_id: str, lesson_id: str) -> QuizView:
+        self._responder(session, user)
+        course = self._course(course_id)
+        lesson = self._lesson(course, lesson_id)
+        bank = _bank()
+        token, ticket = _token(user.id, course.id, lesson.id, bank.version)
+        questions = self._questions(bank, lesson, ticket.seed)
+        return QuizView(
+            token=token,
+            questions=[QuizQuestionView(id=q.id, question=q.question, options=list(q.options)) for q in questions],
         )
 
     def submit_quiz(
-        self, session: Session, user: User, course_id: str, lesson_id: str, answers: list[int]
+        self, session: Session, user: User, course_id: str, lesson_id: str, token: str, answers: list[int]
     ) -> QuizResult:
         self._responder(session, user)
         course = self._course(course_id)
         lesson = self._lesson(course, lesson_id)
-        require(len(answers) == len(lesson.quiz), "Answer every question before submitting.")
-        for answer, question in zip(answers, lesson.quiz, strict=True):
+        ticket = _read_token(token, user.id, course.id, lesson.id)
+        bank = _bank()
+        if ticket.version != bank.version:
+            raise error(409, "Bộ câu hỏi vừa được cập nhật. Hãy làm bộ câu hỏi mới.")
+        quiz = self._questions(bank, lesson, ticket.seed)
+        require(len(answers) == len(quiz), "Answer every question before submitting.")
+        for answer, question in zip(answers, quiz, strict=True):
             require(0 <= answer < len(question.options), "Invalid answer.")
+        # Grading reveals the correct answers, so each quiz is graded once; a retry starts a new quiz.
+        if not _graded.claim(ticket):
+            raise error(409, "Bộ câu hỏi này đã được chấm. Hãy làm bộ câu hỏi mới.")
 
         results = [
             QuizAnswerResult(
@@ -178,15 +301,14 @@ class CourseService:
                 correct_index=question.answer,
                 explanation=question.explanation,
             )
-            for answer, question in zip(answers, lesson.quiz, strict=True)
+            for answer, question in zip(answers, quiz, strict=True)
         ]
         correct_count = sum(result.correct for result in results)
-        passed = correct_count == len(lesson.quiz)
+        passed = correct_count == len(quiz)
 
         if passed:
             key = f"{user.id}:{lesson.id}"
             progress = session.get(CourseProgress, key)
-            now = clock.now()
             if progress is None:
                 session.add(
                     CourseProgress(
@@ -195,20 +317,20 @@ class CourseService:
                         course_id=course.id,
                         lesson_id=lesson.id,
                         quiz_score=correct_count,
-                        completed_at=now,
+                        completed_at=clock.now(),
                     )
                 )
             else:
+                # Keep the first completion date: redoing a lesson must not move the course's completion date.
                 progress.quiz_score = max(progress.quiz_score, correct_count)
-                progress.completed_at = now
             session.commit()
 
         return QuizResult(
             passed=passed,
             correct_count=correct_count,
-            total=len(lesson.quiz),
+            total=len(quiz),
             results=results,
-            course=self._course_view(session, user, course),
+            course=self._course_view(course, self._progress(session, user.id).get(course.id, {})),
         )
 
 
