@@ -5,8 +5,11 @@ import type { NextResponse } from "next/server";
 
 type ResponseCookies = NextResponse["cookies"];
 
-export const ACCESS_COOKIE = "esm_at";
-export const REFRESH_COOKIE = "esm_rt";
+// Browsers share cookies between ports of the same host (localhost:3001 and localhost:3002 would be one login).
+// Setting SESSION_COOKIE_SUFFIX on a site gives it its own cookie names, so two sites on one host sign in separately.
+const suffix = (process.env.SESSION_COOKIE_SUFFIX ?? "").replace(/[^A-Za-z0-9_-]/g, "");
+export const ACCESS_COOKIE = suffix ? `esm_at_${suffix}` : "esm_at";
+export const REFRESH_COOKIE = suffix ? `esm_rt_${suffix}` : "esm_rt";
 
 export const BACKEND_URL = (process.env.BACKEND_URL ?? "http://localhost:8000").replace(/\/+$/, "");
 

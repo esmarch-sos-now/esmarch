@@ -9,8 +9,11 @@ export type ResponderRequest = {
   description: string | null;
   expiresAt: string;
   photoCount: number;
+  hasVideo?: boolean;
   /** Before accepting: rounded to 100 m. */
   approximateDistanceMeters?: number;
+  /** Registered incident area; no responder GPS is needed for area-based dispatch. */
+  area?: string;
   /** After accepting only. */
   latitude?: number | null;
   longitude?: number | null;
@@ -67,8 +70,9 @@ export async function createSupportRequest(body: {
   latitude: number;
   longitude: number;
   contactPhone: string;
-  situation: string;
-  description: string;
+  area: string;
+  situation?: string;
+  description?: string;
 }): Promise<{ ok: true; request: CreatedRequest } | { ok: false; status: number; detail: string }> {
   const response = await fetch(`${API_BASE}/api/support-requests`, {
     method: "POST",
@@ -80,6 +84,18 @@ export async function createSupportRequest(body: {
   if (response.ok) return { ok: true, request: (await response.json()) as CreatedRequest };
   const detail = await response.json().then((d: { detail?: unknown }) => String(d?.detail ?? ""), () => "");
   return { ok: false, status: response.status, detail };
+}
+
+export async function uploadSupportVideo(request: CreatedRequest, video: File): Promise<boolean> {
+  const form = new FormData();
+  form.append("file", video, video.name || "video.mp4");
+  const response = await fetch(`${API_BASE}/api/support-requests/${request.id}/video`, {
+    method: "POST",
+    credentials: "omit",
+    headers: { Authorization: `Bearer ${request.requesterToken}` },
+    body: form,
+  });
+  return response.ok;
 }
 
 export async function uploadSupportPhoto(request: CreatedRequest, photo: Blob): Promise<boolean> {
@@ -114,6 +130,9 @@ export async function cancelSupportRequest(request: CreatedRequest): Promise<voi
 
 /** Photos are only served to the accepting responder; the proxy signs the request with the account. */
 export const photoUrl = (requestId: string, index: number) => `${API_BASE}/api/support/me/requests/${requestId}/photos/${index}`;
+
+/** The video of an offer or an accepted request, served to invited responders by the same proxy. */
+export const videoUrl = (requestId: string) => `${API_BASE}/api/support/me/requests/${requestId}/video`;
 
 /** Shrink a camera photo before upload (longest side 1280 px, JPEG): faster on mobile data, well under the 5 MB cap. */
 export async function compressPhoto(file: File, maxSide = 1280): Promise<Blob> {

@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import useSWR from 'swr'
 import { usePathname } from 'next/navigation'
 import { Menu, UserRound, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useSession } from '@/hooks/use-auth'
+import { useAuthFetch, useSession } from '@/hooks/use-auth'
 import { authCopy } from '@/content/auth'
 import { navLinks } from '@/content/landing'
 import { ACCOUNT_PATH, LOGIN_PATH } from '@/lib/auth/paths'
@@ -15,9 +16,17 @@ import Logo from './Logo'
 // Mặc định là menu cuộn tới các mục của landing; các trang app truyền `appLinks` để chuyển trang
 type AppLink = { path: string; label: string }
 
+// Chỉ người hỗ trợ đã được xác minh mới thấy và dùng "Chế độ hỗ trợ"
+const SUPPORTER_PATH = '/app/san-sang-ho-tro'
+
 export default function Navbar({ appLinks }: { appLinks?: AppLink[] }) {
   const pathname = usePathname()
   const { user, status } = useSession()
+  const authFetch = useAuthFetch()
+  const supporter = useSWR<boolean>(user ? 'is-verified-supporter' : null, async () => {
+    const response = await authFetch('/api/support/me')
+    return response.ok && ((await response.json()) as { enrolled?: boolean }).enrolled === true
+  })
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -48,7 +57,7 @@ export default function Navbar({ appLinks }: { appLinks?: AppLink[] }) {
   // Landing: link trắng khi hover trên dải vàng; app và menu thu gọn: link đỏ
   const linkHover = plain ? 'hover:text-brand' : 'lg:hover:text-white hover:text-brand'
   const links = appLinks
-    ? appLinks.map((link) => ({ key: link.path, href: link.path, label: link.label, active: pathname === link.path }))
+    ? appLinks.filter((link) => link.path !== SUPPORTER_PATH || supporter.data === true).map((link) => ({ key: link.path, href: link.path, label: link.label, active: pathname === link.path }))
     : navLinks.map((link) => ({ key: link.id, href: `#${link.id}`, label: link.label, active: false }))
 
   return (

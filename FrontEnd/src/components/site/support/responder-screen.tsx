@@ -1,25 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { Bike, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, Phone, Power, Volume2, X } from "lucide-react";
 import Navbar from "@/components/site/landing/Navbar";
 import { Page } from "@/components/site/primitives";
-import DemoPlacePicker from "@/components/site/support/demo-place-picker";
+import IncomingCallOverlay from "@/components/site/support/incoming-call-overlay";
+import { previewScenePhotos } from "@/components/site/support/incoming-call-preview-photos";
 import PointMap from "@/components/site/support/point-map";
 import { Button } from "@/components/ui/button";
 import { appNav, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
-import { useLivePosition } from "@/hooks/useLivePosition";
+import { DEMO_LOCATION_ENABLED, useLivePosition } from "@/hooks/useLivePosition";
 import { useSupportSocket, type SocketStatus } from "@/hooks/useSupportSocket";
 import { formatDuration, useDirections, type Vehicle } from "@/lib/directions";
 import { notifyInBackground, ring, unlockAlarm } from "@/lib/support/alarm";
-import { photoUrl, type ResponderMessage, type ResponderRequest } from "@/lib/support/protocol";
+import { DEMO_SUPPORTER_OFFSET_METERS, offsetNorth } from "@/lib/support/demo-offset";
+import { photoUrl, videoUrl, type ResponderMessage, type ResponderRequest } from "@/lib/support/protocol";
+import { firebaseMessagingConfigured, getResponderFcmToken } from "@/lib/support/push";
 import { cn } from "@/lib/utils";
 
-type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string; contactPhone?: string; available?: boolean };
+type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string; contactPhone?: string; supportAreas?: string[]; readyForSOS?: boolean; pushConfigured?: boolean; available?: boolean };
 
 const LOGIN_NEXT = "/dang-nhap?next=%2Fapp%2Fsan-sang-ho-tro";
 const KEEPALIVE_MS = 60_000; // presence lives 5 min on the server
@@ -28,8 +31,8 @@ const RING_EVERY_MS = 4000; // the bell repeats until the request is accepted, d
 
 const rounded = (value: number | undefined) => (value === undefined ? "" : value.toFixed(4));
 
-// Người hỗ trợ: đăng nhập, đăng ký (demo, tự khai), bật "Sẵn sàng". Yêu cầu trong bán kính 3 km tới qua WebSocket
-// (chuông, rung, thông báo). Nhận yêu cầu thì thấy vị trí chính xác, số điện thoại, ảnh, dẫn đường; xong bấm Hoàn thành.
+// Người hỗ trợ: đăng nhập, chọn khu vực, bật "Sẵn sàng". Yêu cầu phù hợp tới qua WebSocket hoặc push.
+// GPS chỉ bắt đầu sau khi nhận yêu cầu; phiên hỗ trợ hiển thị vị trí, số điện thoại, ảnh và dẫn đường.
 export default function ResponderScreen() {
   const c = supportCopy.responder;
   const { user, status: sessionStatus } = useSession();
@@ -46,7 +49,24 @@ export default function ResponderScreen() {
   const [offers, setOffers] = useState<ResponderRequest[]>([]);
   const [active, setActive] = useState<ResponderRequest | null>(null);
   const [notice, setNotice] = useState("");
-  const { position, status: positionStatus, demoPlace, setDemoPlace } = useLivePosition(wantAvailable || active !== null);
+  const readinessInitialized = useRef(false);
+  const { position: gpsPosition } = useLivePosition(active !== null, active !== null);
+  // Demo (same computer for requester and supporter): the supporter stands 1 km north of the GPS reading, or 1 km
+  // north of the requester when this browser has no GPS fix, so the map always has a route to show.
+  const requesterLat = active?.latitude;
+  const requesterLng = active?.longitude;
+  const position = useMemo(() => {
+    if (!DEMO_LOCATION_ENABLED) return gpsPosition;
+    const requester = requesterLat != null && requesterLng != null ? { lat: requesterLat, lng: requesterLng } : null;
+    return offsetNorth(gpsPosition ?? requester, DEMO_SUPPORTER_OFFSET_METERS);
+  }, [gpsPosition, requesterLat, requesterLng]);
+
+  useEffect(() => {
+    if (profile.data && !readinessInitialized.current) {
+      setWantAvailable(profile.data.readyForSOS === true);
+      readinessInitialized.current = true;
+    }
+  }, [profile.data]);
 
   const removeOffer = (id: string) => setOffers((current) => current.filter((offer) => offer.id !== id));
   const showList = useCallback((requests: ResponderRequest[]) => {
@@ -71,7 +91,7 @@ export default function ResponderScreen() {
           return setAvailable(message.available);
         case "request.new":
           setOffers((current) => [message.request, ...current.filter((offer) => offer.id !== message.request.id)]);
-          return notifyInBackground(c.alertTitle, `${message.request.situation ?? c.someone} · ${formatDistance(message.request.approximateDistanceMeters)}`);
+          return notifyInBackground(c.alertTitle, `${message.request.situation ?? c.someone} · ${message.request.area ?? formatDistance(message.request.approximateDistanceMeters)}`);
         case "request.detail":
           removeOffer(message.request.id);
           return setActive(message.request);
@@ -82,7 +102,8 @@ export default function ResponderScreen() {
         case "request.expired":
           removeOffer(message.requestId);
           setActive((current) => (current?.id === message.requestId ? null : current));
-          return setNotice(message.type === "request.cancelled" ? c.cancelled : c.expired);
+          // A cancelled request just disappears from the list; only an expired one gets a message.
+          return setNotice(message.type === "request.cancelled" ? "" : c.expired);
         case "request.completed":
           setActive((current) => (current?.id === message.requestId ? null : current));
           return setNotice(c.completed);
@@ -96,8 +117,7 @@ export default function ResponderScreen() {
     },
   });
 
-  // Tell the server where we are: `location` while helping (moves us on the requester's map), `available` while
-  // waiting for requests (also refreshes presence), `unavailable` when switched off. HTTP when the socket is down.
+  // Waiting readiness sends no GPS. Location updates begin only after this responder accepts a request.
   const lat = rounded(position?.lat);
   const lng = rounded(position?.lng);
   const activeId = active?.id;
@@ -112,32 +132,58 @@ export default function ResponderScreen() {
   useEffect(() => {
     if (!enrolled) return;
     const point = lat && lng ? { latitude: Number(lat), longitude: Number(lng) } : null;
-    if (activeId && point) {
-      if (!send({ type: "location", ...point })) void authFetch("/api/support/me/location", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(point) });
-    } else if (wantAvailable && point) {
-      if (!send({ type: "available", ...point })) {
+    if (activeId) {
+      if (!wantAvailable && lastSent.current !== "location-off") {
         void authFetch("/api/support/me/availability", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ available: true, consentToLocationUse: true, ...point }),
-        }).then((r) => r.ok && setAvailable(true));
+          body: JSON.stringify({ available: false }),
+        });
+        setAvailable(false);
       }
-    } else if (!wantAvailable && lastSent.current === "available") {
-      if (!send({ type: "unavailable" })) {
-        void authFetch("/api/support/me/availability", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ available: false }) });
+      if (point && !send({ type: "location", ...point })) {
+        void authFetch("/api/support/me/location", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(point) });
       }
+    } else if (wantAvailable) {
+      void authFetch("/api/support/me/availability", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ available: true }),
+      }).then((r) => r.ok && setAvailable(true));
+    } else if (lastSent.current === "available" || lastSent.current === "location") {
+      void authFetch("/api/support/me/availability", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ available: false }) });
       setAvailable(false);
     }
-    lastSent.current = activeId ? "location" : wantAvailable ? "available" : "off";
+    lastSent.current = activeId ? (wantAvailable ? "location" : "location-off") : wantAvailable ? "available" : "off";
   }, [enrolled, wantAvailable, activeId, lat, lng, tick, socketStatus, send, authFetch]);
 
   const toggle = async () => {
-    // Must run synchronously inside the tap: phones only let a page play sound after a user gesture
-    if (!wantAvailable) unlockAlarm();
-    setWantAvailable((value) => !value);
-    setNotice("");
-    if (!wantAvailable && "Notification" in window && Notification.permission === "default") {
-      await Notification.requestPermission().catch(() => undefined);
+    if (!wantAvailable) {
+      // Start the in-page alert synchronously from the tap; mobile browsers require a user gesture.
+      unlockAlarm();
+      setWantAvailable(true);
+      setNotice("");
+      let pushReady = false;
+      if (profile.data?.pushConfigured && firebaseMessagingConfigured() && "Notification" in window) {
+        const permission = Notification.permission === "default"
+          ? await Notification.requestPermission().catch(() => "denied" as NotificationPermission)
+          : Notification.permission;
+        if (permission === "granted") {
+          const token = await getResponderFcmToken().catch(() => null);
+          if (token) {
+            const response = await authFetch("/api/support/me/devices", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token }),
+            }).catch(() => null);
+            pushReady = response?.ok === true;
+          }
+        }
+      }
+      if (!pushReady) setNotice(c.pushNotConfigured);
+    } else {
+      setWantAvailable(false);
+      setNotice("");
     }
   };
 
@@ -150,6 +196,27 @@ export default function ResponderScreen() {
     const timer = setInterval(ring, RING_EVERY_MS);
     return () => clearInterval(timer);
   }, [ringing, newest]);
+
+  // Design preview of the incoming-call screen: open /app/san-sang-ho-tro?preview=call (no real request is involved).
+  const [previewOffer, setPreviewOffer] = useState<ResponderRequest | null>(null);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("preview") !== "call") return;
+    queueMicrotask(() =>
+      setPreviewOffer({
+        id: "preview",
+        status: "OPEN",
+        situation: "Bất tỉnh",
+        description: "Người lớn tuổi ngã trước cửa hàng, không trả lời khi gọi, đang thở yếu. Cần người biết hồi sức tim phổi.",
+        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
+        photoCount: 2,
+        area: "Quận 1",
+      }),
+    );
+  }, []);
+  const closePreview = () => {
+    setPreviewOffer(null);
+    setNotice("Bản xem trước: chưa nhận yêu cầu thật nào.");
+  };
 
   const accept = async (offer: ResponderRequest) => {
     setNotice("");
@@ -213,10 +280,7 @@ export default function ResponderScreen() {
                   <Volume2 aria-hidden="true" /> {c.testSound}
                 </button>
               </div>
-              {wantAvailable && !position && (
-                <p className="mt-2 text-sm text-brand">{positionStatus === "denied" ? c.locationDenied : c.locating}</p>
-              )}
-              <DemoPlacePicker value={demoPlace} onChange={setDemoPlace} />
+              <p className="mt-3 text-sm leading-snug text-muted-foreground">{c.locationPrivacy}</p>
             </section>
 
             {notice && (
@@ -240,7 +304,7 @@ export default function ResponderScreen() {
                         <p className="text-xs font-bold tracking-wide text-brand uppercase">{c.alertTitle}</p>
                         <h3 className="mt-1 text-xl font-black text-ink">{offer.situation ?? c.someone}</h3>
                         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                          <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" /> {c.away(formatDistance(offer.approximateDistanceMeters))}</span>
+                          <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" /> {offer.area ? c.requestArea(offer.area) : c.away(formatDistance(offer.approximateDistanceMeters))}</span>
                           {offer.photoCount > 0 && <span className="inline-flex items-center gap-1"><ImageIcon className="size-3.5" /> {c.photoCount(offer.photoCount)}</span>}
                         </p>
                         {offer.description && <p className="mt-2 text-[15px] leading-snug text-ink">{offer.description}</p>}
@@ -257,6 +321,11 @@ export default function ResponderScreen() {
           </>
         )}
       </main>
+      {previewOffer ? (
+        <IncomingCallOverlay offer={previewOffer} photos={previewScenePhotos} onAccept={closePreview} onDecline={closePreview} />
+      ) : (
+        ringing && <IncomingCallOverlay offer={offers[0]} photos={Array.from({ length: offers[0].photoCount }, (_, index) => photoUrl(offers[0].id, index))} video={offers[0].hasVideo ? videoUrl(offers[0].id) : undefined} others={offers.length - 1} error={notice} onAccept={() => void accept(offers[0])} onDecline={() => decline(offers[0])} />
+      )}
     </Page>
   );
 }
@@ -348,6 +417,7 @@ function ActiveRequest({ request, me, onComplete }: { request: ResponderRequest;
             ))}
           </div>
         )}
+        {request.hasVideo && <video src={videoUrl(request.id)} controls playsInline preload="metadata" className="mt-4 max-h-64 w-full rounded-xl bg-black/5" />}
       </div>
 
       <div className="rounded-2xl border border-[#d2e3fc] bg-[#f6f9fe] p-3">

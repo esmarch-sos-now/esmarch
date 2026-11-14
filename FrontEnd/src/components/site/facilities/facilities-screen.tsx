@@ -97,7 +97,7 @@ export default function FacilitiesScreen() {
   return (
     <Page>
       <Navbar appLinks={appNav} />
-      <main className="mx-auto w-full max-w-7xl px-4 pt-7 pb-10">
+      <main className="mx-auto w-full max-w-none px-4 pt-7 pb-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-[clamp(26px,3.4vw,36px)] leading-[1.15] font-black text-ink">{s.title}</h1>
