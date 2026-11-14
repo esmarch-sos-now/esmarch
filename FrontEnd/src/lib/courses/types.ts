@@ -2,6 +2,9 @@ export type CourseSection = { heading: string; paragraphs: string[]; bullets: st
 
 export type CourseQuizQuestion = { id: string; question: string; options: string[] };
 
+/** A freshly generated quiz for one attempt; `token` must be sent back with the answers. */
+export type LessonQuiz = { token: string; questions: CourseQuizQuestion[] };
+
 /** One YouTube clip; `embedUrl` is the privacy-enhanced youtube-nocookie.com player URL. */
 export type CourseVideo = { youtubeId: string; title: string; url: string; embedUrl: string };
 
@@ -19,7 +22,6 @@ export type CourseLesson = {
   video: CourseVideo;
   /** Short key points ("Ghi nhớ") shown under the video. */
   sections: CourseSection[];
-  quiz: CourseQuizQuestion[];
   completed: boolean;
   quizScore: number | null;
 };

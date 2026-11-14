@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import {
@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { appNav, courseCopy, formatCourseDate } from "@/content/app";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
 import { ACCOUNT_PATH, loginUrl } from "@/lib/auth/paths";
-import type { Course, CourseLesson, CourseOverview, CourseVideo, QuizResult } from "@/lib/courses/types";
+import type { Course, CourseLesson, CourseOverview, CourseVideo, LessonQuiz, QuizResult } from "@/lib/courses/types";
 import { cn } from "@/lib/utils";
 
 type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string };
@@ -44,11 +44,17 @@ export default function CourseScreen() {
     return (await response.json()) as Profile;
   });
   const enrolled = profile.data?.enrolled === true;
-  const overview = useSWR<CourseOverview>(user && enrolled ? `courses:${user.id}` : null, async () => {
-    const response = await authFetch("/api/courses");
-    if (!response.ok) throw new Error(String(response.status));
-    return (await response.json()) as CourseOverview;
-  });
+  const overview = useSWR<CourseOverview>(
+    user && enrolled ? `courses:${user.id}` : null,
+    async () => {
+      const response = await authFetch("/api/courses");
+      if (!response.ok) throw new Error(String(response.status));
+      return (await response.json()) as CourseOverview;
+    },
+    // Progress only changes through this screen (the graded quiz returns the updated course), so coming back from the
+    // YouTube tab does not need a refetch.
+    { revalidateOnFocus: false },
+  );
   const courses = overview.data?.courses ?? [];
   const [courseId, setCourseId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -60,6 +66,15 @@ export default function CourseScreen() {
   const selectCourse = (id: string) => {
     setCourseId(id);
     setActiveId(null);
+  };
+
+  // A passed quiz returns the updated course: put it in the cache instead of refetching the whole overview. Only a
+  // finished course also changes `completedCourses`, so that case revalidates.
+  const applyCourse = (updated: Course) => {
+    void overview.mutate(
+      (current) => current && { ...current, courses: current.courses.map((item) => (item.id === updated.id ? updated : item)) },
+      { revalidate: updated.completed },
+    );
   };
 
   return (
@@ -106,7 +121,11 @@ export default function CourseScreen() {
           </section>
         )}
 
-        {course && courses.length > 1 && <CoursePicker courses={courses} selectedId={course.id} onSelect={selectCourse} />}
+        {user && enrolled && overview.data && courses.length === 0 && (
+          <p className="mt-8 text-sm text-muted-foreground">{c.noCourses}</p>
+        )}
+
+        {course && courses.length > 1 &&<CoursePicker courses={courses} selectedId={course.id} onSelect={selectCourse} />}
 
         {course && (
           <CourseBody
@@ -117,11 +136,12 @@ export default function CourseScreen() {
             onSelect={setActiveId}
             watched={watched}
             onWatched={(lessonId) => setWatched((current) => new Set(current).add(watchKey(course.id, lessonId)))}
+            onCourseUpdated={applyCourse}
             onPassed={(lessonId) => {
-              // Keep the current course and lesson when the data reloads (nextLessonId changes once a lesson is passed)
+              // Keep the current course and lesson on screen: nextLessonId (and the default course) change once a
+              // lesson is passed.
               setCourseId(course.id);
               setActiveId(lessonId);
-              void overview.mutate();
             }}
           />
         )}
@@ -203,6 +223,7 @@ function CourseBody({
   onSelect,
   watched,
   onWatched,
+  onCourseUpdated,
   onPassed,
 }: {
   course: Course;
@@ -211,6 +232,7 @@ function CourseBody({
   onSelect: (id: string) => void;
   watched: ReadonlySet<string>;
   onWatched: (lessonId: string) => void;
+  onCourseUpdated: (course: Course) => void;
   onPassed: (lessonId: string) => void;
 }) {
   const c = courseCopy;
@@ -342,6 +364,7 @@ function CourseBody({
           key={watchKey(course.id, active.id)}
           courseId={course.id}
           lesson={active}
+          onCourseUpdated={onCourseUpdated}
           onPassed={() => onPassed(active.id)}
           nextLesson={next}
           onNext={next ? () => onSelect(next.id) : undefined}
@@ -423,9 +446,14 @@ function VideoPlayer({ video }: { video: CourseVideo }) {
   );
 }
 
+// A loaded quiz, or the HTTP status of a failed load (0 for a network error), tagged with its lesson so a quiz from a
+// previous lesson is never shown.
+type LoadedQuiz = { lessonId: string; quiz: LessonQuiz; status?: undefined } | { lessonId: string; quiz: null; status: number };
+
 function QuizPanel({
   courseId,
   lesson,
+  onCourseUpdated,
   onPassed,
   nextLesson,
   onNext,
@@ -433,6 +461,7 @@ function QuizPanel({
 }: {
   courseId: string;
   lesson: CourseLesson;
+  onCourseUpdated: (course: Course) => void;
   onPassed: () => void;
   nextLesson: CourseLesson | undefined;
   onNext?: () => void;
@@ -440,42 +469,105 @@ function QuizPanel({
 }) {
   const c = courseCopy;
   const authFetch = useAuthFetch();
-  const [answers, setAnswers] = useState<(number | null)[]>(() => lesson.quiz.map(() => null));
+  const quizUrl = `/api/courses/${courseId}/lessons/${lesson.id}/quiz`;
+  const lessonId = lesson.id;
+  const [loaded, setLoaded] = useState<LoadedQuiz | null>(null);
+  const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  // Bumped on every load and on unmount; responses from an older request (or a lesson no longer shown) are ignored
+  const requestRef = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
+  const current = loaded?.lessonId === lessonId ? loaded : null;
+  const quiz = current?.quiz ?? null;
+
+  // Every GET returns a new random set of questions, so this also serves "try another set"
+  const loadQuiz = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const request = ++requestRef.current;
+    let next: LoadedQuiz;
+    try {
+      const response = await authFetch(quizUrl, { signal: controller.signal });
+      const body = response.ok ? ((await response.json()) as LessonQuiz) : null;
+      // An empty set cannot be passed; treat it like the server's "no questions for this lesson" (503)
+      next = body && body.questions.length > 0
+        ? { lessonId, quiz: body }
+        : { lessonId, quiz: null, status: response.ok ? 503 : response.status };
+    } catch {
+      if (controller.signal.aborted) return;
+      next = { lessonId, quiz: null, status: 0 };
+    }
+    if (request !== requestRef.current) return;
+    setLoaded(next);
+    setAnswers(next.quiz ? next.quiz.questions.map(() => null) : []);
+    setResult(null);
+    setError("");
+    setBusy(false);
+  }, [authFetch, quizUrl, lessonId]);
+
+  useEffect(() => {
+    void loadQuiz();
+    return () => {
+      requestRef.current += 1;
+      abortRef.current?.abort();
+    };
+  }, [loadQuiz]);
+
+  const reload = (message = "") => {
+    setLoaded(null);
+    setNotice(message);
+    void loadQuiz();
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!quiz || busy || result) return;
     if (answers.some((answer) => answer === null)) {
       setError(c.answerRequired);
       return;
     }
+    const request = requestRef.current;
     setBusy(true);
     setError("");
-    const response = await authFetch(`/api/courses/${courseId}/lessons/${lesson.id}/quiz`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers }),
-    });
+    setNotice("");
+    let graded: QuizResult | null = null;
+    let status = 0;
+    try {
+      const response = await authFetch(quizUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: quiz.token, answers }),
+      });
+      status = response.status;
+      if (response.ok) graded = (await response.json()) as QuizResult;
+    } catch {
+      // Network error: status stays 0
+    }
+    const stale = request !== requestRef.current;
+    if (graded?.passed) {
+      // Pin the selection first so the updated nextLessonId does not move the screen; then store the new progress,
+      // which the server recorded even if the learner has moved to another lesson meanwhile.
+      if (!stale) onPassed();
+      onCourseUpdated(graded.course);
+    }
+    if (stale) return;
     setBusy(false);
-    if (!response.ok) {
-      setError(response.status === 400 ? c.answerRequired : c.loadFailed);
+    if (graded) {
+      setResult(graded);
       return;
     }
-    const graded = (await response.json()) as QuizResult;
-    setResult(graded);
-    if (graded.passed) onPassed();
+    // 409: the question bank changed since this quiz was issued; 400 with every question answered means the token was
+    // rejected. Either way the learner needs a fresh set.
+    if (status === 409 || status === 400) reload(c.quizStale);
+    else setError(status === 403 ? c.lockedNotice : c.loadFailed);
   };
 
-  const retry = () => {
-    setAnswers(lesson.quiz.map(() => null));
-    setResult(null);
-    setError("");
-  };
-
-  // The grading response already carries the updated course, so the "recorded" note shows before the refetch lands
-  const badge = result?.course?.completed ? result.course.badge : recordedBadge;
+  // The grading response already carries the updated course, so the "recorded" note shows right away
+  const badge = result?.course.completed ? result.course.badge : recordedBadge;
 
   return (
     <section className="mt-6 rounded-2xl border border-line bg-white p-5" aria-labelledby="course-quiz">
@@ -484,90 +576,112 @@ function QuizPanel({
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">{c.quizHint}</p>
 
-      <form onSubmit={submit} className="mt-4 grid gap-5" noValidate>
-        {lesson.quiz.map((question, questionIndex) => {
-          const graded = result?.results[questionIndex];
-          const selected = answers[questionIndex];
-          return (
-            <fieldset key={question.id}>
-              <legend className="text-[15px] font-bold leading-[1.5] text-ink">
-                {questionIndex + 1}. {question.question}
-              </legend>
-              <div className="mt-2 grid gap-2">
-                {question.options.map((option, optionIndex) => {
-                  const correct = graded !== undefined && optionIndex === graded.correctIndex;
-                  const wrong = graded !== undefined && selected === optionIndex && !correct;
-                  return (
-                    <label
-                      key={option}
-                      className={cn(
-                        "flex cursor-pointer items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-[15px] leading-[1.5] text-ink transition",
-                        selected === optionIndex ? "border-brand bg-brand-soft" : "border-line hover:border-brand",
-                        correct && "border-[#1e7d3a] bg-[#eef8f1]",
-                        wrong && "border-brand bg-[#fdecea]",
-                        result && "cursor-default",
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name={`${lesson.id}-${question.id}`}
-                        value={optionIndex}
-                        checked={selected === optionIndex}
-                        disabled={result !== null}
-                        onChange={() => setAnswers((current) => current.map((value, i) => (i === questionIndex ? optionIndex : value)))}
-                        className="mt-0.5 accent-brand"
-                      />
-                      <span className="flex-1">{option}</span>
-                      {correct && <CheckCircle2 aria-label={c.correctAnswer} className="mt-0.5 size-4.5 shrink-0 text-[#1e7d3a]" />}
-                    </label>
-                  );
-                })}
-              </div>
-              {graded && (
-                <p className={cn("mt-2 rounded-lg px-3 py-2 text-sm leading-[1.55]", graded.correct ? "bg-[#eef8f1] text-[#145c2a]" : "bg-[#fdf0ed] text-[#8a2412]")}>
-                  {graded.explanation}
-                </p>
-              )}
-            </fieldset>
-          );
-        })}
+      {notice && <p className="mt-3 rounded-lg bg-brand-soft px-3 py-2 text-sm font-semibold text-ink" role="status">{notice}</p>}
 
-        {error && <p className="text-sm font-semibold text-brand" role="alert">{error}</p>}
+      {!current && <p className="mt-4 text-sm text-muted-foreground" role="status">{c.quizLoading}</p>}
 
-        {result && (
-          <p className={cn("rounded-xl px-4 py-3 text-[15px] font-semibold leading-[1.5]", result.passed ? "bg-[#eef8f1] text-[#145c2a]" : "bg-[#fdf0ed] text-[#8a2412]")} role="status">
-            {result.passed ? c.passed : c.failed(result.correctCount, result.total)}
-          </p>
-        )}
-
-        <div className="flex flex-wrap items-center gap-2.5">
-          {!result && (
-            <Button type="submit" disabled={busy} className="h-11 rounded-full font-bold">
-              {busy ? c.submitting : c.submit}
-            </Button>
-          )}
-          {result?.passed && nextLesson && (
-            <Button type="button" onClick={onNext} className="h-11 rounded-full font-bold">
-              {c.next}: {nextLesson.title} <ArrowRight aria-hidden="true" />
-            </Button>
-          )}
-          {result?.passed && !nextLesson && (
-            <p className="inline-flex items-center gap-1.5 text-[15px] font-bold text-[#1e7d3a]">
-              <CheckCircle2 aria-hidden="true" className="size-5" /> {badge ? c.recorded(badge) : c.lessonDone}
-            </p>
-          )}
-          {result?.passed && !nextLesson && badge && (
-            <Link href={ACCOUNT_PATH} className="inline-flex items-center gap-1 text-sm font-bold text-[#1e7d3a] hover:underline">
-              {c.viewProfile} <ArrowRight aria-hidden="true" className="size-4" />
-            </Link>
-          )}
-          {result && !result.passed && (
-            <Button type="button" variant="outline" onClick={retry} className="h-11 rounded-full font-semibold">
-              <RotateCcw aria-hidden="true" /> {c.retry}
-            </Button>
+      {current && !quiz && (
+        <div className="mt-4">
+          {current.status === 403 ? (
+            <>
+              <p className="text-[15px] text-ink" role="alert">{c.lockedNotice}</p>
+              <Button asChild className="mt-3 rounded-full font-bold"><Link href={RESPONDER_PATH}>{c.lockedAction}</Link></Button>
+            </>
+          ) : (
+            <>
+              <p className="text-[15px] text-ink" role="alert">{c.quizLoadFailed}</p>
+              <Button type="button" variant="outline" onClick={() => reload()} className="mt-3 rounded-full">{c.retryLoad}</Button>
+            </>
           )}
         </div>
-      </form>
+      )}
+
+      {quiz && (
+        <form onSubmit={submit} className="mt-4 grid gap-5" noValidate>
+          {quiz.questions.map((question, questionIndex) => {
+            const graded = result?.results.find((item) => item.questionId === question.id);
+            const selected = answers[questionIndex];
+            return (
+              <fieldset key={question.id}>
+                <legend className="text-[15px] font-bold leading-[1.5] text-ink">
+                  {questionIndex + 1}. {question.question}
+                </legend>
+                <div className="mt-2 grid gap-2">
+                  {question.options.map((option, optionIndex) => {
+                    const correct = graded !== undefined && optionIndex === graded.correctIndex;
+                    const wrong = graded !== undefined && selected === optionIndex && !correct;
+                    return (
+                      <label
+                        key={option}
+                        className={cn(
+                          "flex cursor-pointer items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-[15px] leading-[1.5] text-ink transition",
+                          selected === optionIndex ? "border-brand bg-brand-soft" : "border-line hover:border-brand",
+                          correct && "border-[#1e7d3a] bg-[#eef8f1]",
+                          wrong && "border-brand bg-[#fdecea]",
+                          result && "cursor-default",
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name={`${lesson.id}-${question.id}`}
+                          value={optionIndex}
+                          checked={selected === optionIndex}
+                          disabled={result !== null || busy}
+                          onChange={() => setAnswers((current) => current.map((value, i) => (i === questionIndex ? optionIndex : value)))}
+                          className="mt-0.5 accent-brand"
+                        />
+                        <span className="flex-1">{option}</span>
+                        {correct && <CheckCircle2 aria-label={c.correctAnswer} className="mt-0.5 size-4.5 shrink-0 text-[#1e7d3a]" />}
+                      </label>
+                    );
+                  })}
+                </div>
+                {graded && (
+                  <p className={cn("mt-2 rounded-lg px-3 py-2 text-sm leading-[1.55]", graded.correct ? "bg-[#eef8f1] text-[#145c2a]" : "bg-[#fdf0ed] text-[#8a2412]")}>
+                    {graded.explanation}
+                  </p>
+                )}
+              </fieldset>
+            );
+          })}
+
+          {error && <p className="text-sm font-semibold text-brand" role="alert">{error}</p>}
+
+          {result && (
+            <p className={cn("rounded-xl px-4 py-3 text-[15px] font-semibold leading-[1.5]", result.passed ? "bg-[#eef8f1] text-[#145c2a]" : "bg-[#fdf0ed] text-[#8a2412]")} role="status">
+              {result.passed ? c.passed : c.failed(result.correctCount, result.total)}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {!result && (
+              <Button type="submit" disabled={busy} className="h-11 rounded-full font-bold">
+                {busy ? c.submitting : c.submit}
+              </Button>
+            )}
+            {result?.passed && nextLesson && (
+              <Button type="button" onClick={onNext} className="h-11 rounded-full font-bold">
+                {c.next}: {nextLesson.title} <ArrowRight aria-hidden="true" />
+              </Button>
+            )}
+            {result?.passed && !nextLesson && (
+              <p className="inline-flex items-center gap-1.5 text-[15px] font-bold text-[#1e7d3a]">
+                <CheckCircle2 aria-hidden="true" className="size-5" /> {badge ? c.recorded(badge) : c.lessonDone}
+              </p>
+            )}
+            {result?.passed && !nextLesson && badge && (
+              <Link href={ACCOUNT_PATH} className="inline-flex items-center gap-1 text-sm font-bold text-[#1e7d3a] hover:underline">
+                {c.viewProfile} <ArrowRight aria-hidden="true" className="size-4" />
+              </Link>
+            )}
+            {result && !result.passed && (
+              <Button type="button" variant="outline" onClick={() => reload()} className="h-11 rounded-full font-semibold">
+                <RotateCcw aria-hidden="true" /> {c.retry}
+              </Button>
+            )}
+          </div>
+        </form>
+      )}
     </section>
   );
 }
