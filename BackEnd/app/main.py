@@ -13,10 +13,9 @@ from app.core.middleware import PublicApiMiddleware
 from app.modules.aeds import router as aeds_router
 from app.modules.alerts import router as alerts_router
 from app.modules.auth import router as auth_router
-from app.modules.auth import service as auth_service
 from app.modules.capabilities import router as capabilities_router
 from app.modules.districts import router as districts_router
-from app.modules.facilities import catalog, road_distance
+from app.modules.facilities import catalog
 from app.modules.facilities import router as facilities_router
 from app.modules.guides import router as guides_router
 from app.modules.guides.service import catalog as guides_catalog
@@ -38,28 +37,14 @@ def _warm() -> None:
         catalog.all_facilities(session)  # warm public catalogue; no location-dependent work
 
 
-def _purge_auth() -> None:
-    if get_settings().auth_configured:
-        with Session(get_engine()) as session:
-            auth_service.purge(session)
-
-
 async def _purge_loop() -> None:
-    ticks = 0
     while True:
         await asyncio.sleep(30)
         support.purge()
-        ticks += 1
-        if ticks % 120 == 0:  # hourly: expired refresh tokens and email codes
-            try:
-                await asyncio.to_thread(_purge_auth)
-            except Exception:
-                log.exception("Auth purge failed.")
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    road_distance.load_road_service()
     await asyncio.to_thread(_warm)
     task = asyncio.create_task(_purge_loop())
     yield
