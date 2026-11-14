@@ -41,5 +41,13 @@ def get_current_user(user: Annotated[User | None, Depends(get_optional_user)]) -
     return user
 
 
+def get_admin_user(user: Annotated[User, Depends(get_current_user)]) -> User:
+    """A signed-in account with the ADMIN role; 403 for everyone else."""
+    if not user.is_admin:
+        raise error(403, "Administrator access required.")
+    return user
+
+
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+AdminUser = Annotated[User, Depends(get_admin_user)]

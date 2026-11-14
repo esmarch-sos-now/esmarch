@@ -58,12 +58,14 @@ def normalize_phone(value: str) -> str | None:
     return digits if _VN_MOBILE.fullmatch(digits) else None
 
 
-def create_access_token(user_id: str) -> tuple[str, int]:
+def create_access_token(user_id: str, role: str = "USER") -> tuple[str, int]:
+    """`role` is a routing hint for the Next.js proxy (admins stay in /admin); the API always checks the database."""
     s = get_settings()
     now = clock.now()
     ttl = s.access_token_ttl_seconds
     claims = {
         "sub": user_id,
+        "role": role,
         "iss": ISSUER,
         "aud": AUDIENCE,
         "iat": now,

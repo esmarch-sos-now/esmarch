@@ -75,4 +75,5 @@ class UserOut(CamelModel):
     display_name: str | None
     email_verified: bool
     phone_verified: bool
+    role: str  # USER or ADMIN
     created_at: datetime

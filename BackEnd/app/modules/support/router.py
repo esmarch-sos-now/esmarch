@@ -7,7 +7,7 @@ from app.common.params import Lat, Limit, Lng, Radius
 from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.errors import error
-from app.modules.auth.deps import CurrentUser, require_auth_configured
+from app.modules.auth.deps import AdminUser, CurrentUser, OptionalUser, require_auth_configured
 from app.modules.guides.schemas import Audience
 from app.modules.support.models import Skill
 from app.modules.support.realtime import hub
@@ -17,6 +17,7 @@ from app.modules.support.schemas import (
     Enrollment,
     LocationUpdate,
     NearbyResponder,
+    ResponderUpdate,
     SelfEnrollment,
 )
 from app.modules.support.service import support
@@ -33,9 +34,22 @@ def enroll(request: Enrollment, session: Db, admin: Admin = None) -> dict:
 
 
 @router.delete("/admin/responders/{responder_id}", status_code=204)
-def revoke(responder_id: str, session: Db, admin: Admin = None) -> Response:
-    support.revoke(session, admin, responder_id)
+def revoke(responder_id: str, session: Db, user: OptionalUser, admin: Admin = None) -> Response:
+    """Deletes a responder profile. Allowed with X-Admin-Token or as a signed-in ADMIN account (the admin page)."""
+    support.revoke(session, admin, responder_id, user)
     return Response(status_code=204)
+
+
+@router.get("/admin/responders", dependencies=[Depends(require_auth_configured)])
+def admin_responders(session: Db, user: AdminUser) -> list[dict]:
+    """All responder profiles with their linked account and on-duty state (admin page)."""
+    return support.admin_list(session, user)
+
+
+@router.patch("/admin/responders/{responder_id}", dependencies=[Depends(require_auth_configured)])
+def admin_update_responder(responder_id: str, body: ResponderUpdate, session: Db, user: AdminUser) -> dict:
+    """Suspends (`verified: false`) or reinstates a responder, or changes its skills (admin page)."""
+    return support.admin_update(session, user, responder_id, body.verified, body.skills)
 
 
 @router.post("/admin/responders/{responder_id}/rotate-token")

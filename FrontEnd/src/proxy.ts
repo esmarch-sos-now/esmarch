@@ -3,8 +3,9 @@
 //     new cookies are applied to both the response (browser) and the forwarded request (server components).
 //  2. Proxies /backend/* to FastAPI, adding `Authorization: Bearer <access>` from the cookie.
 //  3. Guards protected pages and rejects cross-origin state-changing requests.
+//  4. Keeps ADMIN accounts inside /admin (management only).
 import { NextResponse, type NextRequest } from "next/server";
-import { isProtected, loginUrl } from "@/lib/auth/paths";
+import { ADMIN_PATH, isAdminPath, isProtected, loginUrl } from "@/lib/auth/paths";
 import {
   ACCESS_COOKIE,
   BACKEND_URL,
@@ -35,6 +36,20 @@ function crossOrigin(request: NextRequest): boolean {
 
 function problem(status: number, detail: string) {
   return NextResponse.json({ status, detail }, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+/**
+ * Whether the access token says ADMIN. Read without verifying the signature: it only decides where pages route
+ * (an admin account is kept inside /admin), while the backend checks the role in the database on every call.
+ */
+function isAdminToken(token: string): boolean {
+  try {
+    const payload = token.split(".")[1] ?? "";
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "="));
+    return (JSON.parse(json) as { role?: unknown }).role === "ADMIN";
+  } catch {
+    return false;
+  }
 }
 
 export async function proxy(request: NextRequest) {
@@ -77,6 +92,9 @@ export async function proxy(request: NextRequest) {
   let response: NextResponse;
   if (!access && isProtected(pathname)) {
     response = NextResponse.redirect(new URL(loginUrl(pathname + search), request.url));
+  } else if (!isApi && access && isAdminToken(access) && !isAdminPath(pathname)) {
+    // Admin accounts only manage: every user-facing page (SOS, assistant, account…) sends them to the admin area.
+    response = NextResponse.redirect(new URL(ADMIN_PATH, request.url));
   } else if (toBackend) {
     const headers = new Headers(request.headers);
     headers.delete("cookie"); // the backend has no use for the refresh token

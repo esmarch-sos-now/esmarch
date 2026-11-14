@@ -9,6 +9,7 @@ export type User = {
   displayName: string | null;
   emailVerified: boolean;
   phoneVerified: boolean;
+  role: "USER" | "ADMIN";
   createdAt: string;
 };
 

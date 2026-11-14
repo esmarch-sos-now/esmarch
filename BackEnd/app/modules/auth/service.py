@@ -63,6 +63,7 @@ def user_out(user: User) -> UserOut:
         display_name=user.display_name,
         email_verified=user.email_verified_at is not None,
         phone_verified=user.phone_verified_at is not None,
+        role=user.role,
         created_at=user.created_at,
     )
 
@@ -166,7 +167,7 @@ def _issue_tokens(session: Session, user: User, family_id: str | None = None) ->
         )
     )
     session.commit()
-    access, expires_in = security.create_access_token(user.id)
+    access, expires_in = security.create_access_token(user.id, user.role)
     return TokenPair(
         access_token=access,
         expires_in=expires_in,
