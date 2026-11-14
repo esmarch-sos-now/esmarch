@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     facilities_data_file: str = "data/seeds/facilities.json"
     guides_data_file: str = "data/seeds/guides.json"  # optional; reviewed content only
     aeds_data_file: str = "data/seeds/aeds.json"  # optional; verified devices only
+    # Lesson quizzes are generated from this spreadsheet (a copy of the team's "Dữ liệu.xlsx"; re-read when it changes).
+    course_question_bank_file: str = "data/courses/question-bank.xlsx"
     support_admin_token: str = ""
     # "Tìm kiếm người hỗ trợ": default search radius, demo self-enrolment of signed-in users as responders (no admin
     # verification; never enable in production), WebSocket limits and request photos (kept in RAM until it ends).
