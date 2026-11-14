@@ -15,12 +15,20 @@ class User(SQLModel, table=True):
     __tablename__ = "users"  # pyrefly: ignore[bad-override]
 
     id: str = Field(default_factory=_uuid, primary_key=True, max_length=36)
-    email: str = Field(max_length=254, unique=True)  # normalized, lower-cased
+    # Accounts sign up with a phone number checked by Firebase SMS OTP; email accounts are the older flow.
+    email: str | None = Field(default=None, max_length=254, unique=True)  # normalized, lower-cased
+    phone: str | None = Field(default=None, max_length=16, unique=True)  # E.164, e.g. +84912345678
     password_hash: str = Field(max_length=255)
     display_name: str | None = Field(default=None, max_length=100)
     is_active: bool = True
     email_verified_at: datetime | None = Field(default=None, sa_column=tstz())
+    phone_verified_at: datetime | None = Field(default=None, sa_column=tstz())
     created_at: datetime = Field(sa_column=tstz(nullable=False))
+
+    @property
+    def verified(self) -> bool:
+        """The account proved it owns its phone number (or, for older accounts, its mailbox)."""
+        return self.phone_verified_at is not None or self.email_verified_at is not None
 
 
 class RefreshToken(SQLModel, table=True):

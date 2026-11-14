@@ -1,8 +1,9 @@
-// Nội dung các màn hình tài khoản: đăng nhập, đăng ký, xác nhận email, quên mật khẩu, tài khoản
+// Nội dung các màn hình tài khoản: đăng nhập, đăng ký (OTP qua SMS), quên mật khẩu, tài khoản
 export const authCopy = {
   emergency: 'Nút SOS và trợ lý sơ cứu vẫn dùng được khi chưa đăng nhập. Trong nguy hiểm tính mạng, hãy gọi ngay',
   fields: {
     name: 'Tên hiển thị (không bắt buộc)',
+    phone: 'Số điện thoại',
     email: 'Email',
     password: 'Mật khẩu',
     newPassword: 'Mật khẩu mới',
@@ -11,7 +12,8 @@ export const authCopy = {
     code: 'Mã xác nhận 6 số'
   },
   hints: {
-    password: 'Ít nhất 8 ký tự.'
+    password: 'Ít nhất 8 ký tự.',
+    phone: 'Số di động Việt Nam, ví dụ 0912 345 678. Chúng tôi sẽ gửi mã xác nhận qua SMS.'
   },
   login: {
     title: 'Đăng nhập',
@@ -25,9 +27,18 @@ export const authCopy = {
   register: {
     title: 'Đăng ký',
     lede: 'Tạo tài khoản SOS NOW để học sơ cứu và dùng gói B2C Premium hoặc B2B.',
-    submit: 'Tạo tài khoản',
+    submit: 'Gửi mã xác nhận',
     haveAccount: 'Đã có tài khoản?',
     toLogin: 'Đăng nhập'
+  },
+  sms: {
+    title: 'Nhập mã xác nhận',
+    lede: (phone: string) => `Chúng tôi đã gửi mã 6 số qua SMS tới ${phone}.`,
+    submit: 'Xác nhận',
+    resend: 'Gửi lại mã',
+    resendIn: (seconds: number) => `Gửi lại mã sau ${seconds}s`,
+    resent: 'Đã gửi mã mới.',
+    back: 'Đổi số điện thoại'
   },
   verify: {
     title: 'Xác nhận email',
@@ -40,9 +51,10 @@ export const authCopy = {
   },
   forgot: {
     title: 'Quên mật khẩu',
-    lede: 'Nhập email tài khoản, chúng tôi sẽ gửi mã để đặt lại mật khẩu.',
+    lede: 'Nhập số điện thoại của tài khoản, chúng tôi sẽ gửi mã qua SMS để đặt lại mật khẩu.',
     submit: 'Gửi mã',
-    resetLede: (email: string) => `Nếu ${email} có tài khoản, mã 6 số đã được gửi tới email này.`,
+    newPasswordTitle: 'Đặt mật khẩu mới',
+    newPasswordLede: (phone: string) => `Đã xác nhận ${phone}. Hãy chọn mật khẩu mới.`,
     resetSubmit: 'Đặt lại mật khẩu',
     backToLogin: 'Quay lại đăng nhập'
   },
@@ -64,10 +76,19 @@ export const authCopy = {
     account: 'Tài khoản'
   },
   errors: {
-    invalidLogin: 'Email hoặc mật khẩu không đúng.',
+    invalidLogin: 'Số điện thoại hoặc mật khẩu không đúng.',
     invalidCode: 'Mã không đúng hoặc đã hết hạn. Hãy kiểm tra lại hoặc gửi mã mới.',
+    codeExpired: 'Mã đã hết hạn. Hãy bấm "Gửi lại mã".',
     invalidEmail: 'Email không hợp lệ.',
     emailRequired: 'Hãy nhập email.',
+    invalidPhone: 'Số điện thoại không hợp lệ. Hãy nhập số di động Việt Nam, ví dụ 0912 345 678.',
+    phoneRequired: 'Hãy nhập số điện thoại.',
+    phoneTaken: 'Số điện thoại này đã có tài khoản. Hãy đăng nhập hoặc dùng "Quên mật khẩu".',
+    phoneUnknown: 'Chưa có tài khoản nào với số điện thoại này.',
+    phoneSessionExpired: 'Phiên xác nhận đã hết hạn. Hãy gửi lại mã.',
+    smsNotConfigured: 'Chưa bật gửi mã SMS. Hãy liên hệ quản trị viên.',
+    smsQuota: 'Hệ thống tạm thời không gửi được SMS. Hãy thử lại sau.',
+    captchaFailed: 'Không xác minh được trình duyệt. Hãy tải lại trang và thử lại.',
     passwordRequired: 'Hãy nhập mật khẩu.',
     passwordShort: 'Mật khẩu cần ít nhất 8 ký tự.',
     passwordLong: 'Mật khẩu tối đa 128 ký tự.',

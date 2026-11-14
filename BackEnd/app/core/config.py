@@ -70,6 +70,11 @@ class Settings(BaseSettings):
     resend_from: str = "SOS NOW <onboarding@resend.dev>"
     auth_dev_log_codes: bool = False
 
+    # Phone sign-up and password reset: the browser proves the number with Firebase Phone Auth (SMS OTP) and sends
+    # the resulting ID token. Disabled (503) while the project id is empty. The OTP must be at most this old.
+    firebase_project_id: str = ""
+    phone_otp_max_age_seconds: int = Field(default=600, ge=60, le=3600)
+
     @model_validator(mode="after")
     def _validate(self) -> Settings:
         if not self.origins or any("*" in origin for origin in self.origins):

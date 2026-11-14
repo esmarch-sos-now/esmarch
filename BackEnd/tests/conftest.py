@@ -20,6 +20,7 @@ os.environ.update(
     OPENAI_API_KEY="",  # tests must not depend on the developer's .env
     AUTH_SECRET_KEY="test-auth-secret-key-at-least-32-characters-long",
     RESEND_API_KEY="",
+    FIREBASE_PROJECT_ID="sos-esmarch",
 )
 
 

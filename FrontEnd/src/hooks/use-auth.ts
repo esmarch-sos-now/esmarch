@@ -36,7 +36,17 @@ function useAction<Arg, Data = void>(key: string, run: (arg: Arg) => Promise<Dat
 }
 
 export const useLogin = () =>
-  useSessionMutation((arg: { email: string; password: string }) => authApi.login(arg.email, arg.password));
+  useSessionMutation((arg: { username: string; password: string }) => authApi.login(arg.username, arg.password));
+
+export const usePhoneRegister = () =>
+  useSessionMutation((arg: { idToken: string; password: string; displayName?: string }) =>
+    authApi.phoneRegister(arg.idToken, arg.password, arg.displayName),
+  );
+
+export const usePhoneResetPassword = () =>
+  useAction("/api/auth/phone-reset-password", (arg: { idToken: string; newPassword: string }) =>
+    authApi.phoneResetPassword(arg.idToken, arg.newPassword),
+  );
 
 export const useVerifyEmail = () =>
   useSessionMutation((arg: { email: string; code: string }) => authApi.verifyEmail(arg.email, arg.code));
@@ -54,21 +64,8 @@ export const useLogout = () =>
     (arg.everywhere ? authApi.logoutAll() : authApi.logout()).then(() => null),
   );
 
-export const useRegister = () =>
-  useAction("/api/auth/register", (arg: { email: string; password: string; displayName?: string }) =>
-    authApi.register(arg.email, arg.password, arg.displayName),
-  );
-
 export const useResendVerification = () =>
   useAction("/api/auth/resend-verification", (arg: { email: string }) => authApi.resendVerification(arg.email));
-
-export const useForgotPassword = () =>
-  useAction("/api/auth/forgot-password", (arg: { email: string }) => authApi.forgotPassword(arg.email));
-
-export const useResetPassword = () =>
-  useAction("/api/auth/reset-password", (arg: { email: string; code: string; newPassword: string }) =>
-    authApi.resetPassword(arg.email, arg.code, arg.newPassword),
-  );
 
 /** fetch() to /backend with the session (the proxy adds the bearer token); refreshes once on 401. */
 export function useAuthFetch() {
