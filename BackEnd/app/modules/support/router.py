@@ -6,7 +6,6 @@ from sqlmodel import Session
 from app.common.params import Lat, Limit, Lng, Radius
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.core.errors import error
 from app.modules.auth.deps import AdminUser, CurrentUser, OptionalUser, require_auth_configured
 from app.modules.districts import service as districts
 from app.modules.guides.schemas import Audience

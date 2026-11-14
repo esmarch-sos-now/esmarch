@@ -38,6 +38,7 @@ from app.modules.districts import service as districts
 from app.modules.guides.schemas import Audience
 from app.modules.guides.service import catalog
 from app.modules.support.models import Responder, ResponderDevice, Skill
+from app.modules.support.push import send_request
 from app.modules.support.schemas import (
     Availability,
     CreateSupportRequest,
@@ -45,7 +46,6 @@ from app.modules.support.schemas import (
     NearbyResponder,
     SelfEnrollment,
 )
-from app.modules.support.push import send_request
 
 log = logging.getLogger(__name__)
 

@@ -2,8 +2,8 @@
 
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision: str = "d17b08ce91ab"
 down_revision: str | None = "c42a12ef91ad"
@@ -12,7 +12,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("verified_responders", sa.Column("ready_for_sos", sa.Boolean(), server_default=sa.false(), nullable=False))
+    op.add_column(
+        "verified_responders",
+        sa.Column("ready_for_sos", sa.Boolean(), server_default=sa.false(), nullable=False),
+    )
     op.alter_column("verified_responders", "ready_for_sos", server_default=None)
     op.create_table(
         "responder_devices",

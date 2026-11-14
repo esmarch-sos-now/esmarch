@@ -1,7 +1,7 @@
 """Application settings. Environment variable names follow the legacy Spring Boot backend."""
 
-from functools import lru_cache
 import json
+from functools import lru_cache
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -98,9 +98,10 @@ class Settings(BaseSettings):
     def fcm_configured(self) -> bool:
         try:
             account = json.loads(self.fcm_service_account_json)
-        except (TypeError, json.JSONDecodeError):
+        except TypeError, json.JSONDecodeError:
             return False
-        return isinstance(account, dict) and all(account.get(key) for key in ("project_id", "client_email", "private_key"))
+        required = ("project_id", "client_email", "private_key")
+        return isinstance(account, dict) and all(account.get(key) for key in required)
 
     @property
     def admin_configured(self) -> bool:

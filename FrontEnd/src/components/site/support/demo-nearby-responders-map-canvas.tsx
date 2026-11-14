@@ -48,7 +48,7 @@ export default function DemoNearbyRespondersMapCanvas({ center }: { center: Poin
       setFailed(false);
       const bounds = new mapboxgl.LngLatBounds().extend([center.lng, center.lat]);
       markers.push(new mapboxgl.Marker({ element: userMarker(), anchor: "center" }).setLngLat([center.lng, center.lat]).addTo(map));
-      getDemoResponders(center).forEach(({ id, point }) => {
+      getDemoResponders({ lat: center.lat, lng: center.lng }).forEach(({ id, point }) => {
         bounds.extend([point.lng, point.lat]);
         markers.push(new mapboxgl.Marker({ element: responderMarker(id - 1), anchor: "center" }).setLngLat([point.lng, point.lat]).addTo(map));
       });
