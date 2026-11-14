@@ -27,6 +27,14 @@ class Availability(CamelModel):
     consent_to_location_use: bool = False
 
 
+class ResponderAreas(CamelModel):
+    areas: list[str]
+
+
+class DeviceRegistration(CamelModel):
+    token: str
+
+
 class CreateSupportRequest(CamelModel):
     scenario_id: str | None = None
     locale: str | None = None
@@ -39,6 +47,7 @@ class CreateSupportRequest(CamelModel):
     contact_phone: str | None = None
     situation: str | None = None
     description: str | None = None
+    area: str | None = None
 
 
 class NearbyResponder(CamelModel):

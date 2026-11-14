@@ -229,16 +229,19 @@ async def _responder_session(ws: WebSocket, profile: Responder) -> None:
                 if kind == "ping":
                     await send(ws, {"type": "pong"})
                 elif kind == "available":
-                    lat, lng = _number(message, "latitude"), _number(message, "longitude")
-                    result = await asyncio.to_thread(support.go_available, profile, lat, lng)
+                    result = await asyncio.to_thread(support.go_area_available, profile)
                     await send(ws, {"type": "availability", **result})
                 elif kind == "unavailable":
+                    profile.ready_for_sos = False
                     await send(ws, {"type": "availability", **support.go_unavailable(profile.id)})
                 elif kind == "location":
                     lat, lng = _number(message, "latitude"), _number(message, "longitude")
                     await asyncio.to_thread(support.update_location, profile.id, lat, lng)
                 elif kind == "accept":
-                    detail = await asyncio.to_thread(support.accept_for, profile, _request_id(message))
+                    # Readiness can be switched on over HTTP after this socket opened; re-read the profile instead of
+                    # trusting the snapshot taken at connect time (it would wrongly say readiness is off).
+                    current = await asyncio.to_thread(_load_profile, profile.id) or profile
+                    detail = await asyncio.to_thread(support.accept_for, current, _request_id(message))
                     await send(ws, {"type": "request.detail", "request": detail})
                 elif kind == "decline":
                     await asyncio.to_thread(support.decline_for, profile.id, _request_id(message))

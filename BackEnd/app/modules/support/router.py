@@ -8,15 +8,18 @@ from app.core.config import get_settings
 from app.core.db import get_session
 from app.core.errors import error
 from app.modules.auth.deps import AdminUser, CurrentUser, OptionalUser, require_auth_configured
+from app.modules.districts import service as districts
 from app.modules.guides.schemas import Audience
 from app.modules.support.models import Skill
 from app.modules.support.realtime import hub
 from app.modules.support.schemas import (
     Availability,
     CreateSupportRequest,
+    DeviceRegistration,
     Enrollment,
     LocationUpdate,
     NearbyResponder,
+    ResponderAreas,
     ResponderUpdate,
     SelfEnrollment,
 )
@@ -26,6 +29,12 @@ router = APIRouter(prefix="/api", tags=["support"])
 Admin = Annotated[str | None, Header(alias="X-Admin-Token")]
 Auth = Annotated[str | None, Header()]
 Db = Annotated[Session, Depends(get_session)]
+
+
+@router.get("/support-areas", response_model=list[str])
+def support_areas() -> list[str]:
+    """The canonical area labels accepted for area-based SOS dispatch."""
+    return districts.DISTRICTS
 
 
 @router.post("/admin/responders", status_code=201)
@@ -115,6 +124,13 @@ async def upload_photo(request_id: str, file: UploadFile, authorization: Auth = 
     return support.add_photo(authorization, request_id, file.content_type, data)
 
 
+@router.post("/support-requests/{request_id}/video", status_code=201)
+async def upload_video(request_id: str, file: UploadFile, authorization: Auth = None) -> dict:
+    """The requester attaches one short video (MP4/WebM/QuickTime), kept in RAM until the request ends."""
+    data = await file.read(get_settings().support_video_max_bytes + 1)
+    return support.add_video(authorization, request_id, file.content_type, data)
+
+
 # ---- signed-in users as responders ("Sẵn sàng hỗ trợ") -----------------------------------------
 me = APIRouter(prefix="/api/support", tags=["support"], dependencies=[Depends(require_auth_configured)])
 
@@ -129,6 +145,22 @@ def self_enroll(body: SelfEnrollment, user: CurrentUser, session: Db) -> dict:
     return support.self_enroll(session, user, body)
 
 
+@me.put("/me/areas")
+def my_areas(body: ResponderAreas, user: CurrentUser, session: Db) -> dict:
+    return support.set_areas(session, support.profile_for_user(session, user), body.areas)
+
+
+@me.put("/me/devices")
+def register_device(body: DeviceRegistration, user: CurrentUser, session: Db) -> dict:
+    return support.register_device(session, support.profile_for_user(session, user), body.token)
+
+
+@me.delete("/me/devices")
+def remove_device(body: DeviceRegistration, user: CurrentUser, session: Db) -> Response:
+    support.remove_device(session, support.profile_for_user(session, user), body.token)
+    return Response(status_code=204)
+
+
 @me.post("/ws-ticket")
 def ws_ticket(user: CurrentUser, session: Db) -> dict:
     """One-time, 30 s ticket that authenticates the next `/api/support/ws` connection as this responder."""
@@ -141,10 +173,8 @@ def ws_ticket(user: CurrentUser, session: Db) -> dict:
 def my_availability(body: Availability, user: CurrentUser, session: Db) -> dict:
     profile = support.profile_for_user(session, user)
     if not body.available:
-        return support.go_unavailable(profile.id)
-    if not body.consent_to_location_use or body.latitude is None or body.longitude is None:
-        raise error(400, "Location consent and coordinates are required to become available.")
-    return support.go_available(profile, body.latitude, body.longitude)
+        return support.go_area_unavailable(session, profile)
+    return support.go_area_available(profile, session)
 
 
 @me.post("/me/location", status_code=204)
@@ -179,3 +209,9 @@ def my_complete(request_id: str, user: CurrentUser, session: Db) -> Response:
 def my_photo(request_id: str, index: int, user: CurrentUser, session: Db) -> Response:
     photo = support.photo_for(support.profile_for_user(session, user).id, request_id, index)
     return Response(photo.data, media_type=photo.content_type, headers={"Cache-Control": "private, no-store"})
+
+
+@me.get("/me/requests/{request_id}/video")
+def my_video(request_id: str, user: CurrentUser, session: Db) -> Response:
+    video = support.video_for(support.profile_for_user(session, user).id, request_id)
+    return Response(video.data, media_type=video.content_type, headers={"Cache-Control": "private, no-store"})

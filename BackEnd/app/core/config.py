@@ -1,6 +1,7 @@
 """Application settings. Environment variable names follow the legacy Spring Boot backend."""
 
 from functools import lru_cache
+import json
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -27,6 +28,8 @@ class Settings(BaseSettings):
     support_offline_grace_seconds: float = Field(default=20, ge=0)  # a dropped responder socket stays available
     support_max_photos: int = Field(default=3, ge=0, le=10)
     support_photo_max_bytes: int = Field(default=5 * 1024 * 1024, ge=10_000)
+    support_video_max_bytes: int = Field(default=25 * 1024 * 1024, ge=10_000)
+    fcm_service_account_json: str = ""
 
     public_api_rate_limit_requests: int = 60
     public_api_rate_limit_window_seconds: float = 60
@@ -90,6 +93,14 @@ class Settings(BaseSettings):
     @property
     def auth_configured(self) -> bool:
         return len(self.auth_secret_key) >= 32
+
+    @property
+    def fcm_configured(self) -> bool:
+        try:
+            account = json.loads(self.fcm_service_account_json)
+        except (TypeError, json.JSONDecodeError):
+            return False
+        return isinstance(account, dict) and all(account.get(key) for key in ("project_id", "client_email", "private_key"))
 
     @property
     def admin_configured(self) -> bool:
