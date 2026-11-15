@@ -137,10 +137,16 @@ async def upload_video(request_id: str, file: UploadFile, session: Db, authoriza
 
 
 # ---- voice description -> text ----------------------------------------------------------------
+@router.get("/support/transcribe")
+def transcribe_status() -> dict:
+    """Whether the requester form should offer voice input: the backend decides (OPENAI_API_KEY is set)."""
+    return {"enabled": bool(get_settings().openai_api_key)}
+
+
 @router.post("/support/transcribe")
 async def transcribe(request: Request, file: UploadFile) -> dict:
     """The requester's recorded description as text (OpenAI speech-to-text). Nothing is stored. 503 without
-    OPENAI_API_KEY; the form then keeps the recording and asks for typed text."""
+    OPENAI_API_KEY; the form then moves the cursor to the description box for typed text."""
     s = get_settings()
     origin = request.headers.get("origin")
     if origin is not None and origin not in s.origins:

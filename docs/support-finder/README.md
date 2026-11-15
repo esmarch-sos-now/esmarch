@@ -175,7 +175,6 @@ Giới hạn dung lượng tệp của bucket trên Supabase phải từ 25 MB t
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Realtime và tải video thẳng lên Storage. |
 | `NEXT_PUBLIC_DEMO_LOCATION` | `true` hiện ô chọn vị trí giả lập và dời người hỗ trợ demo 1 km so với vị trí GPS. |
 | `NEXT_PUBLIC_DEMO_RESPONDERS` | `true` làm trang người cần giúp hiện bản đồ mô phỏng 20 người hỗ trợ thay vì gọi backend. |
-| `NEXT_PUBLIC_ASR_ENABLED` | `true` hiện nút ghi âm phần mô tả (backend cần `OPENAI_API_KEY`). Để trống thì chỉ nhập bằng chữ. |
 
 Các biến `NEXT_PUBLIC_*` được đóng gói lúc build; hãy khởi động lại dev server sau khi đổi.
 
@@ -186,8 +185,10 @@ Form của người cần giúp có thể điền phần mô tả từ bản ghi
 (`gpt-transcribe`, tiếng Việt), trả về đoạn chữ và không lưu gì. Endpoint này không cần đăng nhập vì lúc điền form
 chưa có yêu cầu nào, nên nó chặn site khác bằng `Origin`, giới hạn 4 MB mỗi bản ghi và 10 bản ghi mỗi IP trong 10 phút.
 
-Cần cả hai: `NEXT_PUBLIC_ASR_ENABLED=true` ở frontend và `OPENAI_API_KEY` ở backend. Thiếu key thì backend trả 503;
-bản ghi âm vẫn được giữ và người cần giúp có thể gõ mô tả bằng chữ.
+Backend quyết định có bật tính năng hay không: `GET /api/support/transcribe` trả `{ "enabled": true }` khi có
+`OPENAI_API_KEY`, và form chỉ hiện nút ghi âm lúc đó. Frontend không cần biến nào, đổi key cũng không cần build lại
+frontend. Chữ nhận được điền vào ô mô tả để người dùng sửa; nếu không nhận được chữ, con trỏ chuyển vào ô mô tả để gõ
+tay. Ô mô tả là thứ người hỗ trợ đọc, bản ghi âm không rời khỏi máy.
 
 | Biến backend | Mặc định | Ý nghĩa |
 | --- | --- | --- |

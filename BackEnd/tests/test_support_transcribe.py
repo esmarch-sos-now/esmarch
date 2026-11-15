@@ -42,7 +42,12 @@ def send(client, data=AUDIO, content_type="audio/webm;codecs=opus", headers=ORIG
 
 def test_disabled_without_a_key(client, monkeypatch):
     monkeypatch.setattr(speech, "_limiter", None)
+    assert client.get("/api/support/transcribe").json() == {"enabled": False}
     assert send(client).status_code == 503
+
+
+def test_the_backend_tells_the_form_to_offer_voice_input(client, stt):
+    assert client.get("/api/support/transcribe").json() == {"enabled": True}
 
 
 def test_returns_the_text_from_gpt_transcribe_in_vietnamese(client, stt):

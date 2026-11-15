@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Mic, Square, Trash2, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ASR_ENABLED, transcribeSpeech } from "@/lib/support/asr";
+import { useVoiceInputEnabled } from "@/lib/api/hooks";
+import { transcribeSpeech } from "@/lib/support/asr";
 
 export type IncidentReport = {
   text: string;
@@ -30,6 +31,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
   const [seconds, setSeconds] = useState(0);
   const [note, setNote] = useState("");
   const [transcribing, setTranscribing] = useState(false);
+  const voiceInput = useVoiceInputEnabled();
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const ticker = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -165,7 +167,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
         <legend className="text-sm font-bold text-ink">
           Mô tả tình huống <span className="text-brand">*</span>
         </legend>
-        <p className="-mt-1 text-xs text-muted-foreground">{ASR_ENABLED ? "Bắt buộc: nhập chữ, hoặc ghi âm để tự điền vào ô này rồi sửa lại nếu cần." : "Bắt buộc."}</p>
+        <p className="-mt-1 text-xs text-muted-foreground">{voiceInput ? "Bắt buộc: nhập chữ, hoặc ghi âm để tự điền vào ô này rồi sửa lại nếu cần." : "Bắt buộc."}</p>
         <textarea
           ref={textBox}
           value={value.text}
@@ -175,7 +177,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
           placeholder="Ví dụ: Người lớn tuổi ngã, không trả lời, đang thở yếu…"
           className="min-h-24 resize-y rounded-xl border border-line px-3.5 py-3 text-base outline-none focus:border-brand"
         />
-        {ASR_ENABLED && <div className="flex flex-wrap items-center gap-3">
+        {voiceInput && <div className="flex flex-wrap items-center gap-3">
           {recording ? (
             <Button type="button" onClick={stopRecording} className="h-11 rounded-full bg-brand font-bold [&_svg]:size-4">
               <Square aria-hidden="true" className="fill-current" /> Dừng ghi · {formatClock(seconds)}

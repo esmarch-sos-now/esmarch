@@ -1,9 +1,7 @@
 import { API_BASE } from "@/lib/api/client";
 
 // Speech -> text for the "Mô tả tình huống" box: the recording goes to the backend, which asks OpenAI speech-to-text
-// (gpt-transcribe) and stores nothing. The voice button shows only with NEXT_PUBLIC_ASR_ENABLED=true; the backend
-// also needs OPENAI_API_KEY, otherwise it answers 503 and the form keeps the recording and asks for typed text.
-export const ASR_ENABLED = process.env.NEXT_PUBLIC_ASR_ENABLED === "true";
+// (gpt-transcribe) and stores nothing. Whether the voice button shows is the backend's call (useVoiceInputEnabled).
 
 /** Resolves to the transcript (possibly empty); throws when the backend is unreachable or fails. */
 export async function transcribeSpeech(audio: Blob): Promise<string> {
