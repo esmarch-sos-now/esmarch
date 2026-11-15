@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Đăng ký – SOS NOW" };
 export default async function Page({ searchParams }: PageProps<"/dang-ky">) {
   const { next } = await searchParams;
   return (
-    <AuthShell>
+    <AuthShell bare>
       <RegisterForm next={safeNext(next)} />
     </AuthShell>
   );

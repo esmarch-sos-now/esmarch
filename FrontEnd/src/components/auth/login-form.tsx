@@ -61,12 +61,13 @@ export default function LoginForm({ next, notice }: { next: string; notice?: str
     );
 
   return (
-    <Card className="w-full rounded-3xl [--card-spacing:--spacing(6)]">
-      <CardHeader>
+    // Không có thẻ bao quanh: form nằm thẳng trên nền trang
+    <Card className="w-full overflow-visible rounded-none bg-transparent py-0 ring-0 [--card-spacing:--spacing(6)]">
+      <CardHeader className="px-0">
         <CardTitle className="text-3xl font-black text-ink">{copy.title}</CardTitle>
         <CardDescription className="text-base">{copy.lede}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-0">
         <form id="form-login" onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <FieldGroup>
             <FormAlert success={notice} />
@@ -101,7 +102,7 @@ export default function LoginForm({ next, notice }: { next: string; notice?: str
           </FieldGroup>
         </form>
       </CardContent>
-      <CardFooter className="flex-col gap-4">
+      <CardFooter className="flex-col gap-4 rounded-none border-t-0 bg-transparent px-0">
         <Button type="submit" form="form-login" size="lg" className="h-11 w-full rounded-full text-base font-semibold" disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting && <Spinner data-icon="inline-start" />}
           {copy.submit}

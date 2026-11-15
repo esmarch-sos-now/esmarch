@@ -55,8 +55,9 @@ function NavItem({ item, className }: { item: Item; className?: string }) {
   )
 }
 
-/** Điều hướng của các trang app: logo ở đầu trang, các trang và tài khoản là biểu tượng trên thanh cố định dưới đáy. */
-export default function AppNav() {
+/** Điều hướng của các trang app: logo ở đầu trang, các trang và tài khoản là biểu tượng trên thanh cố định dưới đáy.
+ * `bar={false}`: chỉ có logo, không có thanh dưới đáy (trang Đăng ký). */
+export default function AppNav({ bar = true }: { bar?: boolean }) {
   const pathname = usePathname()
   const { user, status } = useSession()
   const supporter = useSupporterProfile()
@@ -79,7 +80,7 @@ export default function AppNav() {
       <header className="flex h-17 items-center bg-paper px-[max(16px,calc((100%-1280px)/2+16px))] shadow-[inset_0_-1px_0_var(--color-line)] max-lg:h-14">
         <Logo />
       </header>
-      <nav
+      {bar && <nav
         aria-label="Điều hướng chính"
         // Chừa chỗ cuối trang để thanh cố định không che nội dung
         className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(10px,env(safe-area-inset-bottom))] [body:has(&)]:pb-[calc(84px+env(safe-area-inset-bottom))]"
@@ -89,7 +90,7 @@ export default function AppNav() {
           <li className="mx-1 h-7 w-px self-center bg-line" aria-hidden="true" />
           <NavItem item={account} className={status === 'loading' ? 'invisible' : undefined} />
         </ul>
-      </nav>
+      </nav>}
     </>
   )
 }
