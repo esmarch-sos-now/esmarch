@@ -175,16 +175,26 @@ Giới hạn dung lượng tệp của bucket trên Supabase phải từ 25 MB t
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Realtime và tải video thẳng lên Storage. |
 | `NEXT_PUBLIC_DEMO_LOCATION` | `true` hiện ô chọn vị trí giả lập và dời người hỗ trợ demo 1 km so với vị trí GPS. |
 | `NEXT_PUBLIC_DEMO_RESPONDERS` | `true` làm trang người cần giúp hiện bản đồ mô phỏng 20 người hỗ trợ thay vì gọi backend. |
-| `NEXT_PUBLIC_ASR_URL` | Địa chỉ dịch vụ giọng nói thành chữ (ví dụ `http://127.0.0.1:7860/api/transcribe`). Để trống thì không hiện nút ghi âm. |
 
 Các biến `NEXT_PUBLIC_*` được đóng gói lúc build; hãy khởi động lại dev server sau khi đổi.
 
 ### Giọng nói thành chữ (tùy chọn)
 
-Form của người cần giúp có thể điền phần mô tả từ bản ghi âm. Âm thanh WAV 16 kHz đơn kênh được gửi tới dịch vụ ở
-`NEXT_PUBLIC_ASR_URL`. Dịch vụ này không nằm trong repo; một site đã triển khai không gọi được dịch vụ chạy trên máy của
-người dùng, nên chỉ đặt biến này khi demo trên máy. Nếu dịch vụ không trả lời, bản ghi âm vẫn được giữ và người cần giúp
-có thể gõ mô tả bằng chữ.
+Form của người cần giúp có thể điền phần mô tả từ bản ghi âm (tối đa 60 giây). Bản ghi âm gốc của trình duyệt
+(WebM/Ogg, hoặc MP4 trên Safari) được gửi tới `POST /api/support/transcribe`; backend gọi OpenAI speech-to-text
+(`gpt-transcribe`, tiếng Việt), trả về đoạn chữ và không lưu gì. Endpoint này không cần đăng nhập vì lúc điền form
+chưa có yêu cầu nào, nên nó chặn site khác bằng `Origin`, giới hạn 4 MB mỗi bản ghi và 10 bản ghi mỗi IP trong 10 phút.
+
+Backend quyết định có bật tính năng hay không: `GET /api/support/transcribe` trả `{ "enabled": true }` khi có
+`OPENAI_API_KEY`, và form chỉ hiện nút ghi âm lúc đó. Frontend không cần biến nào, đổi key cũng không cần build lại
+frontend. Chữ nhận được điền vào ô mô tả để người dùng sửa; nếu không nhận được chữ, con trỏ chuyển vào ô mô tả để gõ
+tay. Ô mô tả là thứ người hỗ trợ đọc, bản ghi âm không rời khỏi máy.
+
+| Biến backend | Mặc định | Ý nghĩa |
+| --- | --- | --- |
+| `SUPPORT_TRANSCRIBE_MODEL` | `gpt-transcribe` | Model speech-to-text của OpenAI (khoảng $0.0045 mỗi phút âm thanh). |
+| `SUPPORT_TRANSCRIBE_MAX_BYTES` | `4000000` | Dung lượng tối đa một bản ghi (dưới giới hạn 4.5 MB của Vercel Functions). |
+| `SUPPORT_TRANSCRIBE_PER_IP`, `SUPPORT_TRANSCRIBE_WINDOW_SECONDS` | `10`, `600` | Số bản ghi mỗi IP trong mỗi khoảng thời gian. |
 
 ## Chạy trên máy
 

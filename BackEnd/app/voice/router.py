@@ -15,6 +15,7 @@ from sqlmodel import Session
 
 from app.core.config import Settings, get_settings
 from app.core.db import get_session
+from app.core.ratelimit import client_ip
 from app.voice import service
 from app.voice.models import VoiceCall
 
@@ -69,12 +70,6 @@ def _same_site(request: Request, s: Settings = Depends(_configured)) -> Settings
     return s
 
 
-def _client_ip(request: Request, s: Settings) -> str:
-    if s.client_ip_header and (value := request.headers.get(s.client_ip_header)):
-        return value.split(",")[0].strip()[:64]
-    return request.client.host if request.client else "unknown"
-
-
 def _call(
     call_id: str,
     authorization: Annotated[str, Header()] = "",
@@ -102,7 +97,7 @@ def _fail(e: service.VoiceError) -> HTTPException:
 @router.post("/calls", status_code=status.HTTP_201_CREATED)
 async def start(body: StartCall, request: Request, session: DB, s: Configured) -> dict:
     try:
-        return await service.create_call(session, s, ip=_client_ip(request, s), sdp=body.sdp)
+        return await service.create_call(session, s, ip=client_ip(request, s.client_ip_header), sdp=body.sdp)
     except service.VoiceError as e:
         raise _fail(e) from e
 

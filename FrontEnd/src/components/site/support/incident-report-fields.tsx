@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Mic, Square, Trash2, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ASR_ENABLED, transcribeSpeech } from "@/lib/support/asr";
+import { useVoiceInputEnabled } from "@/lib/api/hooks";
+import { transcribeSpeech } from "@/lib/support/asr";
 
 export type IncidentReport = {
   text: string;
@@ -14,9 +15,10 @@ export type IncidentReport = {
 
 export const emptyReport: IncidentReport = { text: "", audio: null, photos: [], video: null };
 
-/** The situation must be described by typing or by voice (only where speech-to-text is set up: the recording itself
- * stays on this device); photos and video are optional. */
-export const hasDescription = (report: IncidentReport) => report.text.trim().length > 0 || (ASR_ENABLED && report.audio !== null);
+/** The description box is what supporters read. A voice note only fills it (speech to text) and stays on this device,
+ * so a recording whose text did not come through does not count: the user types it instead. Photos and video are
+ * optional. */
+export const hasDescription = (report: IncidentReport) => report.text.trim().length > 0;
 
 const MAX_PHOTOS = 3;
 const MAX_AUDIO_SECONDS = 60;
@@ -29,9 +31,11 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
   const [seconds, setSeconds] = useState(0);
   const [note, setNote] = useState("");
   const [transcribing, setTranscribing] = useState(false);
+  const voiceInput = useVoiceInputEnabled();
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const ticker = useRef<ReturnType<typeof setInterval> | null>(null);
+  const textBox = useRef<HTMLTextAreaElement>(null);
   const latest = useRef(value);
   useEffect(() => {
     latest.current = value;
@@ -56,16 +60,22 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
     [],
   );
 
-  // Fills the description box with what was said; the user can still edit it. Failure keeps the voice note.
+  // Puts what was said into the description box (after anything already typed), where the user can correct it. When
+  // nothing comes back, the cursor goes to the box so the user can type the description instead.
+  const typeInstead = (message: string) => {
+    setNote(message);
+    textBox.current?.focus();
+  };
   const transcribe = async (blob: Blob) => {
     setTranscribing(true);
     try {
       const text = await transcribeSpeech(blob);
-      if (!text) return setNote("Chưa nhận ra giọng nói. Hãy ghi âm lại hoặc nhập bằng chữ.");
+      if (!text) return typeInstead("Chưa nhận ra giọng nói. Hãy nhập mô tả vào ô bên trên hoặc ghi âm lại.");
       const current = latest.current;
       onChange({ ...current, text: current.text.trim() ? `${current.text.trim()}\n${text}` : text });
+      setNote("");
     } catch {
-      setNote("Chưa chuyển được giọng nói thành chữ (dịch vụ ASR chưa chạy). Bản ghi âm vẫn được giữ; bạn có thể nhập thêm bằng chữ.");
+      typeInstead("Chưa chuyển được giọng nói thành chữ. Hãy nhập mô tả vào ô bên trên hoặc ghi âm lại.");
     } finally {
       setTranscribing(false);
     }
@@ -157,8 +167,9 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
         <legend className="text-sm font-bold text-ink">
           Mô tả tình huống <span className="text-brand">*</span>
         </legend>
-        <p className="-mt-1 text-xs text-muted-foreground">{ASR_ENABLED ? "Bắt buộc: nhập chữ hoặc ghi âm (hoặc cả hai)." : "Bắt buộc."}</p>
+        <p className="-mt-1 text-xs text-muted-foreground">{voiceInput ? "Bắt buộc: nhập chữ, hoặc ghi âm để tự điền vào ô này rồi sửa lại nếu cần." : "Bắt buộc."}</p>
         <textarea
+          ref={textBox}
           value={value.text}
           onChange={(event) => onChange({ ...value, text: event.target.value })}
           rows={3}
@@ -166,7 +177,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
           placeholder="Ví dụ: Người lớn tuổi ngã, không trả lời, đang thở yếu…"
           className="min-h-24 resize-y rounded-xl border border-line px-3.5 py-3 text-base outline-none focus:border-brand"
         />
-        {ASR_ENABLED && <div className="flex flex-wrap items-center gap-3">
+        {voiceInput && <div className="flex flex-wrap items-center gap-3">
           {recording ? (
             <Button type="button" onClick={stopRecording} className="h-11 rounded-full bg-brand font-bold [&_svg]:size-4">
               <Square aria-hidden="true" className="fill-current" /> Dừng ghi · {formatClock(seconds)}
