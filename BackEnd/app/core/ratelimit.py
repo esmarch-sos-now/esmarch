@@ -2,6 +2,15 @@ import threading
 import time
 from collections.abc import Callable
 
+from starlette.requests import Request
+
+
+def client_ip(request: Request, header: str) -> str:
+    """The caller's IP: from `header` when a trusted proxy sets it (CLIENT_IP_HEADER), else the TCP peer."""
+    if header and (value := request.headers.get(header)):
+        return value.split(",")[0].strip()[:64]
+    return request.client.host if request.client else "unknown"
+
 
 class IpRateLimiter:
     """Fixed-window per-IP counter with bounded memory. Per-process; use a gateway for multi-instance."""

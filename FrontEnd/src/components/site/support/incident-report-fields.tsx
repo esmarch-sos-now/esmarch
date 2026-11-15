@@ -65,7 +65,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
       const current = latest.current;
       onChange({ ...current, text: current.text.trim() ? `${current.text.trim()}\n${text}` : text });
     } catch {
-      setNote("Chưa chuyển được giọng nói thành chữ (dịch vụ ASR chưa chạy). Bản ghi âm vẫn được giữ; bạn có thể nhập thêm bằng chữ.");
+      setNote("Chưa chuyển được giọng nói thành chữ. Bản ghi âm vẫn được giữ; bạn có thể nhập thêm bằng chữ.");
     } finally {
       setTranscribing(false);
     }

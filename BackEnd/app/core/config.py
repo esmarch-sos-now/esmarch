@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     # One scene video per request. With Supabase Storage the browser uploads it directly (signed upload URL), so this
     # can exceed the serverless body limit; the backend-upload fallback (local dev) is capped by the proxy instead.
     support_video_max_bytes: int = Field(default=25 * 1024 * 1024, ge=10_000)
+    # Voice description -> text (OpenAI speech-to-text, needs OPENAI_API_KEY). The form records at most 60 s, so a
+    # recording is far below the byte cap; the per-IP cap bounds the cost of anyone calling it directly.
+    support_transcribe_model: str = "gpt-transcribe"
+    support_transcribe_max_bytes: int = Field(default=4_000_000, ge=10_000)  # < 4.5 MB serverless body limit
+    support_transcribe_per_ip: int = Field(default=10, ge=1)  # recordings per IP ...
+    support_transcribe_window_seconds: float = Field(default=600, gt=0)  # ... in this window
 
     public_api_rate_limit_requests: int = 60
     public_api_rate_limit_window_seconds: float = 60
