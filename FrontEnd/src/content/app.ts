@@ -74,6 +74,7 @@ export const supportCopy = {
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí trong trình duyệt để gửi tín hiệu.',
     phone: 'Số điện thoại để người hỗ trợ gọi lại',
     phoneHint: 'Chỉ người nhận trợ giúp mới thấy số này.',
+    accountPhoneHint: 'Số điện thoại đã đăng ký của tài khoản. Chỉ người nhận trợ giúp mới thấy số này.',
     situation: 'Tình huống',
     description: 'Mô tả ngắn (không bắt buộc)',
     descriptionPlaceholder: 'Ví dụ: người lớn tuổi ngã ở cổng chợ, còn thở nhưng không trả lời',
