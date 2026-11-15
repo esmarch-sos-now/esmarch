@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bike, Car, LocateFixed, MapPin, Navigation, Phone, PhoneOff, X } from "lucide-react";
-import Navbar from "@/components/site/landing/Navbar";
+import AppNav from "@/components/site/app-nav";
 import { Page } from "@/components/site/primitives";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { FacilityMap } from "@/components/site/facilities/facility-map-loader";
-import { appNav, facilityScreen } from "@/content/app";
+import { facilityScreen } from "@/content/app";
 import { cityCenter, formatDistance, formatPhone } from "@/content/facilities";
 import { useNearbyFacilities, type Point } from "@/lib/api/hooks";
 import { formatDuration, useDirections, type Vehicle } from "@/lib/directions";
@@ -96,7 +96,7 @@ export default function FacilitiesScreen() {
 
   return (
     <Page>
-      <Navbar appLinks={appNav} />
+      <AppNav />
       <main className="mx-auto w-full max-w-none px-4 pt-7 pb-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

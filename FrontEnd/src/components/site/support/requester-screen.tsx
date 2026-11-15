@@ -4,14 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { HandHeart, Loader2, MapPin, Phone } from "lucide-react";
 import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
-import Navbar from "@/components/site/landing/Navbar";
+import AppNav from "@/components/site/app-nav";
 import { Page } from "@/components/site/primitives";
 import DemoNearbyRespondersMap from "@/components/site/support/demo-nearby-responders-map";
 import DemoPlacePicker from "@/components/site/support/demo-place-picker";
 import IncidentReportFields, { emptyReport, hasDescription, type IncidentReport } from "@/components/site/support/incident-report-fields";
 import PointMap from "@/components/site/support/point-map";
 import { Button } from "@/components/ui/button";
-import { appNav, courseCopy, supportCopy } from "@/content/app";
+import { courseCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useSession } from "@/hooks/use-auth";
 import { formatPhone as formatAccountPhone } from "@/lib/auth/phone";
@@ -20,7 +20,6 @@ import { useSupportChannel } from "@/hooks/useSupportChannel";
 import type { Point } from "@/lib/api/hooks";
 import {
   CITY_AREA,
-  SITUATIONS,
   cancelSupportRequest,
   compressPhoto,
   createSupportRequest,
@@ -79,7 +78,6 @@ export default function RequesterScreen() {
   const accountPhone = user?.phone ? (user.phone.startsWith("+") ? user.phone : `+${user.phone}`) : "";
   const [typedPhone, setTypedPhone] = useState("");
   const phone = accountPhone || typedPhone;
-  const [situation, setSituation] = useState<string>(SITUATIONS[0]);
   const [report, setReport] = useState<IncidentReport>(emptyReport);
   const [consent, setConsent] = useState(false);
 
@@ -148,7 +146,6 @@ export default function RequesterScreen() {
       contactPhone: phone,
       // Every ready supporter is invited (see CITY_AREA); they get the exact place once they accept.
       area: CITY_AREA,
-      situation,
       description: report.text.trim() || undefined,
     }).catch(() => null);
     if (!result) {
@@ -198,12 +195,11 @@ export default function RequesterScreen() {
 
   return (
     <Page>
-      <Navbar appLinks={appNav} />
+      <AppNav />
       <main className={cn("mx-auto w-full px-4 pt-7 pb-12", phase === "demo" ? "max-w-6xl" : "max-w-180")}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-[clamp(26px,3.4vw,36px)] leading-[1.15] font-black text-ink">{c.title}</h1>
-            <p className="mt-2 max-w-130 text-[15px] leading-[1.55] text-muted-foreground">{c.subtitle}</p>
           </div>
           <Button asChild className="h-auto rounded-full px-5 py-2.5 text-base font-bold shadow-[0_10px_24px_rgba(218,54,26,.3)] hover:bg-brand-dark [&_svg]:size-4.5">
             <a href="tel:115"><Phone aria-hidden="true" /> Gọi 115</a>
@@ -211,7 +207,7 @@ export default function RequesterScreen() {
         </div>
 
         {(phase === "form" || phase === "sending") && (
-          <form onSubmit={submit} className="mt-6 grid gap-5 rounded-2xl border border-line bg-white p-5" noValidate>
+          <form onSubmit={submit} className="mt-6 grid gap-5" noValidate>
             <p className={cn("flex items-center gap-1.5 text-sm", position ? "text-[#1e7d3a]" : "text-muted-foreground", positionStatus === "denied" && "text-brand")}>
               <MapPin aria-hidden="true" className="size-4" />
               {position ? c.located : positionStatus === "denied" ? c.locationDenied : c.locating}
@@ -241,23 +237,6 @@ export default function RequesterScreen() {
                 <span className="text-xs text-muted-foreground">{c.phoneHint}</span>
               </label>
             )}
-
-            <fieldset className="grid gap-2">
-              <legend className="mb-1.5 text-sm font-bold text-ink">{c.situation}</legend>
-              <div className="flex flex-wrap gap-2">
-                {SITUATIONS.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    aria-pressed={situation === item}
-                    onClick={() => setSituation(item)}
-                    className="cursor-pointer rounded-full border border-line bg-white px-3.5 py-1.5 text-sm font-semibold text-ink aria-pressed:border-brand aria-pressed:bg-brand-soft aria-pressed:text-brand"
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
 
             <IncidentReportFields value={report} onChange={setReport} />
 

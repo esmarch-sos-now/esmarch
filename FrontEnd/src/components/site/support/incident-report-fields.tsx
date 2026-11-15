@@ -278,7 +278,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
           </div>
         )}
         <p className="text-xs text-muted-foreground">
-          Tối đa {MAX_PHOTOS} ảnh và 1 video (25 MB). Trên điện thoại, nút sẽ mở camera; trên máy tính sẽ mở hộp chọn tệp.
+          Tối đa {MAX_PHOTOS} ảnh và 1 video (25 MB).
         </p>
       </fieldset>
 

@@ -2,7 +2,6 @@
 
 export const strokePractice = {
   title: 'Nhận biết đột quỵ',
-  lede: 'Cười, giơ hai tay và nói một câu trước camera, rồi ghi năm động tác mỗi ngày.',
   fast: {
     label: 'Nhận biết',
     title: 'FAST — làm ngay',
