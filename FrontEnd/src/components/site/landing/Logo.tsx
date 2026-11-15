@@ -10,6 +10,12 @@ const variants = {
     img: 'h-8.5 max-lg:h-7.5',
     text: '-translate-y-px font-sans text-xl font-extrabold tracking-[-.02em] max-lg:text-lg max-xs:text-[17px]'
   },
+  // dark: như default nhưng chữ trắng (footer landing nền tối)
+  dark: {
+    link: 'gap-2 text-white',
+    img: 'h-8.5 max-lg:h-7.5',
+    text: '-translate-y-px font-sans text-xl font-extrabold tracking-[-.02em] max-lg:text-lg max-xs:text-[17px]'
+  },
   glass: {
     link: 'gap-[calc(8*var(--u))] text-white max-lp:gap-2',
     img: 'h-[calc(40*var(--u))] max-lp:h-8',
