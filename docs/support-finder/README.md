@@ -24,7 +24,7 @@ khẩn cấp giống một cuộc gọi đến. Người hỗ trợ đầu tiên
 
 ### Người cần giúp (`/app/nguoi-ho-tro`, không cần tài khoản)
 
-1. Trang xin quyền lấy vị trí (GPS) của trình duyệt. Khu vực xảy ra sự cố (quận/huyện) được suy ra từ vị trí này,
+1. Trang xin quyền lấy vị trí (GPS) của trình duyệt. Tọa độ này là vị trí người hỗ trợ nhận được sau khi bấm Nhận;
    không có ô chọn khu vực.
 2. Người cần giúp nhập số điện thoại để người hỗ trợ gọi lại, chọn tình huống và mô tả bằng **chữ** (hoặc bằng
    **giọng nói** nếu đã cấu hình dịch vụ nhận dạng giọng nói, xem
@@ -38,7 +38,7 @@ khẩn cấp giống một cuộc gọi đến. Người hỗ trợ đầu tiên
 
 1. Người hỗ trợ đã đăng nhập và được xác minh bật **"Sẵn sàng hỗ trợ"**. Trong lúc chờ không cần GPS. Trạng thái sẵn
    sàng được giữ khi tải lại trang.
-2. Khi có yêu cầu, màn hình **cuộc gọi khẩn cấp** toàn màn hình xuất hiện kèm chuông: tình huống, khu vực, mô tả của
+2. Khi có yêu cầu, màn hình **cuộc gọi khẩn cấp** toàn màn hình xuất hiện kèm chuông: tình huống, mô tả của
    người cần giúp, ảnh và video hiện trường, và đồng hồ đếm ngược đến khi yêu cầu hết hạn.
 3. **Nhận hỗ trợ** cho thấy vị trí chính xác, số điện thoại của người cần giúp và mở bản đồ chỉ đường. **Bỏ qua** chỉ
    tắt lời mời đối với riêng người hỗ trợ đó.
@@ -49,9 +49,12 @@ Xem trước màn hình cuộc gọi đến (không có yêu cầu thật): `/ap
 
 ### Cách chọn người nhận tín hiệu
 
-- Vị trí GPS của người cần giúp được ánh xạ tới quận/huyện gần nhất trong danh mục khu vực cũ của TP.HCM của dự án
-  (`FrontEnd/src/lib/support/districts.ts`). Cách này chỉ mang tính ước lượng và dùng cho phần hiển thị và trường `area`
-  của yêu cầu.
+- Form của người cần giúp gửi `area: "TP. Hồ Chí Minh"` (`CITY_AREA` trong `protocol.ts`). Trường này chỉ chọn cách
+  mời; nó không phải nơi người cần giúp đang ở và không được hiển thị. Trước đây form đoán quận gần nhất từ GPS, nhưng
+  TP.HCM đã bỏ cấp quận từ 01/7/2025 và nhãn đoán sai (nhất là ở Bình Dương, Bà Rịa – Vũng Tàu cũ) nên đã bị bỏ.
+- Trước khi nhận, người hỗ trợ **không thấy khoảng cách**: khi chờ, trang của họ không lấy GPS nên máy chủ không biết họ
+  ở đâu. Màn hình ghi "Vị trí chính xác và đường đi hiện sau khi bạn nhận". Sau khi nhận, họ có vị trí chính xác, thời
+  gian và quãng đường đi (Mapbox), còn người cần giúp thấy khoảng cách tới người hỗ trợ cập nhật trực tiếp.
 - Với yêu cầu có `area`, backend mời **mọi người hỗ trợ đang sẵn sàng và đã xác minh** có kỹ năng phù hợp, ở bất kỳ đâu.
   Người hỗ trợ bật sẵn sàng sau khi yêu cầu đã gửi cũng nhận được lời mời.
 - API cũ không có `area` vẫn chọn theo bán kính (`SUPPORT_RADIUS_METERS`) quanh vị trí người hỗ trợ đã gửi.
@@ -96,7 +99,7 @@ Chỉ người hỗ trợ **đã được xác minh** mới dùng được chế
 
 - Yêu cầu nằm trong PostgreSQL; ảnh và video nằm trong bucket **riêng tư** của Supabase Storage. Tất cả bị xoá khi yêu
   cầu hoàn tất, bị huỷ hoặc hết hạn (10 phút).
-- Trước khi nhận, người hỗ trợ chỉ thấy tên khu vực (hoặc khoảng cách làm tròn đến 100 m với API theo bán kính).
+- Trước khi nhận, người hỗ trợ không thấy vị trí (chỉ API theo bán kính mới có khoảng cách làm tròn đến 100 m).
 - Video được tải thẳng từ trình duyệt lên Storage bằng token tải lên có chữ ký; người hỗ trợ xem qua đường dẫn có chữ ký
   chỉ dùng được 5 phút.
 - Trạng thái sẵn sàng của người hỗ trợ hết hạn sau 5 phút nếu trang không còn mở để làm mới.
@@ -122,7 +125,7 @@ Trình duyệt người hỗ trợ ◀── tín hiệu Realtime / HTTP ──�
 | Màn hình người cần giúp | `FrontEnd/src/components/site/support/requester-screen.tsx`, `incident-report-fields.tsx` |
 | Màn hình người hỗ trợ | `FrontEnd/src/components/site/support/responder-screen.tsx`, `incoming-call-overlay.tsx` |
 | Bản đồ demo và luồng gọi | `demo-nearby-responders-map*.tsx`, `demo-call-flow.tsx` |
-| Hàm dùng phía trình duyệt | `FrontEnd/src/lib/support/` (`protocol.ts`, `asr.ts`, `districts.ts`, `demo-*.ts`), `FrontEnd/src/hooks/useSupportChannel.ts` |
+| Hàm dùng phía trình duyệt | `FrontEnd/src/lib/support/` (`protocol.ts`, `asr.ts`, `demo-*.ts`), `FrontEnd/src/hooks/useSupportChannel.ts` |
 | Kiểm soát truy cập | `FrontEnd/src/lib/auth/paths.ts`, `FrontEnd/src/proxy.ts`, `FrontEnd/src/components/site/landing/Navbar.tsx` |
 
 Proxy của Next.js chuyển các lời gọi `/backend/api/...` của trình duyệt sang backend và tự gắn token của người dùng đang
@@ -242,7 +245,7 @@ Migration: `alembic heads` phải chỉ có đúng một head.
 ## Giới hạn
 
 - Chưa có thông báo đẩy: người hỗ trợ chỉ nhận lời mời khi trang đang mở.
-- Việc suy ra quận/huyện từ GPS chỉ là ước lượng (khoảng cách tới tâm quận, không phải kiểm tra ranh giới).
+- Chưa có nhãn phường/xã cho yêu cầu (cần dữ liệu ranh giới 168 phường/xã sau sắp xếp 2025).
 - Bản ghi âm được chuyển thành chữ nhưng không được tải lên; người hỗ trợ chỉ nhận phần chữ.
 - Video tối đa 25 MB và được phát đúng như đã gửi (không chuyển mã).
 - Bản đồ mô phỏng (`NEXT_PUBLIC_DEMO_RESPONDERS=true`) không gửi gì tới backend.

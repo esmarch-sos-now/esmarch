@@ -21,7 +21,7 @@ import { useSupportChannel, type ChannelStatus } from "@/hooks/useSupportChannel
 import { formatDuration, useDirections, type Vehicle } from "@/lib/directions";
 import { notifyInBackground, ring, unlockAlarm } from "@/lib/support/alarm";
 import { DEMO_SUPPORTER_OFFSET_METERS, offsetNorth } from "@/lib/support/demo-offset";
-import { photoUrl, videoSource, type ResponderRequest } from "@/lib/support/protocol";
+import { distanceBeforeAccepting, photoUrl, videoSource, type ResponderRequest } from "@/lib/support/protocol";
 import { cn } from "@/lib/utils";
 
 const LOGIN_NEXT = "/dang-nhap?next=%2Fapp%2Fsan-sang-ho-tro";
@@ -95,7 +95,8 @@ export default function ResponderScreen() {
     const requests = (await response.json()) as ResponderRequest[];
     for (const request of requests) {
       if (request.status === "OPEN" && !seen.current.has(request.id)) {
-        notifyInBackground(c.alertTitle, `${request.situation ?? c.someone} · ${request.area ?? formatDistance(request.approximateDistanceMeters)}`);
+        const distance = distanceBeforeAccepting(request);
+        notifyInBackground(c.alertTitle, distance ? `${request.situation ?? c.someone} · ${distance}` : (request.situation ?? c.someone));
       }
     }
     seen.current = new Set(requests.map((request) => request.id));
@@ -316,7 +317,7 @@ export default function ResponderScreen() {
                         <p className="text-xs font-bold tracking-wide text-brand uppercase">{c.alertTitle}</p>
                         <h3 className="mt-1 text-xl font-black text-ink">{offer.situation ?? c.someone}</h3>
                         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                          <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" /> {offer.area ? c.requestArea(offer.area) : c.away(formatDistance(offer.approximateDistanceMeters))}</span>
+                          <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" /> {distanceBeforeAccepting(offer) ?? c.placeAfterAccepting}</span>
                           {offer.photoCount > 0 && <span className="inline-flex items-center gap-1"><ImageIcon className="size-3.5" /> {c.photoCount(offer.photoCount)}</span>}
                         </p>
                         {offer.description && <p className="mt-2 text-[15px] leading-snug text-ink">{offer.description}</p>}

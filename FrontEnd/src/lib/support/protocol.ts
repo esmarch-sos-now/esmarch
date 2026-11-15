@@ -1,5 +1,6 @@
 // "Tìm kiếm người hỗ trợ": request/response types and the HTTP calls. Live updates are Supabase Realtime signals
 // (see hooks/useSupportChannel.ts); the backend is BackEnd/app/modules/support/.
+import { formatDistance } from "@/content/facilities";
 import { API_BASE } from "@/lib/api/client";
 import type { CompletedCourse } from "@/lib/courses/types";
 
@@ -11,7 +12,7 @@ export type ResponderRequest = {
   expiresAt: string;
   photoCount: number;
   hasVideo?: boolean;
-  /** Before accepting, for a request sent with an incident area (the district derived from the requester's GPS). */
+  /** Set for requests from the app (see CITY_AREA). Not shown: it is not where the requester is. */
   area?: string;
   /** Before accepting, for a radius request: rounded to 100 m. */
   approximateDistanceMeters?: number;
@@ -43,6 +44,20 @@ export type RequesterState = {
 export const SITUATIONS = ["Bất tỉnh", "Khó thở", "Chảy máu", "Ngã, chấn thương", "Co giật", "Khác"] as const;
 
 export type CreatedRequest = { id: string; requesterToken: string; invitedCount: number; expiresAt: string };
+
+/**
+ * Sent as `area` by the requester form. The backend invites every ready supporter for a request with an area (they
+ * share no GPS while waiting, so there is no distance to pick by). The value used to be the nearest pre-2025 district,
+ * guessed from GPS; HCMC has had wards instead of districts since 1/7/2025 and the guess misled supporters, so the form
+ * sends the city and supporters see no area label (the exact place comes with accepting).
+ */
+export const CITY_AREA = "TP. Hồ Chí Minh";
+
+/** Where an open request is, as far as a supporter may know before accepting: a rough distance when the server has
+ * one (radius requests), otherwise nothing (the screens then say the exact place comes with accepting). */
+export function distanceBeforeAccepting(offer: Pick<ResponderRequest, "approximateDistanceMeters">): string | null {
+  return offer.approximateDistanceMeters === undefined ? null : `Cách bạn khoảng ${formatDistance(offer.approximateDistanceMeters)}`;
+}
 
 /** Anonymous: the requester never needs an account. With `area`, every ready responder is invited; 409 = nobody ready. */
 export async function createSupportRequest(body: {

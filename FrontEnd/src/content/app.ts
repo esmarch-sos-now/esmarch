@@ -143,8 +143,8 @@ export const supportCopy = {
     offHint: 'Bật sẵn sàng để nhận yêu cầu.',
     alertTitle: 'Có người cần trợ giúp',
     someone: 'Người cần trợ giúp',
-    away: (d: string) => `Cách bạn khoảng ${d}`,
-    requestArea: (area: string) => `Khu vực: ${area}`,
+    // Before accepting, supporters share no GPS, so there is no distance to show (only radius requests have one)
+    placeAfterAccepting: 'Vị trí chính xác và đường đi hiện sau khi bạn nhận',
     previewClosed: 'Bản xem trước: chưa nhận yêu cầu thật nào.',
     photoCount: (n: number) => `${n} ảnh`,
     accept: 'Nhận',
