@@ -138,7 +138,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
     const file = files?.[0];
     if (!file) return;
     if (!file.type.startsWith("video/")) return setNote("Hãy chọn một tệp video.");
-    if (file.size > MAX_VIDEO_BYTES) return setNote("Video quá lớn (tối đa 50 MB).");
+    if (file.size > MAX_VIDEO_BYTES) return setNote("Video quá lớn (tối đa 25 MB).");
     if (value.video) URL.revokeObjectURL(value.video.url);
     onChange({ ...value, video: { file, url: URL.createObjectURL(file) } });
   };
@@ -267,7 +267,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
           </div>
         )}
         <p className="text-xs text-muted-foreground">
-          Tối đa {MAX_PHOTOS} ảnh và 1 video (50 MB). Trên điện thoại, nút sẽ mở camera; trên máy tính sẽ mở hộp chọn tệp.
+          Tối đa {MAX_PHOTOS} ảnh và 1 video (25 MB). Trên điện thoại, nút sẽ mở camera; trên máy tính sẽ mở hộp chọn tệp.
         </p>
       </fieldset>
 
