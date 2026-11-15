@@ -25,12 +25,12 @@ export function Pill({ className, ...props }: ComponentProps<"span">) {
 
 // ---- Landing redesign (1440 frame scaled by --u, stacks below the `lp` breakpoint) ----
 
-/** Small grey label of the redesigned sections ("Vấn đề", "HDSD", "Về chúng tôi", ...). */
+/** Small dark-grey label (dark landing) of the redesigned sections ("Vấn đề", "HDSD", "Về chúng tôi", ...). */
 export function FramePill({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       className={cn(
-        "inline-flex h-[calc(36*var(--u))] items-center justify-center rounded-full bg-[#d1d0d0] px-[calc(24*var(--u))] text-[calc(20.9*var(--u))] leading-none text-[#1a1a1a] max-lp:h-8 max-lp:px-4.5 max-lp:text-base",
+        "inline-flex h-[calc(34*var(--u))] items-center justify-center rounded-full bg-[#424242] px-[calc(22*var(--u))] text-[calc(17*var(--u))] leading-none text-[#e8e8e8] max-lp:h-8 max-lp:px-4.5 max-lp:text-sm",
         className,
       )}
       {...props}

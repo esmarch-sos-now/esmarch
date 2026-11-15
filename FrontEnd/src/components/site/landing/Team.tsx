@@ -58,13 +58,13 @@ export default function Team({ id }: { id: string }) {
 
   return (
     // clip (không phải hidden) để cuộn tới #doi-ngu không làm lệch ngang băng chuyền
-    <Section id={id} className={cn(inter.className, 'overflow-clip [--card-w:230px] max-md:[--card-w:180px]')} aria-labelledby={`${id}-title`}>
+    <Section id={id} className={cn(inter.className, 'overflow-clip bg-[#111] [--card-w:230px] max-md:[--card-w:180px]')} aria-labelledby={`${id}-title`}>
       <FrameContainer>
         <FramePill>{label}</FramePill>
         <div ref={ref} className={cn('mt-5 flex items-end justify-between gap-6 max-md:flex-col max-md:items-start', reveal(inView))}>
           <div>
-            <h2 id={`${id}-title`} className="text-[min(3.011vw,43.4px)] leading-[1.1] font-bold tracking-[-.025em] text-[#111] max-lp:text-[clamp(28px,8vw,44px)] max-lp:leading-[1.12]">{title[0]} {title[1]}</h2>
-            <p className="mt-2.5 text-[17px] leading-normal text-[#6b6b6b] max-lp:text-[15px]">{subtitle}</p>
+            <h2 id={`${id}-title`} className="text-[min(3.011vw,43.4px)] leading-[1.1] font-bold tracking-[-.025em] text-white max-lp:text-[clamp(28px,8vw,44px)] max-lp:leading-[1.12]">{title[0]} {title[1]}</h2>
+            <p className="mt-2.5 text-[17px] leading-normal text-white/65 max-lp:text-[15px]">{subtitle}</p>
           </div>
           <div className="flex flex-none gap-3">
             {[{ step: -1, label: 'Thành viên trước', Icon: ChevronLeft }, { step: 1, label: 'Thành viên tiếp theo', Icon: ChevronRight }].map(({ step, label: arrowLabel, Icon }) => (
@@ -73,7 +73,7 @@ export default function Team({ id }: { id: string }) {
                 type="button"
                 onClick={() => go(step)}
                 aria-label={arrowLabel}
-                className="grid size-11.5 cursor-pointer place-items-center rounded-full border border-[#dcdcdc] bg-white text-[#111] transition-colors duration-200 hover:border-[#111] hover:bg-[#111] hover:text-white [&_svg]:size-5.5"
+                className="grid size-11.5 cursor-pointer place-items-center rounded-full border border-white/20 bg-white/5 text-white transition-colors duration-200 hover:border-white hover:bg-white hover:text-[#111] [&_svg]:size-5.5"
               >
                 <Icon />
               </button>
@@ -107,8 +107,8 @@ export default function Team({ id }: { id: string }) {
               className={cn(
                 'absolute top-5 left-1/2 ml-[calc(var(--card-w)/-2)] aspect-[360/510] w-(--card-w) cursor-pointer overflow-hidden rounded-[22px] shadow-[0_20px_40px_-16px_rgba(20,30,80,.35)] max-md:rounded-[18px]',
                 '[transform:translateX(calc(var(--card-w)*var(--shift)))_rotateY(var(--tilt))_scale(var(--scale))] transition-[transform,opacity] duration-600 ease-[cubic-bezier(.22,.8,.3,1)] motion-reduce:transition-none',
-                // Lớp phủ trắng mờ cho thẻ ở xa
-                "after:pointer-events-none after:absolute after:inset-0 after:bg-[rgba(240,242,250,var(--fade))] after:transition-[background] after:duration-600 after:content-[''] motion-reduce:after:transition-none",
+                // Lớp phủ tối mờ cho thẻ ở xa
+                "after:pointer-events-none after:absolute after:inset-0 after:bg-[rgba(17,17,17,var(--fade))] after:transition-[background] after:duration-600 after:content-[''] motion-reduce:after:transition-none",
                 offset === 0 && 'cursor-default',
               )}
               style={{ '--shift': Math.sign(offset) * SHIFT[Math.min(distance, 2)], '--tilt': `${-Math.sign(offset) * 26}deg`, '--scale': 1 - distance * 0.12, '--fade': distance * 0.32, zIndex: 10 - distance, opacity: hidden ? 0 : 1, pointerEvents: hidden ? 'none' : undefined } as React.CSSProperties}
@@ -136,7 +136,7 @@ export default function Team({ id }: { id: string }) {
             role="tab"
             aria-selected={index === active}
             aria-label={member.name}
-            className={cn('h-2.5 cursor-pointer rounded-full transition-[width,background] duration-300', index === active ? 'w-7 bg-[#111]' : 'w-2.5 bg-[#d9d9d9]')}
+            className={cn('h-2.5 cursor-pointer rounded-full transition-[width,background] duration-300', index === active ? 'w-7 bg-white' : 'w-2.5 bg-white/25')}
             onClick={() => setActive(index)}
           />
         ))}

@@ -1,4 +1,4 @@
-// Nội dung landing page. Các mục còn `note` là khung giữ chỗ, sẽ thay bằng thiết kế thật khi có mẫu.
+// Nội dung landing page (mẫu nền tối: Hero ảnh bàn tay, Vấn đề, Quy trình, Tính năng, Chuyên gia, rồi các mục cũ).
 export const navLinks = [
   { id: 'cach-hoat-dong', label: 'HDSD' },
   { id: 'tinh-nang', label: 'Tính năng' },
@@ -6,88 +6,100 @@ export const navLinks = [
   { id: 'doi-ngu', label: 'Về chúng tôi' }
 ]
 
-// Hero theo mẫu thiết kế (khung 1440x810)
 export const hero = {
   eyebrow: 'Sơ cứu khẩn cấp với',
   title: 'SOS NOW',
   description: 'Giọng nói AI hướng dẫn bạn sơ cứu từng bước, đào tạo kỹ năng và kết nối nhanh với 115 cùng cơ sở y tế gần nhất.',
   prompt: 'Ấn để tìm hiểu thêm',
   cta: 'Bắt đầu ngay',
-  tags: ['First Aid', 'AI Voice'],
+  imageAlt: 'Hai bàn tay nắm chặt lấy nhau',
+  // Ảnh điện thoại màn SOS, dùng ở phần tải app cuối trang
   phoneAlt: 'Màn hình SOS của ứng dụng SOS NOW: nút SOS lớn và nút gọi 115'
 }
 
 // Vấn đề: chưa đưa số liệu, khi có nguồn tin cậy thì bổ sung vào từng thẻ
 export const problem = {
   label: 'Vấn đề',
-  title: ['Khi sự cố xảy ra,', 'bạn sẽ làm gì?'],
-  subtitle: 'Trong vài phút đầu của một ca cấp cứu, người ở gần nạn nhân nhất thường lại là người lúng túng nhất.',
+  title: 'Khi sự cố xảy ra, bạn sẽ làm gì?',
   items: [
     { icon: 'help', title: 'Lúng túng, hoảng loạn', text: 'Khi có người bất tỉnh, hóc dị vật hay đột quỵ, phần lớn người chứng kiến không biết nên bắt đầu từ đâu.' },
     { icon: 'timer', title: 'Bỏ lỡ thời gian vàng', text: 'Mỗi phút chậm trễ trước khi được sơ cứu đúng cách đều làm giảm cơ hội sống của nạn nhân.' },
     { icon: 'phone', title: 'Không biết gọi ai', text: 'Khi 115 bận hoặc không kết nối được, ít ai biết số của bệnh viện, cơ sở y tế gần mình nhất.' },
     { icon: 'book', title: 'Kiến thức dễ quên', text: 'Ít người được học sơ cứu bài bản, và những gì đã học rất dễ quên khi lâu không thực hành.' }
-  ],
-  solution: 'SOS NOW giúp bạn bình tĩnh và hành động đúng, từng bước một.',
-  solutionLink: { label: 'Xem cách hoạt động', href: '#cach-hoat-dong' }
-}
-
-// Mô tả các bước là bản nháp, cần nhóm duyệt lại câu chữ
-// Hướng dẫn sử dụng theo mẫu thiết kế mới (4 bước, mỗi bước một ảnh minh họa trong /public/site/how)
-export const howItWorks = {
-  label: 'HDSD',
-  title: 'Quy trình cơ bản:',
-  steps: [
-    // icon: tên biểu tượng trong nút tròn trắng trên thanh timeline (xem HowItWorks.tsx)
-    { title: 'Ấn nút SOS', description: 'Chỉ một lần ấn nút SOS, ứng dụng lập tức định vị và tìm kiếm bệnh viện hoặc cơ sở y tế gần nhất', icon: 'sos' },
-    { title: 'Chia sẻ vị trí', description: 'Vị trí được chia sẻ ngay lập tức để hỗ trợ tìm kiếm', icon: 'location' },
-    { title: 'Gọi hỗ trợ', description: 'Kết nối nhanh với 115 hoặc bệnh viện gần nhất. Trong khi AI tiếp tục hỗ trợ sơ cứu', icon: 'call' },
-    { title: 'Dẫn đường', description: 'Dẫn đường đến cơ sở y tế gần nhất giúp người trợ giúp tìm đến bạn nhanh hơn', icon: 'navigate' }
   ]
 }
 
-// Phần "Tính năng": mỗi mục có một khung minh họa giao diện app (voice | course | sos)
+// Quy trình cơ bản: 3 ô chia bởi đường kẻ. Số cơ sở y tế theo dữ liệu đã xác minh (bệnh viện / trạm y tế)
+export const howItWorks = {
+  label: 'HDSD',
+  title: 'Quy trình cơ bản',
+  sos: {
+    title: 'Ấn nút SOS',
+    description: 'Chỉ một lần ấn nút SOS, ứng dụng lập tức định vị và tìm kiếm bệnh viện hoặc cơ sở y tế gần nhất.',
+    chips: ['SOS', 'Gọi 115', 'Chia sẻ vị trí']
+  },
+  call: {
+    title: 'Gọi hỗ trợ',
+    description: 'Kết nối nhanh với 115 hoặc bệnh viện gần nhất. Trong khi AI tiếp tục hỗ trợ sơ cứu.',
+    stats: [
+      { label: 'Bệnh viện', value: 47 },
+      { label: 'CSYT', value: 16 }
+    ],
+    verified: 'Đã được xác minh'
+  },
+  navigate: {
+    title: 'Dẫn đường',
+    description: 'Dẫn đường đến cơ sở y tế gần nhất giúp người trợ giúp tìm đến bạn nhanh hơn.',
+    actions: ['Tìm đường', 'Dẫn đường']
+  }
+}
+
+// Tính năng: SOS khẩn cấp ở trên (kèm 3 biểu tượng), 3 cột tính năng phía dưới
 export const features = {
   label: 'Tính năng',
-  // Tiêu đề tách 2 phần: chữ thương hiệu trong khung xanh + phần chữ trắng phía sau
-  title: { brand: 'SOS NOW', rest: 'cung cấp gì?' },
+  sos: {
+    title: 'SOS khẩn cấp',
+    lines: ['Một lần chạm, tìm kiếm trợ giúp trong tình huống khẩn cấp', 'Phát tín hiệu SOS chỉ với một chạm'],
+    icons: [
+      { icon: 'siren', label: 'Phát tín hiệu SOS' },
+      { icon: 'location', label: 'Định vị, chia sẻ vị trí' },
+      { icon: 'hospital', label: 'Cơ sở y tế gần nhất' }
+    ]
+  },
   items: [
     {
-      visual: 'sos',
-      tag: 'SOS khẩn cấp',
-      title: 'SOS Khẩn cấp',
-      subtitle: 'Một lần chạm, tìm kiếm trợ giúp trong tình huống khẩn cấp',
-      points: [
-        'Phát tín hiệu SOS chỉ với một chạm',
-        'Định vị, chia sẻ vị trí hiện tại',
-        'Gọi cho 115 hoặc Hotline của bệnh viện, cơ sở y tế gần nhất',
-        'Chỉ đường đến cơ sở y tế gần nhất'
-      ]
+      icon: 'voice',
+      title: 'AI Voice',
+      points: ['Rảnh tay sơ cứu, AI đọc từng bước cho bạn', 'Nhận diện tình huống qua giọng nói tiếng Việt', 'Hướng dẫn từng bước bằng giọng nói, video mô phỏng 3D']
     },
     {
-      visual: 'voice',
-      tag: 'AI Voice',
-      title: 'AI Voice hướng dẫn sơ cứu',
-      subtitle: 'Rảnh tay sơ cứu, AI đọc từng bước cho bạn',
-      points: [
-        'Nhận diện tình huống qua giọng nói tiếng Việt',
-        'Hướng dẫn từng bước bằng giọng nói, video mô phỏng 3D',
-        'Đếm nhịp ép tim CPR 100–120 lần/phút'
-      ]
+      icon: 'search',
+      title: 'Tìm người hỗ trợ',
+      points: ['Tìm người sơ cứu đã được xác minh ở gần bạn', 'Gửi yêu cầu hỗ trợ kèm vị trí hiện tại', 'Người hỗ trợ nhận yêu cầu và tìm đến bạn', 'Theo dõi trạng thái yêu cầu theo thời gian thực']
     },
     {
-      visual: 'network',
-      tag: 'Người hỗ trợ',
-      title: 'Tìm kiếm người hỗ trợ',
-      subtitle: 'Tìm kiếm người có khả năng sơ cứu gần bạn nhất',
+      icon: 'practice',
+      title: 'Luyện tập',
       points: [
-        'Tìm người sơ cứu đã được xác minh ở gần bạn',
-        'Gửi yêu cầu hỗ trợ kèm vị trí hiện tại',
-        'Người hỗ trợ nhận yêu cầu và tìm đến bạn',
-        'Theo dõi trạng thái yêu cầu theo thời gian thực'
+        'Nhận biết dấu hiệu đột quỵ theo quy tắc FAST',
+        'Luyện động tác trước camera, có nhận xét ngay',
+        'Ghi năm động tác theo video hướng dẫn',
+        'Theo dõi các ngày đã luyện tập trong tuần',
+        'Bài luyện để tập, không dùng để chẩn đoán'
       ]
     }
   ]
+}
+
+// Chuyên gia: ảnh trong /public/site/expert
+export const expert = {
+  label: 'Chuyên gia',
+  name: 'Thạc sĩ, Bác sĩ CKI - Võ Phương Quỳnh',
+  role: 'Khoa Thần kinh, Đại học Y Dược TP.HCM',
+  photo: '/site/expert/vo-phuong-quynh.webp',
+  quote:
+    'Người ta có một câu là "Time is brain" có nghĩa là thời gian chính là não. Bạn càng chậm trễ đưa bệnh nhân đến bệnh viện thì các tế bào não của bệnh nhân sẽ ngày càng thiếu máu nuôi và sẽ chết nhanh nhất. Nên là mình sẽ ưu tiên những nơi nào gần nhất có thể.',
+  note: '*Chuyên gia tư vấn, đóng góp ý kiến - Không có vai trò và trách nhiệm với dự án.'
 }
 
 // Pricing: B2C Premium contracts (30 / 120 / 365 days) and a free B2B plan for organizations.
@@ -179,6 +191,7 @@ export const sections = [
   { id: 'van-de', title: 'Vấn đề' },
   { id: 'cach-hoat-dong', title: 'Hướng dẫn sử dụng' },
   { id: 'tinh-nang', title: 'Tính năng' },
+  { id: 'chuyen-gia', title: 'Chuyên gia' },
   { id: 'bang-gia', title: 'Bảng giá' },
   { id: 'doi-ngu', title: 'Về chúng tôi' },
   { id: 'faq', title: 'Câu hỏi thường gặp' },
