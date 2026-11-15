@@ -1,18 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import useSWR from "swr";
-import { Bike, BookOpenCheck, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, Phone, Power, Volume2, X } from "lucide-react";
+import { Bike, BookOpenCheck, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, PartyPopper, Phone, Power, Volume2, X } from "lucide-react";
+import CourseLearning from "@/components/site/courses/course-learning";
 import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
 import Navbar from "@/components/site/landing/Navbar";
 import { Page } from "@/components/site/primitives";
 import IncomingCallOverlay from "@/components/site/support/incoming-call-overlay";
 import { previewScenePhotos } from "@/components/site/support/incoming-call-preview-photos";
 import PointMap from "@/components/site/support/point-map";
-import SupporterOnboarding from "@/components/site/support/supporter-onboarding";
+import SupporterOnboarding, { SupporterIntroSignedOut } from "@/components/site/support/supporter-onboarding";
 import { Button } from "@/components/ui/button";
-import { appNav, courseCopy, supportCopy } from "@/content/app";
+import { appNav, courseCopy, onboardingCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
 import { useSupporterProfile } from "@/hooks/use-supporter";
@@ -47,6 +47,19 @@ export default function ResponderScreen() {
   const [offers, setOffers] = useState<ResponderRequest[]>([]);
   const [active, setActive] = useState<ResponderRequest | null>(null);
   const [notice, setNotice] = useState("");
+  const [reviewing, setReviewing] = useState(false);
+
+  // Approved since the last visit: say "Đăng ký thành công" for this visit, and tell the server it was seen so it is
+  // not said again (on any device).
+  const [welcome, setWelcome] = useState(false);
+  const welcomed = useRef(false);
+  const justVerified = profile.data?.justVerified === true;
+  useEffect(() => {
+    if (!justVerified || welcomed.current) return;
+    welcomed.current = true;
+    queueMicrotask(() => setWelcome(true));
+    void authFetch("/api/support/me/welcome", { method: "POST" });
+  }, [justVerified, authFetch]);
   // Waiting needs no GPS: the position is only read while helping (it moves us on the requester's map).
   const { position: gpsPosition, status: positionStatus } = useLivePosition(active !== null, false);
   // Demo (requester and supporter on one computer): stand 1 km north of the GPS reading, or of the requester when this
@@ -208,12 +221,18 @@ export default function ResponderScreen() {
     <Page>
       <Navbar appLinks={appNav} />
       <main className="mx-auto w-full max-w-180 px-4 pt-7 pb-12">
-        <h1 className="text-[clamp(26px,3.4vw,36px)] leading-[1.15] font-black text-ink">{c.title}</h1>
+        <h1 className="text-[clamp(26px,3.4vw,36px)] leading-[1.15] font-black text-ink">{enrolled ? c.title : onboardingCopy.title}</h1>
 
-        {sessionStatus === "unauthenticated" && (
-          <section className="mt-6 rounded-2xl border border-line bg-white p-6 text-center">
-            <p className="text-[15px] text-ink">{c.signIn}</p>
-            <Button asChild className="mt-4 rounded-full font-bold"><Link href={LOGIN_NEXT}>{c.signInButton}</Link></Button>
+        {sessionStatus === "unauthenticated" && <SupporterIntroSignedOut loginHref={LOGIN_NEXT} />}
+
+        {enrolled && welcome && (
+          <section className="mt-6 flex items-start gap-3 rounded-2xl border-2 border-[#1e9e4a] bg-[#f1fbf4] p-5" role="status">
+            <PartyPopper aria-hidden="true" className="mt-0.5 size-6 shrink-0 text-[#1e7d3a]" />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-black text-[#145c2a]">{c.welcomeTitle}</h2>
+              <p className="mt-1 text-[15px] leading-[1.55] text-ink">{c.welcomeBody}</p>
+            </div>
+            <button type="button" onClick={() => setWelcome(false)} aria-label={c.dismiss} className="cursor-pointer text-muted-foreground"><X className="size-4" /></button>
           </section>
         )}
 
@@ -248,12 +267,14 @@ export default function ResponderScreen() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <ConnectionChip status={socketStatus} />
-                <Link
-                  href="/app/khoa-hoc"
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand hover:text-brand [&_svg]:size-3.5"
+                <button
+                  type="button"
+                  onClick={() => setReviewing((current) => !current)}
+                  aria-expanded={reviewing}
+                  className="mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand hover:text-brand [&_svg]:size-3.5"
                 >
                   <BookOpenCheck aria-hidden="true" /> {c.courseLink}
-                </Link>
+                </button>
                 <button
                   type="button"
                   onClick={() => { unlockAlarm(); ring(); }}
@@ -266,6 +287,13 @@ export default function ResponderScreen() {
               <p className="mt-3 text-sm leading-snug text-muted-foreground">{c.locationPrivacy}</p>
               {active && positionStatus === "denied" && <p className="mt-2 text-sm text-brand">{c.locationDenied}</p>}
             </section>
+
+            {/* The courses are reviewed here (there is no public course page) */}
+            {reviewing && (
+              <section className="mt-6 rounded-2xl border border-line bg-white p-5" aria-label={c.courseLink}>
+                <CourseLearning />
+              </section>
+            )}
 
             {notice && (
               <p className="mt-4 flex items-center justify-between gap-2 rounded-xl bg-[#f4f4f5] px-4 py-2.5 text-sm text-ink" role="status">

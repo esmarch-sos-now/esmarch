@@ -35,13 +35,6 @@ export const appPages: AppPageDef[] = [
     description: 'Nhận dấu hiệu FAST trước camera và ghi năm động tác theo video. Bài luyện không chẩn đoán đột quỵ.'
   },
   {
-    // Courses are open to every signed-in account: finishing them is the first step to becoming a supporter
-    path: '/app/khoa-hoc',
-    nav: 'Khóa học',
-    title: 'Khóa học sơ cứu cho người hỗ trợ',
-    description: 'Video sơ cứu ngắn và câu hỏi kiểm tra dành riêng cho người đã đăng ký hỗ trợ dự án.'
-  },
-  {
     // Tìm người hỗ trợ đã có (/app/nguoi-ho-tro); phần tìm AED làm sau
     path: '/app/nguoi-ho-tro',
     nav: 'Tìm kiếm AED và người hỗ trợ',
@@ -131,7 +124,9 @@ export const supportCopy = {
     off: 'Chưa sẵn sàng',
     turnOn: 'Bật sẵn sàng',
     turnOff: 'Tắt',
-    courseLink: 'Học khóa sơ cứu',
+    courseLink: 'Xem lại khóa học',
+    welcomeTitle: 'Đăng ký thành công!',
+    welcomeBody: 'Quản trị viên đã duyệt, bạn đã là người hỗ trợ của SOS NOW. Bấm "Bật sẵn sàng" khi bạn có thể nhận yêu cầu từ người cần giúp ở gần.',
     locating: 'Đang xác định vị trí của bạn…',
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí để chia sẻ trong phiên hỗ trợ.',
     locationPrivacy: 'Khi chờ yêu cầu, trang không lấy GPS. Vị trí chỉ được hỏi sau khi bạn nhận một yêu cầu và chỉ dùng trong phiên hỗ trợ.',
@@ -169,9 +164,19 @@ export const supportCopy = {
 
 // Becoming a supporter (/app/san-sang-ho-tro before verification): courses -> application -> admin verification
 export const onboardingCopy = {
-  title: 'Trở thành người hỗ trợ',
+  title: 'Đăng ký làm người hỗ trợ',
   intro:
-    'Người hỗ trợ nhận yêu cầu từ người cần giúp ở gần và đến tận nơi sơ cứu trong lúc chờ xe cấp cứu. Để bảo đảm an toàn, bạn cần hoàn thành khóa sơ cứu và được quản trị viên xác minh.',
+    'Người hỗ trợ nhận yêu cầu từ người cần giúp ở gần và đến tận nơi sơ cứu trong lúc chờ xe cấp cứu. Để bảo đảm an toàn cho người được giúp, chúng tôi chỉ nhận người đã học xong khóa sơ cứu của SOS NOW và được quản trị viên xác minh.',
+  conditionsTitle: 'Điều kiện đăng ký',
+  conditions: [
+    'Có tài khoản SOS NOW đã xác minh số điện thoại (số người cần giúp sẽ gọi lại).',
+    'Hoàn thành tất cả khóa sơ cứu của SOS NOW: xem video từng bài và trả lời đúng hết câu hỏi kiểm tra.',
+    'Cam kết chỉ nhận yêu cầu khi thực sự có thể đến giúp và giữ kín thông tin của người cần giúp.',
+    'Được quản trị viên xác minh. Kết quả được gửi qua email bạn cung cấp khi đăng ký.',
+  ],
+  begin: 'Bắt đầu đăng ký',
+  signInToBegin: 'Đăng nhập để bắt đầu',
+  signInHint: 'Chưa có tài khoản? Bạn có thể tạo tài khoản bằng số điện thoại ở trang đăng nhập.',
   steps: {
     courses: 'Hoàn thành khóa sơ cứu',
     apply: 'Gửi đăng ký',
@@ -183,8 +188,13 @@ export const onboardingCopy = {
   start: 'Bắt đầu học',
   continue: 'Học tiếp',
   coursesHint: 'Mỗi bài có video và bài kiểm tra 5 câu; trả lời đúng hết để hoàn thành bài.',
+  coursesTitle: 'Khóa học sơ cứu',
+  hideCourses: 'Thu gọn',
   readyTitle: 'Bạn đã hoàn thành khóa học. Gửi đăng ký để được xác minh.',
   name: 'Tên hiển thị (người cần giúp sẽ thấy)',
+  email: 'Email nhận kết quả xét duyệt',
+  emailHint: 'Chỉ dùng để báo kết quả đăng ký người hỗ trợ.',
+  badEmail: 'Email chưa đúng.',
   phone: 'Số điện thoại để người cần giúp gọi lại',
   phoneHint: 'Số đã xác minh của tài khoản. Người cần giúp chỉ thấy số này sau khi bạn nhận yêu cầu.',
   noPhone: 'Tài khoản chưa có số điện thoại đã xác minh. Hãy cập nhật số điện thoại ở trang tài khoản rồi quay lại.',
@@ -195,8 +205,8 @@ export const onboardingCopy = {
   submitting: 'Đang gửi…',
   failed: 'Chưa gửi được đăng ký, hãy thử lại.',
   pendingTitle: 'Đăng ký đã được gửi',
-  pendingBody: (date: string) =>
-    `Bạn gửi đăng ký ngày ${date}. Quản trị viên sẽ xem lại hồ sơ và khóa học của bạn; khi được xác minh, trang này sẽ chuyển sang chế độ sẵn sàng hỗ trợ.`,
+  pendingBody: (date: string, email: string) =>
+    `Bạn gửi đăng ký ngày ${date}. Quản trị viên đang xem lại hồ sơ và khóa học của bạn; kết quả sẽ được gửi tới ${email}. Khi được duyệt, quay lại trang này để bật chế độ sẵn sàng hỗ trợ.`,
   suspendedTitle: 'Tài khoản người hỗ trợ đang tạm khóa',
   suspendedBody: 'Bạn chưa thể nhận yêu cầu lúc này. Nếu cần, hãy liên hệ quản trị viên của SOS NOW.',
   reviewCourses: 'Xem lại khóa học',
@@ -211,12 +221,6 @@ export const courseCopy = {
   signIn: 'Đăng nhập để học khóa sơ cứu dành cho người hỗ trợ.',
   signInButton: 'Đăng nhập',
   loading: 'Đang tải khóa học…',
-  // After every course is finished: the next step on the way to supporter mode
-  applyTitle: 'Bạn đã hoàn thành tất cả khóa học',
-  applyBody: 'Giờ bạn có thể gửi đăng ký làm người hỗ trợ. Quản trị viên sẽ xác minh trước khi bạn nhận yêu cầu.',
-  applyAction: 'Gửi đăng ký làm người hỗ trợ',
-  pendingNotice: 'Đăng ký làm người hỗ trợ của bạn đang chờ xác minh.',
-  supporterPage: 'Xem trạng thái',
   enrolledAs: (name: string) => `Bạn đang học với tư cách người hỗ trợ: ${name}`,
   progress: (done: number, total: number) => `${done}/${total} bài đã hoàn thành`,
   completed: 'Đã hoàn thành khóa học',

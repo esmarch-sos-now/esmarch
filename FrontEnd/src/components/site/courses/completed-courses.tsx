@@ -8,7 +8,6 @@ import { useSupporterProfile } from "@/hooks/use-supporter";
 import type { CompletedCourse } from "@/lib/courses/types";
 import { cn } from "@/lib/utils";
 
-const COURSE_PATH = "/app/khoa-hoc";
 const RESPONDER_PATH = "/app/san-sang-ho-tro";
 
 /** Small green chips with the badges of finished first-aid courses (responder and requester screens). */
@@ -54,7 +53,7 @@ export function CourseRecordCard() {
         {profile.data && completed.length === 0 && (
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-muted-foreground">
             {c.none}
-            <Link href={COURSE_PATH} className="inline-flex items-center gap-1 font-semibold text-brand hover:underline">
+            <Link href={RESPONDER_PATH} className="inline-flex items-center gap-1 font-semibold text-brand hover:underline">
               {c.start} <ArrowRight aria-hidden="true" className="size-4" />
             </Link>
           </p>

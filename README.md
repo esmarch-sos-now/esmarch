@@ -61,6 +61,7 @@ Dùng `docker compose watch` nếu muốn container tự build lại khi đổi 
 | `SUPPORT_ADMIN_TOKEN` | `BackEnd/.env` | Bật trang quản trị người hỗ trợ (tối thiểu 32 ký tự ngẫu nhiên) |
 | `CORS_ORIGINS` | `BackEnd/.env` | Các origin được gọi API (voice kiểm tra `Origin` theo danh sách này) |
 | `SUPPORT_RADIUS_METERS` | `BackEnd/.env` | Bán kính tìm người hỗ trợ, mặc định 3000 m |
+| `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_SITE_URL` | `BackEnd/.env` | Gửi email kết quả đăng ký người hỗ trợ qua Resend |
 | `NEXT_PUBLIC_DEMO_LOCATION` | `FrontEnd/.env` | `true`: hiện ô chọn vị trí giả lập trên trang người hỗ trợ (demo trên một máy) |
 
 Danh sách đầy đủ có trong `FrontEnd/.env.example` và `BackEnd/.env.example`.
@@ -73,7 +74,7 @@ Mọi thao tác đi qua HTTP; trạng thái nằm trong Postgres. Tín hiệu "c
 **Trên một máy**
 1. `FrontEnd/.env`: `NEXT_PUBLIC_DEMO_LOCATION=true`. Cần một tài khoản người hỗ trợ đã được duyệt (xem bước 3).
 2. `docker compose up -d --build --renew-anon-volumes`
-3. Tab 1: đăng nhập → học hết các bài ở `/app/khoa-hoc` → `/app/san-sang-ho-tro` → **Gửi đăng ký**. Một tài khoản
+3. Tab 1: đăng nhập → `/app/san-sang-ho-tro` → **Bắt đầu học** và học hết các bài → **Gửi đăng ký**. Một tài khoản
    quản trị duyệt ở khu quản trị (Người hỗ trợ → Chờ duyệt). Sau đó chọn vị trí giả lập "Thảo Cầm Viên", bấm
    **Bật sẵn sàng**.
 4. Tab 2: `/app/nguoi-ho-tro` → chọn "Chợ Bến Thành", nhập số điện thoại, tình huống, ảnh → **Gửi tín hiệu**.
