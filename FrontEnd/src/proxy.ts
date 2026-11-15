@@ -1,11 +1,11 @@
 // Runs before every page, RSC request and /backend call:
 //  1. Pages: refreshes the Supabase session cookies (lib/supabase/proxy.ts), guards protected pages and keeps ADMIN
 //     accounts inside /admin.
-//  2. /backend/*: proxies to FastAPI unchanged. The browser already sends `Authorization: Bearer <Supabase access
-//     token>` (lib/auth/client.ts authFetch) and FastAPI verifies it; cookies are dropped on the way.
+//  2. /backend/*: prepares the request for FastAPI; the `beforeFiles` rewrite in next.config.ts then forwards it. The
+//     browser already sends `Authorization: Bearer <Supabase access token>` (lib/auth/client.ts authFetch) and
+//     FastAPI verifies it; cookies are dropped on the way.
 //  3. Rejects cross-origin state-changing requests to /backend and /api.
 import { NextResponse, type NextRequest } from "next/server";
-import { BACKEND_URL } from "@/lib/api/backend";
 import { updateSession } from "@/lib/supabase/proxy";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -26,7 +26,7 @@ function problem(status: number, detail: string) {
 }
 
 export async function proxy(request: NextRequest) {
-  const { pathname, search } = request.nextUrl;
+  const { pathname } = request.nextUrl;
   const toBackend = pathname === "/backend" || pathname.startsWith("/backend/");
   const isApi = toBackend || pathname.startsWith("/api/");
 
@@ -42,8 +42,7 @@ export async function proxy(request: NextRequest) {
     const ip =
       request.headers.get("x-vercel-forwarded-for") ?? request.headers.get("x-forwarded-for")?.split(",")[0];
     if (ip?.trim()) headers.set("x-sosnow-client-ip", ip.trim());
-    const target = new URL(`${BACKEND_URL}${pathname.slice("/backend".length) || "/"}${search}`);
-    return NextResponse.rewrite(target, { request: { headers } });
+    return NextResponse.next({ request: { headers } });
   }
   return updateSession(request);
 }
