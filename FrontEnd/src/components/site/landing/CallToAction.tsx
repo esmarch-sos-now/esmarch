@@ -19,13 +19,13 @@ export default function CallToAction({ id }: { id: string }) {
   const { title, stores } = callToAction
   const [ref, inView] = useInView<HTMLDivElement>()
   return (
-    <section id={id} className={cn(inter.className, 'mt-10 overflow-hidden border-b border-[#555]')} aria-labelledby={`${id}-title`}>
+    <section id={id} className={cn(inter.className, 'mt-10 overflow-hidden border-b border-white/15')} aria-labelledby={`${id}-title`}>
       <FrameContainer
         ref={ref}
         className={cn('grid grid-cols-[minmax(0,1fr)_auto] items-center gap-8 pt-12 max-[899px]:grid-cols-1 max-[899px]:gap-2 max-[899px]:pt-10', reveal(inView))}
       >
         <div className="pb-12 max-[899px]:p-0 max-[899px]:text-center">
-          <h2 id={`${id}-title`} className="max-w-140 text-[min(3.011vw,43.4px)] leading-[1.1] font-bold tracking-[-.025em] text-[#111] max-[899px]:mx-auto max-[899px]:text-[clamp(26px,7vw,40px)]">
+          <h2 id={`${id}-title`} className="max-w-140 text-[min(3.011vw,43.4px)] leading-[1.1] font-bold tracking-[-.025em] text-white max-[899px]:mx-auto max-[899px]:text-[clamp(26px,7vw,40px)]">
             {title}
           </h2>
           {/* App chưa phát hành nên cả hai nút tạm dẫn về trang Nút SOS của bản web */}

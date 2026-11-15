@@ -18,10 +18,10 @@ export default function Faq({ id }: { id: string }) {
       <FrameContainer ref={ref} className={cn('grid grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)] items-start gap-[clamp(32px,5vw,72px)] max-lp:grid-cols-1 max-lp:gap-7', reveal(inView))}>
         <div>
           <FramePill>{label}</FramePill>
-          <h2 id={`${id}-title`} className="mt-5 text-[min(3.011vw,43.4px)] leading-[1.1] font-bold tracking-[-.025em] text-[#111] max-lp:text-[clamp(28px,8vw,44px)] max-lp:leading-[1.12]">
+          <h2 id={`${id}-title`} className="mt-5 text-[min(3.011vw,43.4px)] leading-[1.1] font-bold tracking-[-.025em] text-white max-lp:text-[clamp(28px,8vw,44px)] max-lp:leading-[1.12]">
             {title[0]} {title[1]}
           </h2>
-          <p className="mt-2.5 text-[17px] leading-normal text-[#6b6b6b] max-lp:text-[15px]">{subtitle}</p>
+          <p className="mt-2.5 text-[17px] leading-normal text-white/65 max-lp:text-[15px]">{subtitle}</p>
         </div>
 
         <ul className="grid gap-3">
@@ -30,7 +30,7 @@ export default function Faq({ id }: { id: string }) {
             return (
               <li
                 key={item.q}
-                className={cn('rounded-[18px] border transition-[background,box-shadow,border-color] duration-200', isOpen ? 'border-black/8 bg-white shadow-[0_14px_34px_rgba(20,20,40,.08)]' : 'border-transparent bg-[#f4f4f5]')}
+                className={cn('rounded-[18px] border transition-[background,box-shadow,border-color] duration-200', isOpen ? 'border-white/12 bg-[#222] shadow-[0_14px_34px_rgba(0,0,0,.4)]' : 'border-transparent bg-[#1c1c1c]')}
               >
                 <h3>
                   <button
@@ -39,13 +39,13 @@ export default function Faq({ id }: { id: string }) {
                     aria-expanded={isOpen}
                     aria-controls={`faq-a-${index}`}
                     onClick={() => setOpen(isOpen ? -1 : index)}
-                    className="flex w-full cursor-pointer items-center justify-between gap-4 px-5 py-4.5 text-left text-base leading-[1.4] font-semibold text-[#111] max-xs:p-4 max-xs:text-[15px]"
+                    className="flex w-full cursor-pointer items-center justify-between gap-4 px-5 py-4.5 text-left text-base leading-[1.4] font-semibold text-white max-xs:p-4 max-xs:text-[15px]"
                   >
                     <span>{item.q}</span>
                     <span
                       className={cn(
                         'grid size-8 flex-none place-items-center rounded-full border transition-[rotate,background,color] duration-300 motion-reduce:transition-none [&_svg]:size-4.5',
-                        isOpen ? 'rotate-45 border-[#111] bg-[#111] text-white' : 'border-black/8 bg-white text-[#111]',
+                        isOpen ? 'rotate-45 border-white bg-white text-[#111]' : 'border-white/15 bg-white/5 text-white',
                       )}
                     >
                       <Plus aria-hidden="true" />
@@ -60,7 +60,7 @@ export default function Faq({ id }: { id: string }) {
                   className={cn('grid transition-[grid-template-rows] duration-300 ease-in-out motion-reduce:transition-none', isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}
                 >
                   <div className="overflow-hidden">
-                    <p className="px-5 pb-4.5 text-[15px] leading-[1.6] text-[#555] max-xs:px-4 max-xs:pb-4">{item.a}</p>
+                    <p className="px-5 pb-4.5 text-[15px] leading-[1.6] text-white/70 max-xs:px-4 max-xs:pb-4">{item.a}</p>
                   </div>
                 </div>
               </li>

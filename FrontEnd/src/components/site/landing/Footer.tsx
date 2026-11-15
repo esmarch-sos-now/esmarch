@@ -5,12 +5,12 @@ import Logo from './Logo'
 
 export default function Footer() {
   const { developer, contactLabel, contact, columns } = footer
-  const linkClass = 'text-sm text-[#333] no-underline hover:text-brand'
+  const linkClass = 'text-sm text-white/65 no-underline hover:text-white'
   return (
-    <footer className="pt-8 pb-5 text-ink">
+    <footer className="bg-[#111] pt-8 pb-5 text-white">
       <Container className="grid grid-cols-[1fr_minmax(0,480px)] gap-8 max-[899px]:grid-cols-1 max-[899px]:gap-6">
-        <div className="[&_a]:text-muted-foreground [&_a]:hover:text-brand [&_p]:mt-2.5 [&_p]:text-sm">
-          <Logo />
+        <div className="[&_a]:text-white/65 [&_a]:hover:text-white [&_p]:text-white/80 [&_p]:mt-2.5 [&_p]:text-sm">
+          <Logo variant="dark" />
           <p>Được phát triển: <strong>{developer}</strong></p>
           <p>{contactLabel} <span>{contact}</span></p>
         </div>
@@ -30,7 +30,7 @@ export default function Footer() {
           ))}
         </nav>
       </Container>
-      <Container className="mt-6 flex flex-wrap justify-between gap-2.5 border-t border-line pt-4 text-xs text-muted-foreground">
+      <Container className="mt-6 flex flex-wrap justify-between gap-2.5 border-t border-white/12 pt-4 text-xs text-white/55">
         <span>© {new Date().getFullYear()} SOS NOW · {developer}</span>
         <span>Trong nguy hiểm tính mạng, hãy gọi <a className="underline" href="tel:115">115</a>.</span>
       </Container>
