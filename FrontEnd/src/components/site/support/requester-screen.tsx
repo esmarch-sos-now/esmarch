@@ -13,6 +13,8 @@ import PointMap from "@/components/site/support/point-map";
 import { Button } from "@/components/ui/button";
 import { appNav, courseCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
+import { useSession } from "@/hooks/use-auth";
+import { formatPhone as formatAccountPhone } from "@/lib/auth/phone";
 import { useLivePosition } from "@/hooks/useLivePosition";
 import { useSupportChannel } from "@/hooks/useSupportChannel";
 import type { Point } from "@/lib/api/hooks";
@@ -71,7 +73,12 @@ export default function RequesterScreen() {
   const [mediaNote, setMediaNote] = useState("");
   const [demoCenter, setDemoCenter] = useState<Point | null>(null);
 
-  const [phone, setPhone] = useState("");
+  // Signed in with a phone account: the helper calls back the account's number (already verified by SMS at sign-up).
+  // Signed out: the number is typed, since asking for help must never wait for a sign-in.
+  const { user } = useSession();
+  const accountPhone = user?.phone ? (user.phone.startsWith("+") ? user.phone : `+${user.phone}`) : "";
+  const [typedPhone, setTypedPhone] = useState("");
+  const phone = accountPhone || typedPhone;
   const [situation, setSituation] = useState<string>(SITUATIONS[0]);
   const [report, setReport] = useState<IncidentReport>(emptyReport);
   const [consent, setConsent] = useState(false);
@@ -211,19 +218,29 @@ export default function RequesterScreen() {
             </p>
             <DemoPlacePicker value={demoPlace} onChange={setDemoPlace} />
 
-            <label className="grid gap-1.5">
-              <span className="text-sm font-bold text-ink">{c.phone} <span className="text-brand">*</span></span>
-              <input
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="0901 234 567"
-                className="h-11 rounded-xl border border-line px-3.5 text-base outline-none focus:border-brand"
-              />
-              <span className="text-xs text-muted-foreground">{c.phoneHint}</span>
-            </label>
+            {accountPhone ? (
+              <div className="grid gap-1.5">
+                <span className="text-sm font-bold text-ink">{c.phone}</span>
+                <p className="flex h-11 items-center gap-2 rounded-xl border border-line bg-[#f6f6f6] px-3.5 text-base text-ink">
+                  <Phone aria-hidden="true" className="size-4 text-muted-foreground" /> {formatAccountPhone(accountPhone)}
+                </p>
+                <span className="text-xs text-muted-foreground">{c.accountPhoneHint}</span>
+              </div>
+            ) : (
+              <label className="grid gap-1.5">
+                <span className="text-sm font-bold text-ink">{c.phone} <span className="text-brand">*</span></span>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={typedPhone}
+                  onChange={(event) => setTypedPhone(event.target.value)}
+                  placeholder="0901 234 567"
+                  className="h-11 rounded-xl border border-line px-3.5 text-base outline-none focus:border-brand"
+                />
+                <span className="text-xs text-muted-foreground">{c.phoneHint}</span>
+              </label>
+            )}
 
             <fieldset className="grid gap-2">
               <legend className="mb-1.5 text-sm font-bold text-ink">{c.situation}</legend>
