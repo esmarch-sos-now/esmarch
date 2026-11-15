@@ -27,7 +27,7 @@ export const authCopy = {
   },
   register: {
     title: 'Đăng ký',
-    lede: 'Tạo tài khoản SOS NOW để học sơ cứu và nâng cấp gói Pro, Ultra.',
+    lede: 'Tạo tài khoản SOS NOW để học sơ cứu và dùng gói B2C Premium hoặc B2B.',
     submit: 'Tạo tài khoản',
     haveAccount: 'Đã có tài khoản?',
     toLogin: 'Đăng nhập'

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     facilities_data_file: str = "data/seeds/facilities.json"
     guides_data_file: str = "data/seeds/guides.json"  # optional; reviewed content only
     aeds_data_file: str = "data/seeds/aeds.json"  # optional; verified devices only
+    # Lesson quizzes are generated from this spreadsheet (a copy of the team's "Dữ liệu.xlsx"; re-read when it changes).
+    course_question_bank_file: str = "data/courses/question-bank.xlsx"
+    # Signs lesson quiz tokens and seeds their questions. Empty = SUPABASE_SERVICE_KEY (also server-only).
+    course_quiz_secret: str = ""
     support_admin_token: str = ""
     # "Tìm kiếm người hỗ trợ": default search radius, demo self-enrolment of signed-in users as responders (no admin
     # verification; never enable in production) and request photos (private object storage until it ends).
@@ -92,6 +96,10 @@ class Settings(BaseSettings):
     def realtime_configured(self) -> bool:
         """Supabase Realtime signals can be sent (otherwise clients poll)."""
         return bool(self.supabase_url and self.supabase_service_key)
+
+    @property
+    def course_quiz_key(self) -> str:
+        return self.course_quiz_secret or self.supabase_service_key
 
     @property
     def auth_configured(self) -> bool:

@@ -3,23 +3,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Bike, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, Phone, Power, Volume2, X } from "lucide-react";
+import { Bike, BookOpenCheck, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, Phone, Power, Volume2, X } from "lucide-react";
+import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
 import Navbar from "@/components/site/landing/Navbar";
 import { Page } from "@/components/site/primitives";
 import DemoPlacePicker from "@/components/site/support/demo-place-picker";
 import PointMap from "@/components/site/support/point-map";
 import { Button } from "@/components/ui/button";
-import { appNav, supportCopy } from "@/content/app";
+import { appNav, courseCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
 import { useLivePosition } from "@/hooks/useLivePosition";
 import { useSupportChannel, type ChannelStatus } from "@/hooks/useSupportChannel";
+import type { CompletedCourse } from "@/lib/courses/types";
 import { formatDuration, useDirections, type Vehicle } from "@/lib/directions";
 import { notifyInBackground, ring, unlockAlarm } from "@/lib/support/alarm";
 import { photoUrl, type ResponderRequest } from "@/lib/support/protocol";
 import { cn } from "@/lib/utils";
 
-type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string; contactPhone?: string; available?: boolean };
+type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string; contactPhone?: string; available?: boolean; completedCourses?: CompletedCourse[] };
 
 const LOGIN_NEXT = "/dang-nhap?next=%2Fapp%2Fsan-sang-ho-tro";
 const KEEPALIVE_MS = 60_000; // presence lives 5 min on the server
@@ -184,6 +186,12 @@ export default function ResponderScreen() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <ConnectionChip status={socketStatus} />
+                <Link
+                  href="/app/khoa-hoc"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand hover:text-brand [&_svg]:size-3.5"
+                >
+                  <BookOpenCheck aria-hidden="true" /> {c.courseLink}
+                </Link>
                 <button
                   type="button"
                   onClick={() => { unlockAlarm(); ring(); }}
@@ -192,6 +200,7 @@ export default function ResponderScreen() {
                   <Volume2 aria-hidden="true" /> {c.testSound}
                 </button>
               </div>
+              <CompletedCourseChips courses={profile.data?.completedCourses ?? []} label={courseCopy.earned} className="mt-2.5" />
               {wantAvailable && !position && (
                 <p className="mt-2 text-sm text-brand">{positionStatus === "denied" ? c.locationDenied : c.locating}</p>
               )}

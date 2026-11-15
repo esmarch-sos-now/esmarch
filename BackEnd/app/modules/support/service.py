@@ -10,7 +10,9 @@ changed" signal (`_signal`) that is sent through Supabase Realtime once the HTTP
 Signals carry no personal data: clients refetch over authenticated HTTP.
 
 Privacy: before accepting, a responder only sees the situation, a short description and a distance rounded to 100 m.
-The exact location, the requester's phone number and photos go to the accepting responder only.
+The exact location, the requester's phone number and photos go to the accepting responder only. Once a responder
+accepts, the requester also sees the courses that responder has completed (`completedCourses`), the same record shown
+on the responder's own profile.
 """
 
 import logging
@@ -32,6 +34,7 @@ from app.core.errors import error
 from app.core.supabase import get_storage
 from app.modules.auth.models import Account
 from app.modules.auth.security import AuthUser
+from app.modules.courses.service import course_service
 from app.modules.guides.schemas import Audience
 from app.modules.guides.service import catalog
 from app.modules.support.models import Presence, Responder, Skill, SupportInvite, SupportPhoto, SupportRequest
@@ -64,6 +67,14 @@ class State(StrEnum):
 
 def _rounded(d: float) -> int:
     return round(d / 100) * 100
+
+
+def _completed_courses(session: Session, user_id: str) -> list[dict[str, Any]]:
+    """Finished courses for profile views ("Đã hoàn thành khóa ..."); camelCase like every dict in this module."""
+    return [
+        {"id": c.id, "title": c.title, "badge": c.badge, "completedAt": c.completed_at}
+        for c in course_service.completed_courses(session, user_id)
+    ]
 
 
 def _phone(value: str | None) -> str:
@@ -180,6 +191,7 @@ class SupportService:
                 "id": responder.id,
                 "displayName": responder.display_name,
                 "contactPhone": responder.contact_phone,
+                "completedCourses": _completed_courses(session, responder.id),
             }
             live = self._presence(session, responder.id)
             if live is not None:
@@ -367,6 +379,7 @@ class SupportService:
             "contactPhone": profile.contact_phone,
             "skills": sorted(profile.skills),
             "available": self._presence(session, profile.id) is not None,
+            "completedCourses": _completed_courses(session, user.id),
         }
 
     # ---- responders (shared core: by profile) --------------------------------------------------
