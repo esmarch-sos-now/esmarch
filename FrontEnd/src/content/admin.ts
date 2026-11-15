@@ -75,17 +75,21 @@ export const adminCopy = {
   responders: {
     views: {
       all: 'Tất cả',
+      pending: 'Chờ duyệt',
       online: 'Đang trực',
       suspended: 'Tạm ngưng'
     },
     search: 'Tìm tên, số điện thoại',
+    pending: 'Chờ duyệt',
+    appliedOn: (date: string) => `Gửi đăng ký ${date}`,
+    noCourses: 'Chưa hoàn thành khóa nào',
     columns: {
       name: (n: number) => `Người hỗ trợ (${n})`,
       phone: 'SĐT liên hệ',
       account: 'Tài khoản',
       skills: 'Kỹ năng',
       status: 'Trạng thái',
-      source: 'Nguồn xác minh'
+      source: 'Khóa học đã hoàn thành'
     },
     noAccount: 'Đăng ký bằng mã quản trị',
     online: 'Đang trực',
@@ -94,11 +98,18 @@ export const adminCopy = {
     suspended: 'Tạm ngưng',
     menu: {
       label: (name: string) => `Thao tác với ${name}`,
+      approve: 'Duyệt',
+      reject: 'Từ chối',
       suspend: 'Tạm ngưng',
       reinstate: 'Kích hoạt lại',
       remove: 'Xóa hồ sơ'
     },
     empty: 'Chưa có ai đăng ký làm người hỗ trợ.',
+    confirmReject: {
+      title: (name: string) => `Từ chối đăng ký của ${name}?`,
+      body: 'Đăng ký bị xóa. Các khóa học họ đã hoàn thành vẫn được giữ, nên họ có thể gửi đăng ký lại sau.',
+      confirm: 'Từ chối'
+    },
     noMatch: 'Không có người hỗ trợ nào khớp.',
     confirmSuspend: {
       title: (name: string) => `Tạm ngưng ${name}?`,
@@ -122,6 +133,7 @@ export const adminCopy = {
     unlock: 'Mở khóa',
     suspend: 'Tạm ngưng',
     reinstate: 'Kích hoạt lại',
+    approve: 'Duyệt',
     clear: 'Bỏ chọn',
     selectAll: 'Chọn tất cả',
     selectRow: (name: string) => `Chọn ${name}`

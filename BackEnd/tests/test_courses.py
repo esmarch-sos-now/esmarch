@@ -1,7 +1,7 @@
-"""'Khóa học sơ cứu': only registered responders can read the course and record progress."""
+"""'Khóa học sơ cứu': every signed-in account can read the courses and record progress, the first step to
+becoming a responder."""
 
 import uuid
-from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -9,13 +9,12 @@ from app.core.config import get_settings
 from app.modules.courses.content import COURSES, SOURCE_NAME, SOURCE_PLAYLIST_URL
 from app.modules.courses.quiz import QUIZ_SIZE
 from app.modules.courses.service import _bank, _read_token, course_service
-from app.modules.support.models import Responder
 from tests.auth_tokens import bearer
+from tests.helpers import become_responder
 
 
 @pytest.fixture(autouse=True)
-def demo_enrolment(monkeypatch):
-    monkeypatch.setattr(get_settings(), "support_demo_self_enroll", True)
+def quiz_secret(monkeypatch):
     monkeypatch.setattr(get_settings(), "course_quiz_secret", "test-course-quiz-secret-0123456789abcdef")
 
 
@@ -28,11 +27,9 @@ def user(email: str, name: str = "An") -> dict:
     return bearer(user_id=user_id(email), email=email, name=name)
 
 
-def responder(client, email: str = "hai@example.com", name: str = "Hải") -> dict:
-    auth = user(email, name)
-    r = client.post("/api/support/me", headers=auth, json={"contactPhone": "0903 000 111"})
-    assert r.status_code == 200 and r.json()["enrolled"] is True, r.text
-    return auth
+def learner(client, email: str = "hai@example.com", name: str = "Hải") -> dict:
+    """A signed-in account with no responder profile: the courses are open to it."""
+    return user(email, name)
 
 
 def url(course_id: str, lesson_id: str) -> str:
@@ -65,21 +62,16 @@ def pass_lesson(client, auth: dict, course_id: str, lesson_id: str, email: str =
     return body
 
 
-def test_course_is_closed_for_anonymous_and_non_responders(client):
+def test_course_needs_sign_in_only(client):
     assert client.get("/api/courses").status_code == 401
-    auth = user("an@example.com")
-    locked = client.get("/api/courses", headers=auth)
-    assert locked.status_code == 403
-    assert "người hỗ trợ" in locked.json()["detail"]
     lesson = COURSES[0].lessons[0]
-    assert client.get(url(COURSES[0].id, lesson.id), headers=auth).status_code == 403
-    assert submit(client, auth, COURSES[0].id, lesson.id, "x.y", [0] * QUIZ_SIZE).status_code == 403
+    assert client.get(url(COURSES[0].id, lesson.id)).status_code == 401
 
 
-def test_verified_responder_sees_the_course_and_a_quiz_without_answers(client):
-    auth = responder(client)
+def test_any_signed_in_user_sees_the_course_and_a_quiz_without_answers(client):
+    auth = learner(client)
     body = client.get("/api/courses", headers=auth).json()
-    assert body["responderName"] == "Hải"
+    assert body["responderName"] is None and body["responderSkills"] == []
     course = body["courses"][0]
     assert course["lessonCount"] == 3 and course["progressPercent"] == 0 and course["completed"] is False
     assert course["completedAt"] is None and course["disclaimer"]
@@ -92,26 +84,13 @@ def test_verified_responder_sees_the_course_and_a_quiz_without_answers(client):
         assert set(question) == {"id", "question", "options"}
 
 
-def test_unverified_responder_is_denied(client, session):
-    auth = user("an@example.com")
-    assert client.get("/api/auth/me", headers=auth).status_code == 200  # creates the account row
-    session.add(
-        Responder(
-            id=user_id("an@example.com"),
-            display_name="An",
-            contact_phone="0903000111",
-            skills=["FIRST_AID"],
-            verified_at=datetime.now(UTC) + timedelta(days=1),
-            verification_source="Pending review",
-            token_hash="0" * 64,
-        )
-    )
-    session.commit()
-    assert client.get("/api/courses", headers=auth).status_code == 403
+def test_a_verified_responder_is_named_on_the_course_page(client):
+    auth = become_responder(client, user("hai@example.com", "Hải"), user_id("hai@example.com"))
+    assert client.get("/api/courses", headers=auth).json()["responderName"] == "Hải"
 
 
 def test_wrong_answers_reveal_explanations_without_completing_the_lesson(client):
-    auth = responder(client)
+    auth = learner(client)
     course, lesson = COURSES[0], COURSES[0].lessons[0]
     quiz = new_quiz(client, auth, course.id, lesson.id)
     key = answer_key("hai@example.com", course.id, lesson.id, quiz["token"])
@@ -124,8 +103,8 @@ def test_wrong_answers_reveal_explanations_without_completing_the_lesson(client)
 
 
 def test_a_quiz_token_is_graded_once_and_bound_to_its_user_and_lesson(client):
-    auth = responder(client)
-    other = responder(client, "khac@example.com", "Khác")
+    auth = learner(client)
+    other = learner(client, "khac@example.com", "Khác")
     course, lesson = COURSES[0], COURSES[0].lessons[0]
     quiz = new_quiz(client, auth, course.id, lesson.id)
     key = answer_key("hai@example.com", course.id, lesson.id, quiz["token"])
@@ -138,7 +117,7 @@ def test_a_quiz_token_is_graded_once_and_bound_to_its_user_and_lesson(client):
 
 
 def test_passing_a_quiz_records_progress_and_the_next_lesson(client):
-    auth = responder(client)
+    auth = learner(client)
     course, lesson = COURSES[0], COURSES[0].lessons[0]
     result = pass_lesson(client, auth, course.id, lesson.id)
     assert result["correctCount"] == result["total"] == QUIZ_SIZE
@@ -153,7 +132,7 @@ def test_passing_a_quiz_records_progress_and_the_next_lesson(client):
 
 
 def test_completing_every_lesson_completes_the_course(client):
-    auth = responder(client)
+    auth = learner(client)
     course = COURSES[0]
     for lesson in course.lessons:
         pass_lesson(client, auth, course.id, lesson.id)
@@ -163,8 +142,8 @@ def test_completing_every_lesson_completes_the_course(client):
 
 
 def test_progress_is_private_and_input_is_validated(client):
-    auth = responder(client)
-    other = responder(client, "khac@example.com", "Khác")
+    auth = learner(client)
+    other = learner(client, "khac@example.com", "Khác")
     course, lesson = COURSES[0], COURSES[0].lessons[0]
     quiz = new_quiz(client, auth, course.id, lesson.id)
 
@@ -178,7 +157,7 @@ def test_progress_is_private_and_input_is_validated(client):
 
 
 def test_two_video_courses_credit_the_source(client):
-    auth = responder(client)
+    auth = learner(client)
     body = client.get("/api/courses", headers=auth).json()
     assert [c["id"] for c in body["courses"]] == ["airway-choking", "breathing-bleeding-fainting"]
     assert body["completedCourses"] == []
@@ -199,7 +178,7 @@ def test_two_video_courses_credit_the_source(client):
 
 
 def test_finished_course_is_recorded_on_the_profile(client):
-    auth = responder(client)
+    auth = learner(client)
     first, second = COURSES
     pass_lesson(client, auth, second.id, second.lessons[0].id)  # course 2 stays partial
     results = [pass_lesson(client, auth, first.id, lesson.id) for lesson in first.lessons]
@@ -216,16 +195,13 @@ def test_finished_course_is_recorded_on_the_profile(client):
     assert me["completedCourses"][0]["badge"] == first.badge and me["completedCourses"][0]["completedAt"]
 
 
-def test_new_responder_profile_lists_no_courses(client):
-    auth = responder(client)
+def test_new_account_lists_no_courses(client):
+    auth = learner(client)
     assert client.get("/api/support/me", headers=auth).json()["completedCourses"] == []
 
 
 def test_requester_sees_the_accepting_responders_courses(client):
-    auth = responder(client)
-    course = COURSES[0]
-    for lesson in course.lessons:
-        pass_lesson(client, auth, course.id, lesson.id)
+    auth = become_responder(client, user("hai@example.com", "Hải"), user_id("hai@example.com"))
     here = {"latitude": 10.81, "longitude": 106.7, "consentToLocationUse": True, "available": True}
     assert client.put("/api/support/me/availability", headers=auth, json=here).json()["available"] is True
     created = client.post(
@@ -235,4 +211,4 @@ def test_requester_sees_the_accepting_responders_courses(client):
     assert client.post(f"/api/support/me/requests/{created['id']}/accept", headers=auth).status_code == 200
     owner = {"Authorization": f"Bearer {created['requesterToken']}"}
     state = client.get(f"/api/support-requests/{created['id']}", headers=owner).json()
-    assert [c["badge"] for c in state["responder"]["completedCourses"]] == [course.badge]
+    assert [c["badge"] for c in state["responder"]["completedCourses"]] == [c.badge for c in COURSES]

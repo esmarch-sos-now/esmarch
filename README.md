@@ -60,7 +60,6 @@ Dùng `docker compose watch` nếu muốn container tự build lại khi đổi 
 | `CLIENT_IP_HEADER` | `BackEnd/.env` | Header chứa IP người gọi do proxy Next gửi (`x-sosnow-client-ip`) |
 | `SUPPORT_ADMIN_TOKEN` | `BackEnd/.env` | Bật trang quản trị người hỗ trợ (tối thiểu 32 ký tự ngẫu nhiên) |
 | `CORS_ORIGINS` | `BackEnd/.env` | Các origin được gọi API (voice kiểm tra `Origin` theo danh sách này) |
-| `SUPPORT_DEMO_SELF_ENROLL` | `BackEnd/.env` | `true`: tài khoản đăng nhập tự đăng ký làm người hỗ trợ (chỉ dùng cho demo) |
 | `SUPPORT_RADIUS_METERS` | `BackEnd/.env` | Bán kính tìm người hỗ trợ, mặc định 3000 m |
 | `NEXT_PUBLIC_DEMO_LOCATION` | `FrontEnd/.env` | `true`: hiện ô chọn vị trí giả lập trên trang người hỗ trợ (demo trên một máy) |
 
@@ -72,9 +71,11 @@ Người cần giúp mở `/app/nguoi-ho-tro` (không cần đăng nhập), ngư
 Mọi thao tác đi qua HTTP; trạng thái nằm trong Postgres. Tín hiệu "có thay đổi" đi qua Supabase Realtime, và khi kênh này chưa mở được thì trang tự hỏi lại máy chủ mỗi 3 giây.
 
 **Trên một máy**
-1. `BackEnd/.env`: `SUPPORT_DEMO_SELF_ENROLL=true` (cần cả `AUTH_SECRET_KEY` để đăng nhập). `FrontEnd/.env`: `NEXT_PUBLIC_DEMO_LOCATION=true`.
+1. `FrontEnd/.env`: `NEXT_PUBLIC_DEMO_LOCATION=true`. Cần một tài khoản người hỗ trợ đã được duyệt (xem bước 3).
 2. `docker compose up -d --build --renew-anon-volumes`
-3. Tab 1: đăng nhập → `/app/san-sang-ho-tro` → đăng ký, chọn vị trí giả lập "Thảo Cầm Viên", bấm **Bật sẵn sàng**.
+3. Tab 1: đăng nhập → học hết các bài ở `/app/khoa-hoc` → `/app/san-sang-ho-tro` → **Gửi đăng ký**. Một tài khoản
+   quản trị duyệt ở khu quản trị (Người hỗ trợ → Chờ duyệt). Sau đó chọn vị trí giả lập "Thảo Cầm Viên", bấm
+   **Bật sẵn sàng**.
 4. Tab 2: `/app/nguoi-ho-tro` → chọn "Chợ Bến Thành", nhập số điện thoại, tình huống, ảnh → **Gửi tín hiệu**.
 5. Tab 1 kêu và hiện yêu cầu → **Nhận** → thấy số điện thoại, ảnh, dẫn đường. Tab 2 thấy người hỗ trợ và khoảng cách cập nhật trực tiếp.
 

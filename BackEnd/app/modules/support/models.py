@@ -15,6 +15,9 @@ class Skill(StrEnum):
 
 
 class Responder(SQLModel, table=True):
+    """A responder profile. Signed-in users get one by applying after the required courses (`applied_at`); an admin
+    then verifies it (`verified_at`, the only thing dispatch looks at) or suspends it (`suspended_at`)."""
+
     __tablename__ = "verified_responders"  # pyrefly: ignore[bad-override]
 
     id: str = Field(primary_key=True)
@@ -24,6 +27,8 @@ class Responder(SQLModel, table=True):
     verified_at: datetime | None = Field(default=None, sa_column=tstz())
     verification_source: str = Field(max_length=1000)
     token_hash: str = Field(max_length=64, unique=True)
+    applied_at: datetime | None = Field(default=None, sa_column=tstz())
+    suspended_at: datetime | None = Field(default=None, sa_column=tstz())
 
 
 class Presence(SQLModel, table=True):

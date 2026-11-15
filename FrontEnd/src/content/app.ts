@@ -35,7 +35,7 @@ export const appPages: AppPageDef[] = [
     description: 'Nhận dấu hiệu FAST trước camera và ghi năm động tác theo video. Bài luyện không chẩn đoán đột quỵ.'
   },
   {
-    // Courses are open only to accounts registered as responders (see /app/san-sang-ho-tro)
+    // Courses are open to every signed-in account: finishing them is the first step to becoming a supporter
     path: '/app/khoa-hoc',
     nav: 'Khóa học',
     title: 'Khóa học sơ cứu cho người hỗ trợ',
@@ -123,14 +123,9 @@ export const supportCopy = {
     title: 'Sẵn sàng hỗ trợ',
     signIn: 'Đăng nhập để đăng ký làm người hỗ trợ.',
     signInButton: 'Đăng nhập',
-    enrollTitle: 'Đăng ký làm người hỗ trợ',
-    enrollHint: 'Bản demo: bạn tự khai, chưa cần xác minh chứng chỉ sơ cứu.',
-    enrollDisabled: 'Tài khoản của bạn chưa được xác minh là người hỗ trợ nên chưa dùng được chế độ này.',
-    name: 'Tên hiển thị',
-    phone: 'Số điện thoại (người cần giúp sẽ thấy sau khi bạn nhận)',
-    badPhone: 'Số điện thoại chưa đúng.',
-    enrollFailed: 'Chưa đăng ký được, hãy thử lại.',
-    enroll: 'Đăng ký',
+    loading: 'Đang tải…',
+    loadFailed: 'Chưa tải được thông tin người hỗ trợ.',
+    retry: 'Thử lại',
     on: 'Đang sẵn sàng hỗ trợ',
     turningOn: 'Đang bật…',
     off: 'Chưa sẵn sàng',
@@ -172,19 +167,56 @@ export const supportCopy = {
   }
 }
 
-// First-aid courses: only accounts registered as responders can open the content
+// Becoming a supporter (/app/san-sang-ho-tro before verification): courses -> application -> admin verification
+export const onboardingCopy = {
+  title: 'Trở thành người hỗ trợ',
+  intro:
+    'Người hỗ trợ nhận yêu cầu từ người cần giúp ở gần và đến tận nơi sơ cứu trong lúc chờ xe cấp cứu. Để bảo đảm an toàn, bạn cần hoàn thành khóa sơ cứu và được quản trị viên xác minh.',
+  steps: {
+    courses: 'Hoàn thành khóa sơ cứu',
+    apply: 'Gửi đăng ký',
+    verify: 'Chờ xác minh',
+  },
+  stepState: { done: 'Xong', current: 'Đang ở bước này', next: 'Tiếp theo' },
+  lessons: (done: number, total: number) => `${done}/${total} bài`,
+  courseDone: 'Đã hoàn thành',
+  start: 'Bắt đầu học',
+  continue: 'Học tiếp',
+  coursesHint: 'Mỗi bài có video và bài kiểm tra 5 câu; trả lời đúng hết để hoàn thành bài.',
+  readyTitle: 'Bạn đã hoàn thành khóa học. Gửi đăng ký để được xác minh.',
+  name: 'Tên hiển thị (người cần giúp sẽ thấy)',
+  phone: 'Số điện thoại để người cần giúp gọi lại',
+  phoneHint: 'Số đã xác minh của tài khoản. Người cần giúp chỉ thấy số này sau khi bạn nhận yêu cầu.',
+  noPhone: 'Tài khoản chưa có số điện thoại đã xác minh. Hãy cập nhật số điện thoại ở trang tài khoản rồi quay lại.',
+  commitment:
+    'Tôi cam kết chỉ nhận yêu cầu khi thực sự có thể đến giúp, giữ kín thông tin của người cần giúp, và luôn khuyên gọi 115 khi có nguy hiểm tính mạng.',
+  needCommitment: 'Hãy đánh dấu ô cam kết trước khi gửi.',
+  submit: 'Gửi đăng ký',
+  submitting: 'Đang gửi…',
+  failed: 'Chưa gửi được đăng ký, hãy thử lại.',
+  pendingTitle: 'Đăng ký đã được gửi',
+  pendingBody: (date: string) =>
+    `Bạn gửi đăng ký ngày ${date}. Quản trị viên sẽ xem lại hồ sơ và khóa học của bạn; khi được xác minh, trang này sẽ chuyển sang chế độ sẵn sàng hỗ trợ.`,
+  suspendedTitle: 'Tài khoản người hỗ trợ đang tạm khóa',
+  suspendedBody: 'Bạn chưa thể nhận yêu cầu lúc này. Nếu cần, hãy liên hệ quản trị viên của SOS NOW.',
+  reviewCourses: 'Xem lại khóa học',
+}
+
+// First-aid courses: open to every signed-in account; finishing them is the first step to becoming a supporter
 export const courseCopy = {
-  eyebrow: 'Dành cho người hỗ trợ',
+  eyebrow: 'Khóa học cho người hỗ trợ',
   title: 'Khóa học sơ cứu',
   subtitle:
     'Hai khóa ngắn từ video của bác sĩ Bệnh viện Hoàn Mỹ Đà Nẵng. Xem video từng bài rồi làm câu hỏi kiểm tra; khóa đã hoàn thành được ghi nhận lên hồ sơ của bạn.',
   signIn: 'Đăng nhập để học khóa sơ cứu dành cho người hỗ trợ.',
   signInButton: 'Đăng nhập',
   loading: 'Đang tải khóa học…',
-  lockedTitle: 'Khóa học dành riêng cho người hỗ trợ',
-  lockedBody:
-    'Chỉ tài khoản đã đăng ký làm người hỗ trợ của dự án mới học được khóa này. Đăng ký (demo) mất chưa đến một phút, sau đó quay lại đây để mở khóa toàn bộ bài học.',
-  lockedAction: 'Đăng ký làm người hỗ trợ',
+  // After every course is finished: the next step on the way to supporter mode
+  applyTitle: 'Bạn đã hoàn thành tất cả khóa học',
+  applyBody: 'Giờ bạn có thể gửi đăng ký làm người hỗ trợ. Quản trị viên sẽ xác minh trước khi bạn nhận yêu cầu.',
+  applyAction: 'Gửi đăng ký làm người hỗ trợ',
+  pendingNotice: 'Đăng ký làm người hỗ trợ của bạn đang chờ xác minh.',
+  supporterPage: 'Xem trạng thái',
   enrolledAs: (name: string) => `Bạn đang học với tư cách người hỗ trợ: ${name}`,
   progress: (done: number, total: number) => `${done}/${total} bài đã hoàn thành`,
   completed: 'Đã hoàn thành khóa học',
@@ -206,7 +238,6 @@ export const courseCopy = {
   correctAnswer: 'Đáp án đúng',
   answerRequired: 'Hãy trả lời đủ các câu hỏi trước khi nộp.',
   loadFailed: 'Chưa tải được khóa học. Hãy thử lại.',
-  lockedNotice: 'Tài khoản này chưa phải người hỗ trợ đã đăng ký nên nội dung khóa học được ẩn.',
   retryLoad: 'Thử lại',
   noCourses: 'Chưa có khóa học nào.',
   lessons:'Nội dung khóa học',
@@ -238,8 +269,8 @@ export const courseCopy = {
     loadFailed: 'Chưa tải được thông tin khóa học.',
     none: 'Chưa hoàn thành khóa học nào.',
     start: 'Vào học',
-    notEnrolled: 'Khóa học sơ cứu dành cho người hỗ trợ.',
-    enroll: 'Đăng ký làm người hỗ trợ',
+    supporter: 'Hoàn thành các khóa học để đăng ký làm người hỗ trợ.',
+    becomeSupporter: 'Trở thành người hỗ trợ',
     completedOn: (date: string) => `Hoàn thành ${date}`,
   },
   // Chips on the responder / requester screens

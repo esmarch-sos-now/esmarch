@@ -1,5 +1,5 @@
-"""Support requests: signed-in responders (demo self-enrolment), state in Postgres, photos in object storage and
-Supabase Realtime "changed" signals. Every action is plain HTTP."""
+"""Support requests: signed-in responders (courses, application, admin approval), state in Postgres, photos in
+object storage and Supabase Realtime "changed" signals. Every action is plain HTTP."""
 
 import uuid
 
@@ -8,6 +8,7 @@ import pytest
 from app.core import clock, supabase
 from app.core.config import get_settings
 from tests.auth_tokens import bearer
+from tests.helpers import become_responder
 
 HERE = (10.8, 106.7)
 NEAR = (10.81, 106.7)  # ~1.1 km
@@ -16,8 +17,7 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
 
 
 @pytest.fixture(autouse=True)
-def demo_enrolment(monkeypatch):
-    monkeypatch.setattr(get_settings(), "support_demo_self_enroll", True)
+def clean_storage():
     supabase._memory.objects.clear()
 
 
@@ -39,10 +39,7 @@ def user(email: str, name: str) -> dict:
 
 
 def responder(client, email="hai@example.com", name="Hải"):
-    auth = user(email, name)
-    r = client.post("/api/support/me", headers=auth, json={"contactPhone": "0903 000 111"})
-    assert r.status_code == 200 and r.json()["enrolled"] is True, r.text
-    return auth
+    return become_responder(client, user(email, name), user_id(email))
 
 
 def go_available(client, auth, where=HERE):
@@ -73,12 +70,9 @@ def invited_count(client, created: dict) -> int:
     return client.get(f"/api/support-requests/{created['id']}", headers=owner(created)).json()["invitedCount"]
 
 
-def test_self_enrolment_needs_the_flag_and_a_phone(client, monkeypatch):
+def test_a_signed_in_user_is_not_a_responder_until_approved(client):
     auth = user("an@example.com", "An")
-    assert client.get("/api/support/me", headers=auth).json()["enrolled"] is False
-    assert client.post("/api/support/me", headers=auth, json={"contactPhone": "abc"}).status_code == 400
-    monkeypatch.setattr(get_settings(), "support_demo_self_enroll", False)
-    assert client.post("/api/support/me", headers=auth, json={"contactPhone": "0903000111"}).status_code == 403
+    assert client.get("/api/support/me", headers=auth).json()["status"] == "none"
     assert client.get("/api/support/me/requests", headers=auth).status_code == 404  # not a responder
     assert client.get("/api/support/me/requests").status_code == 401
 
@@ -109,8 +103,7 @@ def test_live_flow_keeps_details_private_until_accepted(client, signals):
 
     got = client.get(photo, headers=auth)
     assert got.status_code == 200 and got.content == PNG
-    other = user("khac@example.com", "Khác")
-    client.post("/api/support/me", headers=other, json={"contactPhone": "0903000222"})
+    other = responder(client, "khac@example.com", "Khác")
     assert client.get(photo, headers=other).status_code == 403
 
     moved = {"latitude": 10.805, "longitude": 106.7}
