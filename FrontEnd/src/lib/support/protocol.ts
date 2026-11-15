@@ -10,7 +10,10 @@ export type ResponderRequest = {
   description: string | null;
   expiresAt: string;
   photoCount: number;
-  /** Before accepting: rounded to 100 m. */
+  hasVideo?: boolean;
+  /** Before accepting, for a request sent with an incident area (the district derived from the requester's GPS). */
+  area?: string;
+  /** Before accepting, for a radius request: rounded to 100 m. */
   approximateDistanceMeters?: number;
   /** After accepting only. */
   latitude?: number | null;
@@ -24,6 +27,7 @@ export type RequesterState = {
   expiresAt: string;
   invitedCount: number;
   photoCount: number;
+  hasVideo?: boolean;
   responder?: {
     id: string;
     displayName: string;
@@ -40,13 +44,14 @@ export const SITUATIONS = ["Bất tỉnh", "Khó thở", "Chảy máu", "Ngã, c
 
 export type CreatedRequest = { id: string; requesterToken: string; invitedCount: number; expiresAt: string };
 
-/** Anonymous: the requester never needs an account. 409 = nobody available within the radius. */
+/** Anonymous: the requester never needs an account. With `area`, every ready responder is invited; 409 = nobody ready. */
 export async function createSupportRequest(body: {
   latitude: number;
   longitude: number;
   contactPhone: string;
-  situation: string;
-  description: string;
+  area?: string;
+  situation?: string;
+  description?: string;
 }): Promise<{ ok: true; request: CreatedRequest } | { ok: false; status: number; detail: string }> {
   const response = await fetch(`${API_BASE}/api/support-requests`, {
     method: "POST",
@@ -72,6 +77,30 @@ export async function uploadSupportPhoto(request: CreatedRequest, photo: Blob): 
   return response.ok;
 }
 
+type VideoPlan = { mode: "signed"; bucket: string; path: string; token: string; maxBytes: number } | { mode: "backend"; maxBytes: number };
+
+/** One scene video. With Supabase Storage it goes straight there (it is too large for a serverless request body) and
+ * the backend then checks it; otherwise (local dev) it is posted to the backend. */
+export async function uploadSupportVideo(request: CreatedRequest, video: File): Promise<boolean> {
+  const auth = { Authorization: `Bearer ${request.requesterToken}` };
+  const base = `${API_BASE}/api/support-requests/${request.id}`;
+  const planned = await fetch(`${base}/video-upload`, { method: "POST", credentials: "omit", headers: auth });
+  if (!planned.ok) return false;
+  const plan = (await planned.json()) as VideoPlan;
+  if (video.size > plan.maxBytes) return false;
+  if (plan.mode === "backend") {
+    const form = new FormData();
+    form.append("file", video, video.name || "video.mp4");
+    return (await fetch(`${base}/video`, { method: "POST", credentials: "omit", headers: auth, body: form })).ok;
+  }
+  const { createClient } = await import("@/lib/supabase/client");
+  const { error } = await createClient()
+    .storage.from(plan.bucket)
+    .uploadToSignedUrl(plan.path, plan.token, video, { contentType: video.type || "video/mp4", upsert: true });
+  if (error) return false;
+  return (await fetch(`${base}/video/complete`, { method: "POST", credentials: "omit", headers: auth })).ok;
+}
+
 /** The requester's current view of the request (404 = gone). */
 export async function fetchRequesterState(request: CreatedRequest): Promise<RequesterState | null> {
   const response = await fetch(`${API_BASE}/api/support-requests/${request.id}`, {
@@ -90,8 +119,17 @@ export async function cancelSupportRequest(request: CreatedRequest): Promise<voi
   }).catch(() => undefined);
 }
 
-/** Photos are only served to the accepting responder; the proxy signs the request with the account. */
+/** Scene photos: for invited responders while the request is open, then for the accepting one only. The proxy signs
+ * the request with the account. */
 export const photoUrl = (requestId: string, index: number) => `${API_BASE}/api/support/me/requests/${requestId}/photos/${index}`;
+
+/** Where to play the scene video from: a short-lived Storage link, or (local dev) the backend stream. Same rule as photos. */
+export async function videoSource(authFetch: (path: string) => Promise<Response>, requestId: string): Promise<string | null> {
+  const response = await authFetch(`/api/support/me/requests/${requestId}/video-url`);
+  if (!response.ok) return null;
+  const { url } = (await response.json()) as { url: string | null };
+  return url ?? `${API_BASE}/api/support/me/requests/${requestId}/video`;
+}
 
 /** Shrink a camera photo before upload (longest side 1280 px, JPEG): faster on mobile data, well under the 4 MB cap. */
 export async function compressPhoto(file: File, maxSide = 1280): Promise<Blob> {

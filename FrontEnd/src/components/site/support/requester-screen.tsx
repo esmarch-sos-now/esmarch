@@ -2,17 +2,21 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Camera, HandHeart, Loader2, MapPin, Phone, X } from "lucide-react";
+import { HandHeart, Loader2, MapPin, Phone } from "lucide-react";
 import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
 import Navbar from "@/components/site/landing/Navbar";
 import { Page } from "@/components/site/primitives";
+import DemoNearbyRespondersMap from "@/components/site/support/demo-nearby-responders-map";
 import DemoPlacePicker from "@/components/site/support/demo-place-picker";
+import IncidentReportFields, { emptyReport, hasDescription, type IncidentReport } from "@/components/site/support/incident-report-fields";
 import PointMap from "@/components/site/support/point-map";
 import { Button } from "@/components/ui/button";
 import { appNav, courseCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useLivePosition } from "@/hooks/useLivePosition";
 import { useSupportChannel } from "@/hooks/useSupportChannel";
+import type { Point } from "@/lib/api/hooks";
+import { nearestDistrict } from "@/lib/support/districts";
 import {
   SITUATIONS,
   cancelSupportRequest,
@@ -20,18 +24,20 @@ import {
   createSupportRequest,
   fetchRequesterState,
   uploadSupportPhoto,
+  uploadSupportVideo,
   type CreatedRequest,
   type RequesterState,
 } from "@/lib/support/protocol";
 import { cn } from "@/lib/utils";
 
-type Phase = "form" | "sending" | "searching" | "accepted" | "ended" | "none";
+type Phase = "form" | "sending" | "searching" | "accepted" | "ended" | "none" | "demo";
 type Ended = "completed" | "cancelled" | "expired";
 
 const sosRing = "absolute inset-[14%] animate-sos-wave rounded-full bg-[rgba(234,84,85,.14)] motion-reduce:animate-none motion-reduce:opacity-50";
 const STORAGE_KEY = "sos-support-request";
 const NO_ONE_HINT_MS = 2 * 60_000;
-const MAX_PHOTOS = 3;
+// Demo only: "true" replaces sending with a map of made-up supporters and a simulated call (no request is created).
+const DEMO_RESPONDERS_ENABLED = process.env.NEXT_PUBLIC_DEMO_RESPONDERS === "true";
 
 function loadSaved(): CreatedRequest | null {
   try {
@@ -62,11 +68,12 @@ export default function RequesterScreen() {
   const [ended, setEnded] = useState<Ended>("completed");
   const [noOneYet, setNoOneYet] = useState(false);
   const [formError, setFormError] = useState("");
+  const [mediaNote, setMediaNote] = useState("");
+  const [demoCenter, setDemoCenter] = useState<Point | null>(null);
 
   const [phone, setPhone] = useState("");
   const [situation, setSituation] = useState<string>(SITUATIONS[0]);
-  const [description, setDescription] = useState("");
-  const [photos, setPhotos] = useState<{ file: File; url: string }[]>([]);
+  const [report, setReport] = useState<IncidentReport>(emptyReport);
   const [consent, setConsent] = useState(false);
 
   // Resume a request after a reload of this tab
@@ -115,32 +122,27 @@ export default function RequesterScreen() {
     return () => clearTimeout(timer);
   }, [phase]);
 
-  const addPhotos = (files: FileList | null) => {
-    if (!files) return;
-    const room = MAX_PHOTOS - photos.length;
-    const picked = Array.from(files).filter((file) => file.type.startsWith("image/")).slice(0, room);
-    setPhotos((current) => [...current, ...picked.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
-  };
-
-  const removePhoto = (index: number) =>
-    setPhotos((current) => {
-      URL.revokeObjectURL(current[index].url);
-      return current.filter((_, i) => i !== index);
-    });
-
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setFormError("");
     if (!position) return setFormError(c.needLocation);
     if (!/^\+?[0-9]{8,15}$/.test(phone.replace(/[\s.-]/g, ""))) return setFormError(c.badPhone);
+    if (!hasDescription(report)) return setFormError(c.needDescription);
     if (!consent) return setFormError(c.needConsent);
+    if (DEMO_RESPONDERS_ENABLED) {
+      setDemoCenter(position);
+      setPhase("demo");
+      return;
+    }
     setPhase("sending");
     const result = await createSupportRequest({
       latitude: position.lat,
       longitude: position.lng,
       contactPhone: phone,
+      // Every ready supporter is invited; the district derived from GPS is what they see before accepting.
+      area: nearestDistrict(position),
       situation,
-      description: description.trim(),
+      description: report.text.trim() || undefined,
     }).catch(() => null);
     if (!result) {
       setPhase("form");
@@ -156,11 +158,17 @@ export default function RequesterScreen() {
     setRequest(created);
     setInfo({ id: created.id, status: "OPEN", expiresAt: created.expiresAt, invitedCount: created.invitedCount, photoCount: 0 });
     setNoOneYet(false);
+    setMediaNote("");
     setPhase("searching");
-    for (const photo of photos) {
+    // Photos and the video go up right after the request exists; invited supporters see them as soon as they arrive.
+    // A voice note is only used to fill the description (speech to text) and stays on this device.
+    let failed = 0;
+    for (const photo of report.photos) {
       const blob = await compressPhoto(photo.file).catch(() => photo.file);
-      await uploadSupportPhoto(created, blob).catch(() => false);
+      if (!(await uploadSupportPhoto(created, blob).catch(() => false))) failed += 1;
     }
+    if (report.video && !(await uploadSupportVideo(created, report.video.file).catch(() => false))) failed += 1;
+    if (failed > 0) setMediaNote(c.mediaFailed(failed));
   };
 
   const cancel = async () => {
@@ -172,6 +180,8 @@ export default function RequesterScreen() {
   const restart = () => {
     setRequest(null);
     setInfo(null);
+    setDemoCenter(null);
+    setMediaNote("");
     setNoOneYet(false);
     setPhase("form");
   };
@@ -182,7 +192,7 @@ export default function RequesterScreen() {
   return (
     <Page>
       <Navbar appLinks={appNav} />
-      <main className="mx-auto w-full max-w-180 px-4 pt-7 pb-12">
+      <main className={cn("mx-auto w-full px-4 pt-7 pb-12", phase === "demo" ? "max-w-6xl" : "max-w-180")}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-[clamp(26px,3.4vw,36px)] leading-[1.15] font-black text-ink">{c.title}</h1>
@@ -232,38 +242,7 @@ export default function RequesterScreen() {
               </div>
             </fieldset>
 
-            <label className="grid gap-1.5">
-              <span className="text-sm font-bold text-ink">{c.description}</span>
-              <textarea
-                value={description}
-                maxLength={500}
-                rows={3}
-                onChange={(event) => setDescription(event.target.value)}
-                placeholder={c.descriptionPlaceholder}
-                className="rounded-xl border border-line px-3.5 py-2.5 text-base outline-none focus:border-brand"
-              />
-            </label>
-
-            <div className="grid gap-2">
-              <span className="text-sm font-bold text-ink">{c.photos} <span className="font-normal text-muted-foreground">({photos.length}/{MAX_PHOTOS})</span></span>
-              <div className="flex flex-wrap gap-2.5">
-                {photos.map((photo, index) => (
-                  <div key={photo.url} className="relative size-20 overflow-hidden rounded-xl border border-line">
-                    <img src={photo.url} alt={`${c.photo} ${index + 1}`} className="size-full object-cover" />
-                    <button type="button" onClick={() => removePhoto(index)} aria-label={`${c.removePhoto} ${index + 1}`} className="absolute top-1 right-1 grid size-6 cursor-pointer place-items-center rounded-full bg-black/60 text-white [&_svg]:size-3.5">
-                      <X aria-hidden="true" />
-                    </button>
-                  </div>
-                ))}
-                {photos.length < MAX_PHOTOS && (
-                  <label className="grid size-20 cursor-pointer place-items-center rounded-xl border border-dashed border-[#c9c9c9] text-muted-foreground hover:border-brand hover:text-brand">
-                    <Camera aria-hidden="true" className="size-6" />
-                    <input type="file" accept="image/*" capture="environment" multiple className="sr-only" onChange={(event) => { addPhotos(event.target.files); event.target.value = ""; }} />
-                    <span className="sr-only">{c.addPhoto}</span>
-                  </label>
-                )}
-              </div>
-            </div>
+            <IncidentReportFields value={report} onChange={setReport} />
 
             <label className="flex items-start gap-2.5 text-sm leading-snug text-ink">
               <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} className="mt-0.5 size-4.5 accent-[#da361a]" />
@@ -272,9 +251,16 @@ export default function RequesterScreen() {
 
             {formError && <p className="text-sm font-semibold text-brand" role="alert">{formError}</p>}
             <Button type="submit" disabled={phase === "sending"} className="h-12 rounded-full text-base font-bold [&_svg]:size-5">
-              {phase === "sending" ? <Loader2 aria-hidden="true" className="animate-spin" /> : <HandHeart aria-hidden="true" />} {c.send}
+              {phase === "sending" ? <Loader2 aria-hidden="true" className="animate-spin" /> : <HandHeart aria-hidden="true" />} {DEMO_RESPONDERS_ENABLED ? c.demoStart : c.send}
             </Button>
           </form>
+        )}
+
+        {phase === "demo" && demoCenter && (
+          <section className="mt-6 grid gap-4" aria-live="polite">
+            <DemoNearbyRespondersMap center={demoCenter} />
+            <Button variant="outline" onClick={restart} className="justify-self-start rounded-full">{c.demoDone}</Button>
+          </section>
         )}
 
         {phase === "searching" && (
@@ -291,6 +277,7 @@ export default function RequesterScreen() {
             <h2 className="text-xl font-bold text-ink">{c.searching}</h2>
             <p className="mt-1.5 text-[15px] text-muted-foreground">{info ? c.invited(info.invitedCount) : c.sendingSignal}</p>
             <p className="mt-1 text-xs text-muted-foreground/80">{socketStatus === "polling" ? c.polling : socketStatus === "open" ? c.live : c.connecting}</p>
+            {mediaNote && <p className="mt-2 max-w-115 text-sm font-semibold text-[#b3261e]" role="alert">{mediaNote}</p>}
             {noOneYet && (
               <div className="mt-4 max-w-115 rounded-xl border border-[#f5d0c8] bg-brand-soft p-3.5 text-left text-sm leading-snug text-ink">
                 <p className="font-semibold">{c.noOneYet}</p>

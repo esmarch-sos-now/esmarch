@@ -7,7 +7,6 @@ from sqlmodel import Session
 from app.common.params import Lat, Limit, Lng, Radius
 from app.core.config import get_settings
 from app.core.db import get_session
-from app.core.errors import error
 from app.modules.auth.deps import AdminUser, CurrentUser, OptionalUser, require_auth_configured
 from app.modules.guides.schemas import Audience
 from app.modules.support.models import Skill
@@ -115,6 +114,26 @@ async def upload_photo(request_id: str, file: UploadFile, session: Db, authoriza
     return await run_in_threadpool(support.add_photo, session, authorization, request_id, file.content_type, data)
 
 
+@router.post("/support-requests/{request_id}/video-upload")
+def video_upload(request_id: str, session: Db, authorization: Auth = None) -> dict:
+    """Where the requester uploads its one scene video: `mode: "signed"` = straight to Supabase Storage with the
+    returned token (then call `/video/complete`), `mode: "backend"` = POST the file to `/video` (local dev)."""
+    return support.video_upload(session, authorization, request_id)
+
+
+@router.post("/support-requests/{request_id}/video/complete")
+def video_complete(request_id: str, session: Db, authorization: Auth = None) -> dict:
+    """Checks the uploaded video (MP4/WebM/QuickTime, SUPPORT_VIDEO_MAX_BYTES) and shows it to responders."""
+    return support.confirm_video(session, authorization, request_id)
+
+
+@router.post("/support-requests/{request_id}/video", status_code=201)
+async def upload_video(request_id: str, file: UploadFile, session: Db, authorization: Auth = None) -> dict:
+    """Backend upload of the video, when Supabase Storage is not configured (local dev)."""
+    data = await file.read(get_settings().support_video_max_bytes + 1)
+    return await run_in_threadpool(support.add_video, session, authorization, request_id, file.content_type, data)
+
+
 # ---- signed-in users as responders ("Sẵn sàng hỗ trợ") -----------------------------------------
 # Realtime is Supabase Broadcast ("changed" signals, see app.core.supabase); every action is plain HTTP.
 me = APIRouter(prefix="/api/support", tags=["support"], dependencies=[Depends(require_auth_configured)])
@@ -132,12 +151,13 @@ def self_enroll(body: SelfEnrollment, user: CurrentUser, session: Db) -> dict:
 
 @me.put("/me/availability")
 def my_availability(body: Availability, user: CurrentUser, session: Db) -> dict:
+    """Readiness needs no GPS. Coordinates are only stored with explicit consent (radius requests use them)."""
     profile = support.profile_for_user(session, user.id)
     if not body.available:
         return support.go_unavailable(session, profile.id)
-    if not body.consent_to_location_use or body.latitude is None or body.longitude is None:
-        raise error(400, "Location consent and coordinates are required to become available.")
-    return support.go_available(session, profile, body.latitude, body.longitude)
+    if body.consent_to_location_use and body.latitude is not None and body.longitude is not None:
+        return support.go_available(session, profile, body.latitude, body.longitude)
+    return support.go_available(session, profile)
 
 
 @me.post("/me/location", status_code=204)
@@ -171,4 +191,16 @@ def my_complete(request_id: str, user: CurrentUser, session: Db) -> Response:
 @me.get("/me/requests/{request_id}/photos/{index}")
 def my_photo(request_id: str, index: int, user: CurrentUser, session: Db) -> Response:
     content_type, data = support.photo_for(session, support.profile_for_user(session, user.id).id, request_id, index)
+    return Response(data, media_type=content_type, headers={"Cache-Control": "private, no-store"})
+
+
+@me.get("/me/requests/{request_id}/video-url")
+def my_video_url(request_id: str, user: CurrentUser, session: Db) -> dict:
+    """A short-lived Storage link to the scene video, or `url: null` to stream it from `/video` (local dev)."""
+    return support.video_for(session, support.profile_for_user(session, user.id).id, request_id)
+
+
+@me.get("/me/requests/{request_id}/video")
+def my_video(request_id: str, user: CurrentUser, session: Db) -> Response:
+    content_type, data = support.video_bytes(session, support.profile_for_user(session, user.id).id, request_id)
     return Response(data, media_type=content_type, headers={"Cache-Control": "private, no-store"})

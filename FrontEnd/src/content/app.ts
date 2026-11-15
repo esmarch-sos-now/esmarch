@@ -49,6 +49,7 @@ export const appPages: AppPageDef[] = [
   },
   {
     path: '/app/san-sang-ho-tro',
+    nav: 'Chế độ hỗ trợ',
     title: 'Sẵn sàng hỗ trợ'
   }
 ]
@@ -67,7 +68,7 @@ export const sosScreen = {
 export const supportCopy = {
   requester: {
     title: 'Tìm người hỗ trợ gần bạn',
-    subtitle: 'Gửi tín hiệu tới những người biết sơ cứu trong bán kính 3 km. Người nhận trợ giúp sẽ thấy vị trí, số điện thoại và ảnh bạn gửi.',
+    subtitle: 'Gửi tín hiệu tới những người hỗ trợ đã xác minh đang sẵn sàng. Họ thấy khu vực, mô tả, ảnh và video; vị trí chính xác và số điện thoại chỉ được chia sẻ với người nhận trợ giúp.',
     locating: 'Đang xác định vị trí của bạn…',
     located: 'Đã có vị trí của bạn.',
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí trong trình duyệt để gửi tín hiệu.',
@@ -80,7 +81,11 @@ export const supportCopy = {
     photo: 'Ảnh',
     addPhoto: 'Thêm ảnh',
     removePhoto: 'Xoá ảnh',
-    consent: 'Tôi đồng ý chia sẻ vị trí, số điện thoại và ảnh với người nhận trợ giúp. Thông tin sẽ được xoá khi yêu cầu kết thúc.',
+    consent: 'Tôi đồng ý chia sẻ vị trí và số điện thoại với người nhận trợ giúp, và ảnh, video với những người hỗ trợ được báo. Thông tin sẽ được xoá khi yêu cầu kết thúc.',
+    demoStart: 'Bắt đầu demo SOS',
+    demoDone: 'Kết thúc demo',
+    needDescription: 'Hãy mô tả tình huống bằng chữ hoặc ghi âm.',
+    mediaFailed: (n: number) => `Chưa gửi được ${n} tệp ảnh/video. Yêu cầu vẫn được gửi; hãy mô tả bằng chữ hoặc gọi 115 nếu khẩn cấp.`,
     send: 'Gửi tín hiệu tìm người hỗ trợ',
     needLocation: 'Chưa có vị trí của bạn. Hãy cho phép vị trí rồi thử lại.',
     badPhone: 'Số điện thoại chưa đúng.',
@@ -89,7 +94,7 @@ export const supportCopy = {
     network: 'Chưa gửi được tín hiệu. Hãy thử lại hoặc gọi 115.',
     sendingSignal: 'Đang gửi tín hiệu…',
     searching: 'Đang tìm người hỗ trợ…',
-    invited: (count: number) => (count > 0 ? `Đã báo cho ${count} người gần bạn` : 'Đang chờ người hỗ trợ gần bạn'),
+    invited: (count: number) => (count > 0 ? `Đã báo cho ${count} người hỗ trợ đang sẵn sàng` : 'Đang chờ người hỗ trợ'),
     live: 'Kết nối trực tiếp',
     connecting: 'Đang kết nối…',
     polling: 'Kết nối dự phòng (cập nhật mỗi 3 giây)',
@@ -107,7 +112,7 @@ export const supportCopy = {
       expired: 'Yêu cầu đã hết hạn.'
     },
     again: 'Gửi yêu cầu mới',
-    none: 'Hiện chưa có người hỗ trợ nào trong bán kính 3 km',
+    none: 'Hiện chưa có người hỗ trợ nào đang sẵn sàng',
     noneHint: 'Hãy gọi 115 hoặc tới cơ sở y tế gần nhất. Bạn có thể thử gửi lại sau ít phút.',
     retry: 'Thử lại',
     helperPrompt: 'Bạn biết sơ cứu và muốn giúp người khác?',
@@ -119,7 +124,7 @@ export const supportCopy = {
     signInButton: 'Đăng nhập',
     enrollTitle: 'Đăng ký làm người hỗ trợ',
     enrollHint: 'Bản demo: bạn tự khai, chưa cần xác minh chứng chỉ sơ cứu.',
-    enrollDisabled: 'Đăng ký người hỗ trợ đang tắt trên máy chủ (SUPPORT_DEMO_SELF_ENROLL).',
+    enrollDisabled: 'Tài khoản của bạn chưa được xác minh là người hỗ trợ nên chưa dùng được chế độ này.',
     name: 'Tên hiển thị',
     phone: 'Số điện thoại (người cần giúp sẽ thấy sau khi bạn nhận)',
     badPhone: 'Số điện thoại chưa đúng.',
@@ -132,7 +137,8 @@ export const supportCopy = {
     turnOff: 'Tắt',
     courseLink: 'Học khóa sơ cứu',
     locating: 'Đang xác định vị trí của bạn…',
-    locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí để nhận yêu cầu gần bạn.',
+    locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí để chia sẻ trong phiên hỗ trợ.',
+    locationPrivacy: 'Khi chờ yêu cầu, trang không lấy GPS. Vị trí chỉ được hỏi sau khi bạn nhận một yêu cầu và chỉ dùng trong phiên hỗ trợ.',
     connection: {
       open: 'Kết nối trực tiếp',
       connecting: 'Đang kết nối…',
@@ -147,6 +153,8 @@ export const supportCopy = {
     alertTitle: 'Có người cần trợ giúp',
     someone: 'Người cần trợ giúp',
     away: (d: string) => `Cách bạn khoảng ${d}`,
+    requestArea: (area: string) => `Khu vực: ${area}`,
+    previewClosed: 'Bản xem trước: chưa nhận yêu cầu thật nào.',
     photoCount: (n: number) => `${n} ảnh`,
     accept: 'Nhận',
     decline: 'Bỏ qua',

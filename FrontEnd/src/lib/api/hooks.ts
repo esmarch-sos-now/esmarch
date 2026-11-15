@@ -20,3 +20,7 @@ export function useNearbyFacilities(point: Point | null, limit = 5) {
 export function useDistricts() {
   return useSWR<string[], ApiError>("/api/districts");
 }
+
+export function useSupportAreas() {
+  return useSWR<string[], ApiError>("/api/support-areas");
+}

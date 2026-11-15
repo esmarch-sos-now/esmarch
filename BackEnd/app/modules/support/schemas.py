@@ -39,6 +39,7 @@ class CreateSupportRequest(CamelModel):
     contact_phone: str | None = None
     situation: str | None = None
     description: str | None = None
+    area: str | None = None
 
 
 class NearbyResponder(CamelModel):

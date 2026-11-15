@@ -27,13 +27,16 @@ class Responder(SQLModel, table=True):
 
 
 class Presence(SQLModel, table=True):
-    """A responder who is available now. Expires by itself (`expires_at`); coordinates never outlive it."""
+    """A responder who is available now. Expires by itself (`expires_at`); coordinates never outlive it.
+
+    Readiness needs no GPS: coordinates stay None while waiting, unless the legacy radius API sends them, and are set
+    by live updates only while helping (they are wiped again when that request ends)."""
 
     __tablename__ = "support_presence"  # pyrefly: ignore[bad-override]
 
     responder_id: str = Field(primary_key=True)
-    latitude: float
-    longitude: float
+    latitude: float | None = None
+    longitude: float | None = None
     expires_at: datetime = Field(sa_column=tstz(nullable=False, index=True))
 
 
@@ -56,6 +59,10 @@ class SupportRequest(SQLModel, table=True):
     situation: str | None = Field(default=None, max_length=60)
     description: str | None = Field(default=None, max_length=500)
     accepted_by: str | None = Field(default=None, max_length=36)
+    # Approximate incident area (district label): shown to invited responders instead of a distance.
+    area: str | None = Field(default=None, max_length=100)
+    # Content type of the scene video stored at "<id>/video"; None = no (confirmed) video.
+    video_type: str | None = Field(default=None, max_length=20)
 
 
 class SupportInvite(SQLModel, table=True):

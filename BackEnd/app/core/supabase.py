@@ -58,6 +58,44 @@ class SupabaseStorage:
         r.raise_for_status()
         return r.content
 
+    # Large files (the scene video) never pass through the backend: the browser uploads with a signed upload URL and
+    # viewers download with a short-lived signed URL. Endpoints as used by @supabase/storage-js.
+    def signed_upload(self, path: str) -> str:
+        """Token for `uploadToSignedUrl` (valid 2 hours, overwrites an earlier upload of the same path)."""
+        r = httpx.post(
+            f"{self.base}/object/upload/sign/{self.bucket}/{path}",
+            json={},
+            headers={**self.headers, "x-upsert": "true"},
+            timeout=TIMEOUT,
+        )
+        r.raise_for_status()
+        token = httpx.URL(r.json()["url"]).params.get("token")
+        if not token:
+            raise httpx.HTTPError("Storage returned no upload token")
+        return token
+
+    def info(self, path: str) -> tuple[int, str] | None:
+        """(size in bytes, content type) of a stored object, or None when it does not exist."""
+        r = httpx.get(f"{self.base}/object/info/{self.bucket}/{path}", headers=self.headers, timeout=TIMEOUT)
+        if r.status_code in (400, 404):
+            return None
+        r.raise_for_status()
+        body = r.json()
+        meta = body.get("metadata") or {}
+        size = body.get("size", meta.get("size"))
+        kind = body.get("content_type", meta.get("mimetype"))
+        return (int(size), str(kind)) if size is not None and kind else None
+
+    def signed_url(self, path: str, expires_in: int) -> str:
+        r = httpx.post(
+            f"{self.base}/object/sign/{self.bucket}/{path}",
+            json={"expiresIn": expires_in},
+            headers=self.headers,
+            timeout=TIMEOUT,
+        )
+        r.raise_for_status()
+        return f"{self.base}{r.json()['signedURL']}"
+
     def delete(self, paths: list[str]) -> None:
         if not paths:
             return

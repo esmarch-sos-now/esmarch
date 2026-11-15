@@ -30,15 +30,15 @@ function storedPlace(): string {
 
 export type PositionStatus = "idle" | "locating" | "ready" | "denied" | "unavailable";
 
-/** `enabled`: start watching (asks for permission). Returns the position (demo place or GPS) and a demo place picker. */
-export function useLivePosition(enabled: boolean) {
+/** `enabled`: start watching (asks for permission). `allowDemo` lets a screen require GPS instead of a saved demo place. */
+export function useLivePosition(enabled: boolean, allowDemo = true) {
   const [gps, setGps] = useState<Point | null>(null);
   const [status, setStatus] = useState<PositionStatus>("idle");
   const [demoPlace, setDemoPlaceState] = useState("");
 
   useEffect(() => {
-    if (DEMO_LOCATION_ENABLED) queueMicrotask(() => setDemoPlaceState(storedPlace()));
-  }, []);
+    if (DEMO_LOCATION_ENABLED && allowDemo) queueMicrotask(() => setDemoPlaceState(storedPlace()));
+  }, [allowDemo]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -68,7 +68,7 @@ export function useLivePosition(enabled: boolean) {
     }
   };
 
-  const demo = DEMO_LOCATION_ENABLED ? DEMO_PLACES.find((place) => place.id === demoPlace) : undefined;
+  const demo = DEMO_LOCATION_ENABLED && allowDemo ? DEMO_PLACES.find((place) => place.id === demoPlace) : undefined;
   const position = demo ? demo.point : gps;
   const effectiveStatus: PositionStatus = demo ? "ready" : status;
   return { position, status: effectiveStatus, demoPlace, setDemoPlace };
