@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { Bike, BookOpenCheck, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, Phone, Power, Volume2, X } from "lucide-react";
+import CourseLearning from "@/components/site/courses/course-learning";
 import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
 import Navbar from "@/components/site/landing/Navbar";
 import { Page } from "@/components/site/primitives";
@@ -47,6 +48,7 @@ export default function ResponderScreen() {
   const [offers, setOffers] = useState<ResponderRequest[]>([]);
   const [active, setActive] = useState<ResponderRequest | null>(null);
   const [notice, setNotice] = useState("");
+  const [reviewing, setReviewing] = useState(false);
   // Waiting needs no GPS: the position is only read while helping (it moves us on the requester's map).
   const { position: gpsPosition, status: positionStatus } = useLivePosition(active !== null, false);
   // Demo (requester and supporter on one computer): stand 1 km north of the GPS reading, or of the requester when this
@@ -248,12 +250,14 @@ export default function ResponderScreen() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <ConnectionChip status={socketStatus} />
-                <Link
-                  href="/app/khoa-hoc"
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand hover:text-brand [&_svg]:size-3.5"
+                <button
+                  type="button"
+                  onClick={() => setReviewing((current) => !current)}
+                  aria-expanded={reviewing}
+                  className="mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand hover:text-brand [&_svg]:size-3.5"
                 >
                   <BookOpenCheck aria-hidden="true" /> {c.courseLink}
-                </Link>
+                </button>
                 <button
                   type="button"
                   onClick={() => { unlockAlarm(); ring(); }}
@@ -266,6 +270,13 @@ export default function ResponderScreen() {
               <p className="mt-3 text-sm leading-snug text-muted-foreground">{c.locationPrivacy}</p>
               {active && positionStatus === "denied" && <p className="mt-2 text-sm text-brand">{c.locationDenied}</p>}
             </section>
+
+            {/* The courses are reviewed here (there is no public course page) */}
+            {reviewing && (
+              <section className="mt-6 rounded-2xl border border-line bg-white p-5" aria-label={c.courseLink}>
+                <CourseLearning />
+              </section>
+            )}
 
             {notice && (
               <p className="mt-4 flex items-center justify-between gap-2 rounded-xl bg-[#f4f4f5] px-4 py-2.5 text-sm text-ink" role="status">

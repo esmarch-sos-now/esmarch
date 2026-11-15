@@ -3,39 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import {
-  ArrowRight,
-  Award,
-  BookOpenCheck,
-  CheckCircle2,
-  ExternalLink,
-  Lightbulb,
-  LockKeyhole,
-  PlayCircle,
-  RotateCcw,
-  ShieldCheck,
-} from "lucide-react";
-import Navbar from "@/components/site/landing/Navbar";
-import { Page } from "@/components/site/primitives";
+import { ArrowRight, Award, BookOpenCheck, CheckCircle2, ExternalLink, Lightbulb, LockKeyhole, PlayCircle, RotateCcw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { appNav, courseCopy, formatCourseDate } from "@/content/app";
+import { courseCopy, formatCourseDate } from "@/content/app";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
 import { useSupporterProfile } from "@/hooks/use-supporter";
-import { ACCOUNT_PATH, loginUrl } from "@/lib/auth/paths";
+import { ACCOUNT_PATH } from "@/lib/auth/paths";
 import type { Course, CourseLesson, CourseOverview, CourseVideo, LessonQuiz, QuizResult } from "@/lib/courses/types";
 import { cn } from "@/lib/utils";
 
-const LOGIN_NEXT = loginUrl("/app/khoa-hoc");
-const RESPONDER_PATH = "/app/san-sang-ho-tro";
-
 const watchKey = (courseId: string, lessonId: string) => `${courseId}:${lessonId}`;
 
-// First-aid courses: open to every signed-in account. Finishing all of them is the first step to becoming a supporter;
-// then a banner leads to the application on the "Sẵn sàng hỗ trợ" page.
+// The first-aid courses, shown only inside the way to supporter mode (/app/san-sang-ho-tro): step 1 of the sign-up
+// ("Bắt đầu học"), and "Xem lại khóa học" for supporters. There is no public course page; the API needs a signed-in user.
 // Each lesson: watch the video (YouTube, Bệnh viện Hoàn Mỹ Đà Nẵng) first, then the quiz unlocks.
-export default function CourseScreen() {
+export default function CourseLearning() {
   const c = courseCopy;
-  const { user, status: sessionStatus } = useSession();
+  const { user } = useSession();
   const authFetch = useAuthFetch();
   const supporter = useSupporterProfile();
   const overview = useSWR<CourseOverview>(
@@ -69,99 +53,46 @@ export default function CourseScreen() {
       (current) => current && { ...current, courses: current.courses.map((item) => (item.id === updated.id ? updated : item)) },
       { revalidate: updated.completed },
     );
-    // A passed lesson moves the way to supporter mode (learning -> ready)
+    // A passed lesson moves the sign-up steps (progress, then learning -> ready)
     void supporter.mutate();
   };
 
   return (
-    <Page>
-      <Navbar appLinks={appNav} />
-      <main className="mx-auto w-full max-w-200 px-4 pt-8 pb-16">
-        <p className="text-xs font-bold tracking-[.14em] text-brand uppercase">{c.eyebrow}</p>
-        <h1 className="mt-1.5 text-[clamp(28px,4vw,40px)] leading-[1.15] font-black text-ink">{c.title}</h1>
-        <p className="mt-2 max-w-160 text-[16px] leading-[1.6] text-muted-foreground">{c.subtitle}</p>
+    <div className="mt-2">
+      <p className="max-w-160 text-[15px] leading-[1.6] text-muted-foreground">{c.subtitle}</p>
 
-        {sessionStatus === "loading" && <p className="mt-8 text-sm text-muted-foreground">{c.loading}</p>}
+      {overview.isLoading && <p className="mt-6 text-sm text-muted-foreground">{c.loading}</p>}
 
-        {sessionStatus === "unauthenticated" && (
-          <section className="mt-7 rounded-2xl border border-line bg-white p-6 text-center">
-            <LockKeyhole aria-hidden="true" className="mx-auto size-8 text-brand" />
-            <p className="mt-3 text-[15px] text-ink">{c.signIn}</p>
-            <Button asChild className="mt-4 rounded-full font-bold">
-              <Link href={LOGIN_NEXT}>{c.signInButton}</Link>
-            </Button>
-          </section>
-        )}
+      {overview.error && (
+        <section className="mt-6 rounded-2xl border border-line bg-white p-6">
+          <p className="text-[15px] text-ink">{c.loadFailed}</p>
+          <Button variant="outline" onClick={() => void overview.mutate()} className="mt-4 rounded-full">{c.retryLoad}</Button>
+        </section>
+      )}
 
-        {supporter.data?.status === "ready" && <ApplyBanner />}
-        {supporter.data?.status === "pending" && <PendingNotice />}
+      {overview.data && courses.length === 0 && <p className="mt-6 text-sm text-muted-foreground">{c.noCourses}</p>}
 
-        {user && overview.isLoading && <p className="mt-8 text-sm text-muted-foreground">{c.loading}</p>}
+      {course && courses.length > 1 && <CoursePicker courses={courses} selectedId={course.id} onSelect={selectCourse} />}
 
-        {user && overview.error && (
-          <section className="mt-7 rounded-2xl border border-line bg-white p-6">
-            <p className="text-[15px] text-ink">{c.loadFailed}</p>
-            <Button variant="outline" onClick={() => void overview.mutate()} className="mt-4 rounded-full">{c.retryLoad}</Button>
-          </section>
-        )}
-
-        {user && overview.data && courses.length === 0 && (
-          <p className="mt-8 text-sm text-muted-foreground">{c.noCourses}</p>
-        )}
-
-        {course && courses.length > 1 &&<CoursePicker courses={courses} selectedId={course.id} onSelect={selectCourse} />}
-
-        {course && (
-          <CourseBody
-            key={course.id}
-            course={course}
-            responderName={overview.data?.responderName ?? ""}
-            activeId={activeId}
-            onSelect={setActiveId}
-            watched={watched}
-            onWatched={(lessonId) => setWatched((current) => new Set(current).add(watchKey(course.id, lessonId)))}
-            onCourseUpdated={applyCourse}
-            onPassed={(lessonId) => {
-              // Keep the current course and lesson on screen: nextLessonId (and the default course) change once a
-              // lesson is passed.
-              setCourseId(course.id);
-              setActiveId(lessonId);
-            }}
-          />
-        )}
-      </main>
-    </Page>
-  );
-}
-
-// Every course finished: the next step is the application on the supporter page
-function ApplyBanner() {
-  const c = courseCopy;
-  return (
-    <section className="mt-7 rounded-2xl border-2 border-[#1e9e4a] bg-[#f1fbf4] p-6">
-      <div className="flex items-start gap-3">
-        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#1e9e4a] text-white" aria-hidden="true">
-          <Award className="size-5" />
-        </span>
-        <div>
-          <h2 className="text-xl font-black text-ink">{c.applyTitle}</h2>
-          <p className="mt-1.5 text-[15px] leading-[1.6] text-muted-foreground">{c.applyBody}</p>
-        </div>
-      </div>
-      <Button asChild className="mt-5 h-11 rounded-full font-bold">
-        <Link href={RESPONDER_PATH}>{c.applyAction} <ArrowRight aria-hidden="true" /></Link>
-      </Button>
-    </section>
-  );
-}
-
-function PendingNotice() {
-  const c = courseCopy;
-  return (
-    <p className="mt-7 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-[#f4f4f5] px-4 py-3 text-sm text-ink">
-      {c.pendingNotice}
-      <Link href={RESPONDER_PATH} className="font-semibold text-brand hover:underline">{c.supporterPage}</Link>
-    </p>
+      {course && (
+        <CourseBody
+          key={course.id}
+          course={course}
+          responderName={overview.data?.responderName ?? ""}
+          activeId={activeId}
+          onSelect={setActiveId}
+          watched={watched}
+          onWatched={(lessonId) => setWatched((current) => new Set(current).add(watchKey(course.id, lessonId)))}
+          onCourseUpdated={applyCourse}
+          onPassed={(lessonId) => {
+            // Keep the current course and lesson on screen: nextLessonId (and the default course) change once a
+            // lesson is passed.
+            setCourseId(course.id);
+            setActiveId(lessonId);
+          }}
+        />
+      )}
+    </div>
   );
 }
 

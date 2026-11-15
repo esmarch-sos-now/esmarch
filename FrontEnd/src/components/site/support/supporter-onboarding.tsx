@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowRight, BookOpenCheck, CheckCircle2, Clock3, Loader2, PauseCircle, Phone, Send } from "lucide-react";
+import { BookOpenCheck, CheckCircle2, ChevronUp, Clock3, Loader2, PauseCircle, Phone, PlayCircle, Send } from "lucide-react";
+import CourseLearning from "@/components/site/courses/course-learning";
 import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
 import { Button } from "@/components/ui/button";
 import { courseCopy, formatCourseDate, onboardingCopy } from "@/content/app";
@@ -11,13 +11,12 @@ import { useAuthFetch } from "@/hooks/use-auth";
 import type { SupporterProfile } from "@/hooks/use-supporter";
 import { cn } from "@/lib/utils";
 
-const COURSE_PATH = "/app/khoa-hoc";
-
 type StepState = "done" | "current" | "next";
 
 // The way to supporter mode, for a signed-in user who is not a verified supporter yet:
 // 1. finish the courses, 2. apply (account phone + commitment), 3. wait for an admin. Each step's state comes from the
-// backend's `status`, so the page cannot be talked into skipping one.
+// backend's `status`, so the page cannot be talked into skipping one. The courses live here: they open under the steps
+// when the user presses "Bắt đầu học" / "Học tiếp" (or "Xem lại khóa học" while waiting); there is no course page.
 export default function SupporterOnboarding({
   profile,
   defaultName,
@@ -28,6 +27,7 @@ export default function SupporterOnboarding({
   onChanged: (next: SupporterProfile) => void;
 }) {
   const c = onboardingCopy;
+  const [studying, setStudying] = useState(false);
   if (profile.status === "suspended") {
     return (
       <section className="mt-6 rounded-2xl border border-line bg-white p-5">
@@ -51,7 +51,7 @@ export default function SupporterOnboarding({
 
       <ol className="grid gap-3">
         <Step index={1} title={c.steps.courses} state={state(1)}>
-          {state(1) === "current" && <CoursesStep profile={profile} />}
+          {state(1) === "current" && <CoursesStep profile={profile} open={studying} onOpen={() => setStudying(true)} />}
           {state(1) === "done" && <CompletedCourseChips courses={profile.completedCourses} />}
         </Step>
         <Step index={2} title={c.steps.apply} state={state(2)}>
@@ -65,10 +65,27 @@ export default function SupporterOnboarding({
               <p className="text-sm text-muted-foreground">
                 {profile.displayName} · {formatPhone(profile.contactPhone ?? "")}
               </p>
+              {!studying && (
+                <Button variant="outline" onClick={() => setStudying(true)} className="mt-1 h-10 justify-self-start rounded-full [&_svg]:size-4">
+                  <BookOpenCheck aria-hidden="true" /> {c.reviewCourses}
+                </Button>
+              )}
             </div>
           )}
         </Step>
       </ol>
+
+      {studying && step !== 2 && (
+        <section className="border-t border-line pt-4" aria-labelledby="onboarding-courses">
+          <div className="flex items-center justify-between gap-3">
+            <h3 id="onboarding-courses" className="text-lg font-black text-ink">{c.coursesTitle}</h3>
+            <Button variant="ghost" size="sm" onClick={() => setStudying(false)} className="rounded-full text-muted-foreground">
+              <ChevronUp aria-hidden="true" /> {c.hideCourses}
+            </Button>
+          </div>
+          <CourseLearning />
+        </section>
+      )}
     </section>
   );
 }
@@ -101,7 +118,7 @@ function Step({ index, title, state, children }: { index: number; title: string;
   );
 }
 
-function CoursesStep({ profile }: { profile: SupporterProfile }) {
+function CoursesStep({ profile, open, onOpen }: { profile: SupporterProfile; open: boolean; onOpen: () => void }) {
   const c = onboardingCopy;
   const { done, total, courses } = profile.courseProgress;
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
@@ -134,11 +151,11 @@ function CoursesStep({ profile }: { profile: SupporterProfile }) {
         ))}
       </ul>
       <p className="text-xs text-muted-foreground">{c.coursesHint}</p>
-      <Button asChild className="h-11 justify-self-start rounded-full px-5 font-bold">
-        <Link href={COURSE_PATH}>
-          {done > 0 ? c.continue : c.start} <ArrowRight aria-hidden="true" />
-        </Link>
-      </Button>
+      {!open && (
+        <Button onClick={onOpen} className="h-11 justify-self-start rounded-full px-5 font-bold [&_svg]:size-4.5">
+          <PlayCircle aria-hidden="true" /> {done > 0 ? c.continue : c.start}
+        </Button>
+      )}
     </div>
   );
 }

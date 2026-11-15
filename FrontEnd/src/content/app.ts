@@ -35,13 +35,6 @@ export const appPages: AppPageDef[] = [
     description: 'Nhận dấu hiệu FAST trước camera và ghi năm động tác theo video. Bài luyện không chẩn đoán đột quỵ.'
   },
   {
-    // Courses are open to every signed-in account: finishing them is the first step to becoming a supporter
-    path: '/app/khoa-hoc',
-    nav: 'Khóa học',
-    title: 'Khóa học sơ cứu cho người hỗ trợ',
-    description: 'Video sơ cứu ngắn và câu hỏi kiểm tra dành riêng cho người đã đăng ký hỗ trợ dự án.'
-  },
-  {
     // Tìm người hỗ trợ đã có (/app/nguoi-ho-tro); phần tìm AED làm sau
     path: '/app/nguoi-ho-tro',
     nav: 'Tìm kiếm AED và người hỗ trợ',
@@ -131,7 +124,7 @@ export const supportCopy = {
     off: 'Chưa sẵn sàng',
     turnOn: 'Bật sẵn sàng',
     turnOff: 'Tắt',
-    courseLink: 'Học khóa sơ cứu',
+    courseLink: 'Xem lại khóa học',
     locating: 'Đang xác định vị trí của bạn…',
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí để chia sẻ trong phiên hỗ trợ.',
     locationPrivacy: 'Khi chờ yêu cầu, trang không lấy GPS. Vị trí chỉ được hỏi sau khi bạn nhận một yêu cầu và chỉ dùng trong phiên hỗ trợ.',
@@ -183,6 +176,8 @@ export const onboardingCopy = {
   start: 'Bắt đầu học',
   continue: 'Học tiếp',
   coursesHint: 'Mỗi bài có video và bài kiểm tra 5 câu; trả lời đúng hết để hoàn thành bài.',
+  coursesTitle: 'Khóa học sơ cứu',
+  hideCourses: 'Thu gọn',
   readyTitle: 'Bạn đã hoàn thành khóa học. Gửi đăng ký để được xác minh.',
   name: 'Tên hiển thị (người cần giúp sẽ thấy)',
   phone: 'Số điện thoại để người cần giúp gọi lại',
@@ -211,12 +206,6 @@ export const courseCopy = {
   signIn: 'Đăng nhập để học khóa sơ cứu dành cho người hỗ trợ.',
   signInButton: 'Đăng nhập',
   loading: 'Đang tải khóa học…',
-  // After every course is finished: the next step on the way to supporter mode
-  applyTitle: 'Bạn đã hoàn thành tất cả khóa học',
-  applyBody: 'Giờ bạn có thể gửi đăng ký làm người hỗ trợ. Quản trị viên sẽ xác minh trước khi bạn nhận yêu cầu.',
-  applyAction: 'Gửi đăng ký làm người hỗ trợ',
-  pendingNotice: 'Đăng ký làm người hỗ trợ của bạn đang chờ xác minh.',
-  supporterPage: 'Xem trạng thái',
   enrolledAs: (name: string) => `Bạn đang học với tư cách người hỗ trợ: ${name}`,
   progress: (done: number, total: number) => `${done}/${total} bài đã hoàn thành`,
   completed: 'Đã hoàn thành khóa học',

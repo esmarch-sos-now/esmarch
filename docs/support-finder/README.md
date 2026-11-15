@@ -66,7 +66,9 @@ Chỉ người hỗ trợ **đã được xác minh** mới dùng được chế
 - `/app/san-sang-ho-tro` là trang cần đăng nhập: người chưa đăng nhập bị chuyển về trang đăng nhập.
 - Tài khoản chưa được xác minh thấy các bước để trở thành người hỗ trợ (mục menu **"Trở thành người hỗ trợ"**; khi đã
   xác minh, mục này đổi thành **"Chế độ hỗ trợ"**):
-  1. **Hoàn thành khóa sơ cứu**: tất cả các khóa ở `/app/khoa-hoc` (mở cho mọi tài khoản đã đăng nhập). Mỗi bài có
+  1. **Hoàn thành khóa sơ cứu**: tất cả các khóa. Khóa học không có trang riêng và không nằm trên menu: nó mở ngay
+     dưới các bước khi bấm **Bắt đầu học** / **Học tiếp** (người đã xác minh xem lại bằng nút **Xem lại khóa học**).
+     `/app/khoa-hoc` chỉ còn chuyển hướng về `/app/san-sang-ho-tro`; API `/api/courses` cần đăng nhập. Mỗi bài có
      bài kiểm tra, phải đúng hết; kết quả do máy chủ ghi nhận.
   2. **Gửi đăng ký** (`POST /api/support/me/application`): tên hiển thị và ô cam kết. Số điện thoại là số đã xác minh
      của tài khoản. Máy chủ từ chối (409) nếu chưa học xong.
@@ -209,8 +211,8 @@ docker compose up -d --build        # frontend :3001, backend :8000, cơ sở d�
 
 1. Mở ứng dụng bằng **`localhost`**, không dùng `127.0.0.1`: dev server chặn địa chỉ này nên trang không tải xong và
    trình duyệt không bao giờ xin vị trí.
-2. Người hỗ trợ: đăng nhập, học hết các khóa ở `/app/khoa-hoc`, gửi đăng ký ở `/app/san-sang-ho-tro`, rồi dùng một
-   tài khoản quản trị để duyệt (khu quản trị → Người hỗ trợ → Chờ duyệt).
+2. Người hỗ trợ: đăng nhập, mở `/app/san-sang-ho-tro`, bấm **Bắt đầu học** và học hết các khóa, gửi đăng ký, rồi
+   dùng một tài khoản quản trị để duyệt (khu quản trị → Người hỗ trợ → Chờ duyệt).
 3. Người cần giúp: mở `/app/nguoi-ho-tro` ở một hồ sơ trình duyệt khác hoặc cửa sổ ẩn danh.
    - Đặt `NEXT_PUBLIC_DEMO_RESPONDERS=false` (hoặc để trống) để dùng luồng thật qua backend.
 4. Camera, micro và GPS trên điện thoại cần HTTPS: mở site qua tunnel HTTPS và thêm origin vào `CORS_ORIGINS`.
