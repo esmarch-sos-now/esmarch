@@ -1,10 +1,10 @@
 """Course access and progress.
 
-The course is closed content for registered responders: `_responder` runs before every read or write, so a signed-in
-user without a verified responder profile gets 403 and never receives lesson content. Progress rows are upserted when
-a lesson quiz is passed; the course is complete when every lesson has a row. Completed courses are also part of the
-responder's profile (`completed_courses`, used by `/api/support/me` and the requester's view of the responder), which
-needs no responder check: it only reads the user's own progress rows.
+The courses are open to every signed-in account: finishing them is the first step to becoming a responder
+(`requirement`, checked again by `/api/support/me/application`). Anonymous callers get 401 from the router. Progress
+rows are upserted when a lesson quiz is passed; a course is complete when every lesson has a row. Completed courses are
+also part of the responder's profile (`completed_courses`, used by `/api/support/me` and the requester's view of the
+responder).
 
 Quizzes are generated per attempt from the spreadsheet question bank (`quiz.py`). Attempts are not stored: `new_quiz`
 signs (user, course, lesson, nonce, bank version, expiry) into a token, and `submit_quiz` verifies it and regenerates
@@ -21,6 +21,7 @@ import logging
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import delete
 from sqlalchemy.dialects.postgresql import insert
@@ -64,6 +65,7 @@ log = logging.getLogger("app.courses")
 
 QUIZ_TOKEN_TTL_SECONDS = 2 * 3600  # time to watch the video and answer; a new quiz can always be requested
 _FALLBACK_KEY = secrets.token_hex(32)
+REQUIRED_COURSES = COURSES  # a responder finishes every course before applying
 
 SOURCE = SourceView(
     name=SOURCE_NAME,
@@ -165,14 +167,6 @@ def _finished_at(course: Course, done: dict[str, CourseProgress]) -> datetime | 
 
 @dataclass
 class CourseService:
-    def _responder(self, session: Session, user: AuthUser) -> Responder:
-        profile = session.get(Responder, user.id)
-        if profile is None:
-            raise error(403, "Khóa học chỉ dành cho người đã đăng ký làm người hỗ trợ.")
-        if not reviewed(profile.verified_at, clock.now()):
-            raise error(403, "Hồ sơ người hỗ trợ chưa được xác minh.")
-        return profile
-
     def _course(self, course_id: str) -> Course:
         course = next((c for c in COURSES if c.id == course_id), None)
         if course is None:
@@ -243,12 +237,34 @@ class CourseService:
             for at, course in finished
         ]
 
+    def requirement(self, session: Session, user_id: str) -> dict[str, Any]:
+        """Progress through the courses a responder must finish (all of them), for the onboarding steps."""
+        done = self._progress(session, user_id)
+        courses = [self._course_view(course, done.get(course.id, {})) for course in REQUIRED_COURSES]
+        return {
+            "done": sum(c.completed_lessons for c in courses),
+            "total": sum(c.lesson_count for c in courses),
+            "complete": all(c.completed for c in courses),
+            "courses": [
+                {
+                    "id": c.id,
+                    "title": c.title,
+                    "completed": c.completed,
+                    "completedLessons": c.completed_lessons,
+                    "lessonCount": c.lesson_count,
+                    "nextLessonId": c.next_lesson_id,
+                }
+                for c in courses
+            ],
+        }
+
     def overview(self, session: Session, user: AuthUser) -> CourseOverview:
-        profile = self._responder(session, user)
+        profile = session.get(Responder, user.id)
+        verified = profile is not None and reviewed(profile.verified_at, clock.now())
         done = self._progress(session, user.id)
         return CourseOverview(
-            responder_name=profile.display_name,
-            responder_skills=sorted(profile.skills),
+            responder_name=profile.display_name if profile is not None and verified else None,
+            responder_skills=sorted(profile.skills) if profile is not None and verified else [],
             courses=[self._course_view(course, done.get(course.id, {})) for course in COURSES],
             completed_courses=self._finished_courses(done),
         )
@@ -261,7 +277,6 @@ class CourseService:
         return questions
 
     def new_quiz(self, session: Session, user: AuthUser, course_id: str, lesson_id: str) -> QuizView:
-        self._responder(session, user)
         course = self._course(course_id)
         lesson = self._lesson(course, lesson_id)
         bank = _bank()
@@ -275,7 +290,6 @@ class CourseService:
     def submit_quiz(
         self, session: Session, user: AuthUser, course_id: str, lesson_id: str, token: str, answers: list[int]
     ) -> QuizResult:
-        self._responder(session, user)
         course = self._course(course_id)
         lesson = self._lesson(course, lesson_id)
         ticket = _read_token(token, user.id, course.id, lesson.id)

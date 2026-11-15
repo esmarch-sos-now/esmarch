@@ -49,11 +49,11 @@ class NearbyResponder(CamelModel):
     approximate_distance_meters: int
 
 
-class SelfEnrollment(CamelModel):
-    """Demo self-enrolment of the signed-in user as a responder (SUPPORT_DEMO_SELF_ENROLL)."""
+class ResponderApplication(CamelModel):
+    """A signed-in user's application to become a responder, after the courses. The phone is the account's own."""
 
     display_name: str | None = None
-    contact_phone: str | None = None
+    commitment: bool = False  # "I only accept a request I can really go to", ticked on the form
 
 
 class LocationUpdate(CamelModel):

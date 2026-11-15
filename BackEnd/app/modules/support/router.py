@@ -18,8 +18,8 @@ from app.modules.support.schemas import (
     Enrollment,
     LocationUpdate,
     NearbyResponder,
+    ResponderApplication,
     ResponderUpdate,
-    SelfEnrollment,
 )
 from app.modules.support.service import support
 
@@ -166,9 +166,10 @@ def my_profile(user: CurrentUser, session: Db) -> dict:
     return support.me(session, user)
 
 
-@me.post("/me")
-def self_enroll(body: SelfEnrollment, user: CurrentUser, session: Db) -> dict:
-    return support.self_enroll(session, user, body)
+@me.post("/me/application")
+def apply(body: ResponderApplication, user: CurrentUser, session: Db) -> dict:
+    """Applies to become a responder (409 until every required course is finished); an admin then verifies it."""
+    return support.apply(session, user, body)
 
 
 @me.put("/me/availability")

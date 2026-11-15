@@ -14,7 +14,6 @@ from app.modules.admin import service as admin_service
 from app.modules.admin.promote import promote
 from app.modules.auth.models import Account, Role
 from app.modules.support.models import Presence, Responder, Skill
-from app.modules.support.service import DEMO_SOURCE
 from tests.auth_tokens import bearer
 
 
@@ -43,7 +42,7 @@ def make_responder(session, account: Account) -> Responder:
         contact_phone="0912345678",
         skills=[Skill.CPR.value, Skill.FIRST_AID.value],
         verified_at=clock.now(),
-        verification_source=DEMO_SOURCE,
+        verification_source="Verified by an administrator (test fixture)",
         token_hash=tokens.hash_token(tokens.issue()),
     )
     session.add(profile)
@@ -181,13 +180,14 @@ def test_manage_responders(client, session, people):
     session.commit()
 
     [row] = client.get("/api/admin/responders", headers=headers(admin)).json()
-    assert row["id"] == an.id and row["verified"] is True and row["online"] is True
+    assert row["id"] == an.id and row["verified"] is True and row["status"] == "verified" and row["online"] is True
     assert row["account"]["phone"] == "+84912345678" and row["skills"] == ["CPR", "FIRST_AID"]
     assert client.get("/api/admin/users", params={"q": "An"}, headers=headers(admin)).json()["items"][0]["isResponder"]
 
     # suspend: off duty right away, and the responder app is refused
     r = client.patch(f"/api/admin/responders/{an.id}", json={"verified": False}, headers=headers(admin))
     assert r.status_code == 200 and r.json()["verified"] is False and r.json()["online"] is False
+    assert r.json()["status"] == "suspended"
     session.expire_all()
     assert session.get(Presence, an.id) is None
     assert client.get("/api/support/me/requests", headers=headers(an)).status_code == 403
@@ -196,7 +196,7 @@ def test_manage_responders(client, session, people):
         f"/api/admin/responders/{an.id}", json={"verified": True, "skills": ["AED"]}, headers=headers(admin)
     )
     body = r.json()
-    assert body["verified"] is True and body["skills"] == ["AED"] and body["verificationSource"] != DEMO_SOURCE
+    assert body["verified"] is True and body["status"] == "verified" and body["skills"] == ["AED"]
     assert (
         client.patch(f"/api/admin/responders/{an.id}", json={"skills": []}, headers=headers(admin)).status_code == 400
     )
