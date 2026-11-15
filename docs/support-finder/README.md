@@ -63,12 +63,18 @@ Xem trước màn hình cuộc gọi đến (không có yêu cầu thật): `/ap
 
 Chỉ người hỗ trợ **đã được xác minh** mới dùng được chế độ này:
 
-- Mục menu **"Chế độ hỗ trợ"** chỉ hiện khi tài khoản đang đăng nhập là người hỗ trợ.
-- `/app/san-sang-ho-tro` là trang cần đăng nhập: người chưa đăng nhập bị chuyển về trang đăng nhập. Tài khoản đã đăng
-  nhập nhưng chưa được xác minh chỉ thấy thông báo "chưa được xác minh" thay cho nút bật sẵn sàng.
-- Tự đăng ký làm người hỗ trợ **mặc định tắt** (`SUPPORT_DEMO_SELF_ENROLL=false`). Người hỗ trợ do quản trị viên thêm và
-  xác minh qua khu vực quản trị / `/api/admin/responders`. Công tắc tự đăng ký chỉ dành cho demo trên máy và tuyệt đối
-  không bật trên môi trường thật.
+- `/app/san-sang-ho-tro` là trang cần đăng nhập: người chưa đăng nhập bị chuyển về trang đăng nhập.
+- Tài khoản chưa được xác minh thấy các bước để trở thành người hỗ trợ (mục menu **"Trở thành người hỗ trợ"**; khi đã
+  xác minh, mục này đổi thành **"Chế độ hỗ trợ"**):
+  1. **Hoàn thành khóa sơ cứu**: tất cả các khóa ở `/app/khoa-hoc` (mở cho mọi tài khoản đã đăng nhập). Mỗi bài có
+     bài kiểm tra, phải đúng hết; kết quả do máy chủ ghi nhận.
+  2. **Gửi đăng ký** (`POST /api/support/me/application`): tên hiển thị và ô cam kết. Số điện thoại là số đã xác minh
+     của tài khoản. Máy chủ từ chối (409) nếu chưa học xong.
+  3. **Chờ xác minh**: quản trị viên duyệt ở khu quản trị → Người hỗ trợ → **Chờ duyệt** (Duyệt / Từ chối). Từ chối
+     xóa đăng ký nhưng giữ kết quả khóa học, nên có thể đăng ký lại.
+- `GET /api/support/me` trả `status`: `none`, `learning`, `ready`, `pending`, `verified` hoặc `suspended`, cùng tiến độ
+  khóa học. Chỉ `verified` mới bật sẵn sàng và nhận yêu cầu; người bị tạm ngưng không tự đăng ký lại được.
+- Người hỗ trợ dùng mã (không có tài khoản) vẫn do quản trị viên thêm qua `/api/admin/responders`.
 
 ## Quy tắc riêng tư
 
@@ -157,7 +163,6 @@ Kênh `support:responder:<user id>` và `support:request:<request id>` nhận c�
 
 | Biến | Mặc định | Ý nghĩa |
 | --- | --- | --- |
-| `SUPPORT_DEMO_SELF_ENROLL` | `false` | Cho phép mọi người dùng đã đăng nhập tự đăng ký làm người hỗ trợ. Chỉ dùng cho demo trên máy. |
 | `SUPPORT_RADIUS_METERS` | `3000` | Bán kính tìm kiếm cho yêu cầu theo toạ độ (API cũ, không có `area`). |
 | `SUPPORT_MAX_PHOTOS` | `3` | Số ảnh tối đa cho mỗi yêu cầu. |
 | `SUPPORT_PHOTO_MAX_BYTES` | `4000000` | Dung lượng ảnh tối đa (dưới giới hạn body của hàm serverless). |
@@ -204,9 +209,8 @@ docker compose up -d --build        # frontend :3001, backend :8000, cơ sở d�
 
 1. Mở ứng dụng bằng **`localhost`**, không dùng `127.0.0.1`: dev server chặn địa chỉ này nên trang không tải xong và
    trình duyệt không bao giờ xin vị trí.
-2. Người hỗ trợ: đăng nhập bằng tài khoản người hỗ trợ đã xác minh và mở `/app/san-sang-ho-tro`. Với môi trường thử tạm
-   trên máy, đặt `SUPPORT_DEMO_SELF_ENROLL=true` trong `BackEnd/.env` rồi tạo lại backend
-   (`docker compose up -d --no-deps backend`; khởi động lại thông thường không đọc lại `.env`).
+2. Người hỗ trợ: đăng nhập, học hết các khóa ở `/app/khoa-hoc`, gửi đăng ký ở `/app/san-sang-ho-tro`, rồi dùng một
+   tài khoản quản trị để duyệt (khu quản trị → Người hỗ trợ → Chờ duyệt).
 3. Người cần giúp: mở `/app/nguoi-ho-tro` ở một hồ sơ trình duyệt khác hoặc cửa sổ ẩn danh.
    - Đặt `NEXT_PUBLIC_DEMO_RESPONDERS=false` (hoặc để trống) để dùng luồng thật qua backend.
 4. Camera, micro và GPS trên điện thoại cần HTTPS: mở site qua tunnel HTTPS và thêm origin vào `CORS_ORIGINS`.

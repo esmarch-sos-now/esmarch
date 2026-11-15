@@ -28,6 +28,10 @@ export type AdminResponder = {
   verified: boolean;
   verifiedAt: string | null;
   verificationSource: string;
+  // pending = applied after the courses, waiting for an admin; suspended = taken off by an admin
+  status: "pending" | "verified" | "suspended";
+  appliedAt: string | null;
+  completedCourses: { id: string; title: string; badge: string; completedAt: string }[];
   online: boolean;
   account: { id: string; phone: string | null; email: string | null; displayName: string | null } | null;
 };

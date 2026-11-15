@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Layers, MoreHorizontal, PauseCircle, PlayCircle, Radio, Search, Trash2 } from "lucide-react";
+import { CheckCircle2, Hourglass, Layers, MoreHorizontal, PauseCircle, PlayCircle, Radio, Search, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -16,6 +16,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FormAlert } from "@/components/auth/form-fields";
 import { adminCopy } from "@/content/admin";
+import { formatCourseDate } from "@/content/app";
 import { useAdminResponders, type AdminResponder } from "@/hooks/use-admin";
 import { formatPhone } from "@/lib/auth/phone";
 import { adminErrorMessage } from "./admin-error";
@@ -24,15 +25,17 @@ import { BulkBar, Chip, Mark, ViewTabs, headCell, type Tone } from "./table-kit"
 
 const copy = adminCopy.responders;
 
-type View = "all" | "online" | "suspended";
+type View = "all" | "pending" | "online" | "suspended";
 type Pending =
   | { kind: "suspend"; responder: AdminResponder }
   | { kind: "remove"; responder: AdminResponder }
+  | { kind: "reject"; responder: AdminResponder }
   | { kind: "bulk-suspend"; ids: string[] }
   | null;
 
 const views: { value: View; label: string; icon: React.ReactNode }[] = [
   { value: "all", label: copy.views.all, icon: <Layers /> },
+  { value: "pending", label: copy.views.pending, icon: <Hourglass /> },
   { value: "online", label: copy.views.online, icon: <Radio /> },
   { value: "suspended", label: copy.views.suspended, icon: <PauseCircle /> },
 ];
@@ -41,7 +44,8 @@ const skillTones: Record<string, Tone> = { FIRST_AID: "emerald", CPR: "rose", AE
 
 function matches(responder: AdminResponder, view: View, query: string): boolean {
   if (view === "online" && !responder.online) return false;
-  if (view === "suspended" && responder.verified) return false;
+  if (view === "pending" && responder.status !== "pending") return false;
+  if (view === "suspended" && responder.status !== "suspended") return false;
   if (!query) return true;
   const q = query.toLowerCase();
   const digits = q.replace(/[\s.()-]/g, "");
@@ -116,14 +120,20 @@ export default function RespondersPanel() {
 
       {chosen.length > 0 && (
         <BulkBar label={adminCopy.bulk.selected(chosen.length)} onClear={() => setSelected(new Set())} clearLabel={adminCopy.bulk.clear}>
+          {chosen.some((r) => r.status === "pending") && (
+            <Button variant="outline" size="sm" onClick={() => run(() => update(chosen.filter((r) => r.status === "pending").map((r) => r.id), { verified: true }))}>
+              <CheckCircle2 data-icon="inline-start" />
+              {adminCopy.bulk.approve}
+            </Button>
+          )}
           {chosen.some((r) => r.verified) && (
             <Button variant="outline" size="sm" onClick={() => setPending({ kind: "bulk-suspend", ids: chosen.filter((r) => r.verified).map((r) => r.id) })}>
               <PauseCircle data-icon="inline-start" />
               {adminCopy.bulk.suspend}
             </Button>
           )}
-          {chosen.some((r) => !r.verified) && (
-            <Button variant="outline" size="sm" onClick={() => run(() => update(chosen.filter((r) => !r.verified).map((r) => r.id), { verified: true }))}>
+          {chosen.some((r) => r.status === "suspended") && (
+            <Button variant="outline" size="sm" onClick={() => run(() => update(chosen.filter((r) => r.status === "suspended").map((r) => r.id), { verified: true }))}>
               <PlayCircle data-icon="inline-start" />
               {adminCopy.bulk.reinstate}
             </Button>
@@ -181,6 +191,7 @@ export default function RespondersPanel() {
                     responder={responder}
                     onSuspend={() => setPending({ kind: "suspend", responder })}
                     onReinstate={() => run(() => update([responder.id], { verified: true }))}
+                    onReject={() => setPending({ kind: "reject", responder })}
                     onRemove={() => setPending({ kind: "remove", responder })}
                   />
                 </div>
@@ -202,14 +213,32 @@ export default function RespondersPanel() {
               </TableCell>
               <TableCell>
                 <div className="flex gap-1">
-                  {responder.verified ? <Chip tone="emerald">{copy.verified}</Chip> : <Chip tone="rose">{copy.suspended}</Chip>}
-                  {responder.online ? <Chip tone="sky">{copy.online}</Chip> : <Chip tone="gray">{copy.offline}</Chip>}
+                  {responder.status === "verified" && <Chip tone="emerald">{copy.verified}</Chip>}
+                  {responder.status === "suspended" && <Chip tone="rose">{copy.suspended}</Chip>}
+                  {responder.status === "pending" ? (
+                    <Chip tone="amber">{copy.pending}</Chip>
+                  ) : responder.online ? (
+                    <Chip tone="sky">{copy.online}</Chip>
+                  ) : (
+                    <Chip tone="gray">{copy.offline}</Chip>
+                  )}
                 </div>
+                {responder.appliedAt && <span className="mt-1 block text-xs text-muted-foreground">{copy.appliedOn(formatCourseDate(responder.appliedAt))}</span>}
               </TableCell>
               <TableCell>
-                <span className="block max-w-44 truncate text-muted-foreground" title={responder.verificationSource}>
-                  {responder.verificationSource}
-                </span>
+                {responder.completedCourses.length > 0 ? (
+                  <ul className="grid max-w-56 gap-0.5" title={responder.verificationSource}>
+                    {responder.completedCourses.map((course) => (
+                      <li key={course.id} className="truncate text-muted-foreground">
+                        {course.title} · {formatCourseDate(course.completedAt)}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="block max-w-44 truncate text-muted-foreground" title={responder.verificationSource}>
+                    {responder.account ? copy.noCourses : responder.verificationSource}
+                  </span>
+                )}
               </TableCell>
             </TableRow>
           ))}
@@ -237,6 +266,17 @@ export default function RespondersPanel() {
         }}
       />
       <ConfirmAction
+        open={pending?.kind === "reject"}
+        onOpenChange={(open) => !open && setPending(null)}
+        title={pending?.kind === "reject" ? copy.confirmReject.title(pending.responder.displayName) : ""}
+        body={copy.confirmReject.body}
+        confirm={copy.confirmReject.confirm}
+        destructive
+        onConfirm={async () => {
+          if (pending?.kind === "reject") await run(() => remove(pending.responder.id));
+        }}
+      />
+      <ConfirmAction
         open={pending?.kind === "remove"}
         onOpenChange={(open) => !open && setPending(null)}
         title={pending?.kind === "remove" ? copy.confirmRemove.title(pending.responder.displayName) : ""}
@@ -255,11 +295,13 @@ function ResponderMenu({
   responder,
   onSuspend,
   onReinstate,
+  onReject,
   onRemove,
 }: {
   responder: AdminResponder;
   onSuspend: () => void;
   onReinstate: () => void;
+  onReject: () => void;
   onRemove: () => void;
 }) {
   const menu = copy.menu;
@@ -271,22 +313,39 @@ function ResponderMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
-        {responder.verified ? (
+        {responder.status === "pending" && (
+          <>
+            <DropdownMenuItem onSelect={onReinstate}>
+              <CheckCircle2 />
+              {menu.approve}
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={onReject}>
+              <XCircle />
+              {menu.reject}
+            </DropdownMenuItem>
+          </>
+        )}
+        {responder.status === "verified" && (
           <DropdownMenuItem onSelect={onSuspend}>
             <PauseCircle />
             {menu.suspend}
           </DropdownMenuItem>
-        ) : (
+        )}
+        {responder.status === "suspended" && (
           <DropdownMenuItem onSelect={onReinstate}>
             <PlayCircle />
             {menu.reinstate}
           </DropdownMenuItem>
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={onRemove}>
-          <Trash2 />
-          {menu.remove}
-        </DropdownMenuItem>
+        {responder.status !== "pending" && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={onRemove}>
+              <Trash2 />
+              {menu.remove}
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
