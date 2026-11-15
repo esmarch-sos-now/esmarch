@@ -19,6 +19,7 @@ import { adminCopy } from "@/content/admin";
 import { formatCourseDate } from "@/content/app";
 import { useAdminResponders, type AdminResponder } from "@/hooks/use-admin";
 import { formatPhone } from "@/lib/auth/phone";
+import { cn } from "@/lib/utils";
 import { adminErrorMessage } from "./admin-error";
 import ConfirmAction from "./confirm-action";
 import { BulkBar, Chip, Mark, ViewTabs, headCell, type Tone } from "./table-kit";
@@ -199,7 +200,10 @@ export default function RespondersPanel() {
               <TableCell>{responder.contactPhone}</TableCell>
               <TableCell className="text-sky-700">
                 {responder.account ? (
-                  responder.account.phone ? formatPhone(responder.account.phone) : responder.account.email
+                  <>
+                    {responder.account.phone ? formatPhone(responder.account.phone) : responder.account.email}
+                    {responder.notifyEmail && <span className="block text-xs text-muted-foreground">{responder.notifyEmail}</span>}
+                  </>
                 ) : (
                   <span className="text-muted-foreground">{copy.noAccount}</span>
                 )}
@@ -224,6 +228,11 @@ export default function RespondersPanel() {
                   )}
                 </div>
                 {responder.appliedAt && <span className="mt-1 block text-xs text-muted-foreground">{copy.appliedOn(formatCourseDate(responder.appliedAt))}</span>}
+                {responder.status === "verified" && responder.notifyEmail && (
+                  <span className={cn("mt-0.5 block text-xs", responder.notifiedAt ? "text-muted-foreground" : "text-amber-700")}>
+                    {responder.notifiedAt ? copy.mailed : copy.notMailed}
+                  </span>
+                )}
               </TableCell>
               <TableCell>
                 {responder.completedCourses.length > 0 ? (

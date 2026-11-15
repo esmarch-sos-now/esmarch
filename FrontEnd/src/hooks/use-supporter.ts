@@ -21,12 +21,15 @@ export type SupporterProfile = {
   courseProgress: { done: number; total: number; complete: boolean; courses: RequiredCourse[] };
   completedCourses: CompletedCourse[];
   accountPhone: string | null;
+  accountEmail: string | null; // prefills the result email on the application form
   // Once the user has applied:
   displayName?: string;
   contactPhone?: string;
   skills?: string[];
   appliedAt?: string | null;
+  notifyEmail?: string | null;
   available?: boolean;
+  justVerified?: boolean; // approved since the user last looked: say so once, then POST /me/welcome
 };
 
 /** One cache entry for every screen (supporter page, courses, account card, menu): a change shows everywhere. */

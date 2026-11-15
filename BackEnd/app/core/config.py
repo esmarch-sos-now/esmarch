@@ -85,6 +85,12 @@ class Settings(BaseSettings):
     supabase_service_key: str = ""
     supabase_photo_bucket: str = "support-photos"
 
+    # Transactional email (supporter application results) through Resend; nothing is sent while the key is empty.
+    # MAIL_FROM must be on a domain verified in Resend. PUBLIC_SITE_URL is the site the emails link to.
+    resend_api_key: str = ""
+    mail_from: str = "SOS NOW <no-reply@sos-esmarch.com>"
+    public_site_url: str = "https://www.sos-esmarch.com"
+
     @model_validator(mode="after")
     def _validate(self) -> Settings:
         self.database_url = normalize_database_url(self.database_url)

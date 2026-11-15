@@ -82,6 +82,8 @@ export const adminCopy = {
     search: 'Tìm tên, số điện thoại',
     pending: 'Chờ duyệt',
     appliedOn: (date: string) => `Gửi đăng ký ${date}`,
+    mailed: 'Đã báo qua email',
+    notMailed: 'Chưa gửi được email',
     noCourses: 'Chưa hoàn thành khóa nào',
     columns: {
       name: (n: number) => `Người hỗ trợ (${n})`,

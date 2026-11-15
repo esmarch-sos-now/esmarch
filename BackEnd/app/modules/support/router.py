@@ -168,8 +168,16 @@ def my_profile(user: CurrentUser, session: Db) -> dict:
 
 @me.post("/me/application")
 def apply(body: ResponderApplication, user: CurrentUser, session: Db) -> dict:
-    """Applies to become a responder (409 until every required course is finished); an admin then verifies it."""
+    """Applies to become a responder (409 until every required course is finished); an admin then verifies it and the
+    result is emailed to the address given here."""
     return support.apply(session, user, body)
+
+
+@me.post("/me/welcome", status_code=204)
+def welcomed(user: CurrentUser, session: Db) -> Response:
+    """The user has seen "Đăng ký thành công" after being approved; `GET /me` stops reporting `justVerified`."""
+    support.welcome(session, user)
+    return Response(status_code=204)
 
 
 @me.put("/me/availability")

@@ -32,6 +32,8 @@ export type AdminResponder = {
   status: "pending" | "verified" | "suspended";
   appliedAt: string | null;
   completedCourses: { id: string; title: string; badge: string; completedAt: string }[];
+  notifyEmail: string | null; // where the application result is emailed
+  notifiedAt: string | null; // when the approval email was accepted for delivery
   online: boolean;
   account: { id: string; phone: string | null; email: string | null; displayName: string | null } | null;
 };
