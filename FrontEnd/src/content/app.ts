@@ -50,7 +50,7 @@ export const appPages: AppPageDef[] = [
 // Màn hình Nút SOS: nhấn nút mở màn Cơ sở y tế gần nhất kèm hộp xác nhận gọi 115
 export const sosScreen = {
   question: 'Bạn đang gặp nguy hiểm?',
-  hint: 'Nhấn nút bên dưới để gọi 115 và xem cơ sở y tế gần bạn nhất. Hãy bình tĩnh, trợ giúp sẽ sớm đến với bạn.',
+  hint: 'Nhấn nút bên dưới để gọi 115 và xem cơ sở y tế gần bạn nhất.',
   button: 'SOS',
   buttonLabel: 'Gọi 115 ngay',
   note: 'Cuộc gọi đến 115 hoàn toàn miễn phí.',
@@ -61,14 +61,12 @@ export const sosScreen = {
 export const supportCopy = {
   requester: {
     title: 'Tìm người hỗ trợ gần bạn',
-    subtitle: 'Gửi tín hiệu tới những người hỗ trợ đã xác minh đang sẵn sàng. Họ thấy tình huống, mô tả, ảnh và video; vị trí chính xác và số điện thoại chỉ được chia sẻ với người nhận trợ giúp.',
     locating: 'Đang xác định vị trí của bạn…',
     located: 'Đã có vị trí của bạn.',
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí trong trình duyệt để gửi tín hiệu.',
     phone: 'Số điện thoại để người hỗ trợ gọi lại',
     phoneHint: 'Chỉ người nhận trợ giúp mới thấy số này.',
     accountPhoneHint: 'Số điện thoại đã đăng ký của tài khoản. Chỉ người nhận trợ giúp mới thấy số này.',
-    situation: 'Tình huống',
     description: 'Mô tả ngắn (không bắt buộc)',
     descriptionPlaceholder: 'Ví dụ: người lớn tuổi ngã ở cổng chợ, còn thở nhưng không trả lời',
     photos: 'Ảnh hiện trường (không bắt buộc)',

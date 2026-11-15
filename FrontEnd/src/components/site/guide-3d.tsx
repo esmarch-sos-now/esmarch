@@ -1,14 +1,13 @@
 import Link from "next/link";
 import { ArrowLeft, Maximize2, Phone } from "lucide-react";
-import Navbar from "@/components/site/landing/Navbar";
-import { appNav } from "@/content/app";
+import AppNav from "@/components/site/app-nav";
 
 // Màn hình hướng dẫn 3D: nhúng file HTML độc lập vào khung sandbox (chỉ cho chạy script,
 // không cho truy cập trang chính), kèm thanh quay lại và nút gọi 115
 export default function Guide3D({ title, file }: { title: string; file: string }) {
   return (
     <div className="flex h-svh w-full max-w-screen flex-col overflow-hidden bg-paper">
-      <Navbar appLinks={appNav} />
+      <AppNav />
       <div className="flex min-w-0 flex-none items-center gap-3 border-b border-line bg-paper px-4 py-2.5 [&_svg]:size-4">
         <Link className="inline-flex flex-none items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-brand max-xs:text-[13px]" href="/app/sos">
           <ArrowLeft aria-hidden="true" /> Quay lại

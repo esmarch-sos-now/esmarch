@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Đăng nhập – SOS NOW" };
 export default async function Page({ searchParams }: PageProps<"/dang-nhap">) {
   const { next, reset } = await searchParams;
   return (
-    <AuthShell>
+    <AuthShell bare>
       <LoginForm next={safeNext(next)} notice={reset ? authCopy.login.resetDone : undefined} />
     </AuthShell>
   );

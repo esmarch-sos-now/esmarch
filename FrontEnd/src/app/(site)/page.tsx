@@ -22,7 +22,7 @@ export default function Landing() {
   return (
     // Landing nền tối đồng bộ từ Hero tới Footer
     <Page className="bg-[#111]">
-      {/* Menu của landing nằm trong Hero (HeroNav); Navbar dùng chung vẫn giữ cho các trang app */}
+      {/* Menu của landing nằm trong Hero (HeroNav); các trang app dùng thanh biểu tượng AppNav */}
       <main>
         <Hero />
         {sections.map((section) => {

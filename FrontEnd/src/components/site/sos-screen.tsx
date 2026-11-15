@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { HandHeart, Phone } from "lucide-react";
-import Navbar from "@/components/site/landing/Navbar";
+import AppNav from "@/components/site/app-nav";
 import { Page } from "@/components/site/primitives";
-import { appNav, sosScreen } from "@/content/app";
+import { sosScreen } from "@/content/app";
 
 const ring = "absolute inset-[14%] animate-sos-wave rounded-full bg-[rgba(234,84,85,.14)] motion-reduce:animate-none motion-reduce:opacity-50";
 
@@ -15,8 +15,8 @@ export default function SosScreen() {
 
   return (
     <Page>
-      <Navbar appLinks={appNav} />
-      <main className="flex min-h-[calc(100svh-68px)] flex-col items-center px-4 pt-10 pb-12 text-center max-lg:min-h-[calc(100svh-56px)]">
+      <AppNav />
+      <main className="flex min-h-[calc(100svh-152px)] flex-col items-center px-4 pt-10 pb-12 text-center max-lg:min-h-[calc(100svh-140px)]">
         <h1 className="text-[clamp(28px,4vw,44px)] leading-[1.15] font-black tracking-[-.01em] text-ink">{sosScreen.question}</h1>
         <p className="mt-3 max-w-115 text-base leading-[1.55] text-muted-foreground">{sosScreen.hint}</p>
 

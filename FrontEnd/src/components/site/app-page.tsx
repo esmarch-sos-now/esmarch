@@ -1,16 +1,16 @@
-import Navbar from "@/components/site/landing/Navbar";
+import AppNav from "@/components/site/app-nav";
 import { Page } from "@/components/site/primitives";
-import { appNav, type AppPageDef } from "@/content/app";
+import { type AppPageDef } from "@/content/app";
 import { cn } from "@/lib/utils";
 
 // Trang rỗng dùng chung: tiêu đề kèm mô tả chức năng, hoặc dòng Coming Soon với tính năng chưa làm
 export default function AppPage({ title, description, comingSoon = false }: Pick<AppPageDef, "title" | "description" | "comingSoon">) {
   return (
     <Page>
-      <Navbar appLinks={appNav} />
+      <AppNav />
       <main
         className={cn(
-          "mx-auto min-h-[calc(100vh-68px)] w-full max-w-205 px-4 pt-10 pb-16 max-lg:min-h-[calc(100vh-56px)]",
+          "mx-auto min-h-[calc(100svh-152px)] w-full max-w-205 px-4 pt-10 pb-16 max-lg:min-h-[calc(100svh-140px)]",
           comingSoon && "flex flex-col items-center justify-center text-center",
         )}
       >

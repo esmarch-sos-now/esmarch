@@ -5,14 +5,14 @@ import useSWR from "swr";
 import { Bike, BookOpenCheck, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, PartyPopper, Phone, Power, Volume2, X } from "lucide-react";
 import CourseLearning from "@/components/site/courses/course-learning";
 import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
-import Navbar from "@/components/site/landing/Navbar";
+import AppNav from "@/components/site/app-nav";
 import { Page } from "@/components/site/primitives";
 import IncomingCallOverlay from "@/components/site/support/incoming-call-overlay";
 import { previewScenePhotos } from "@/components/site/support/incoming-call-preview-photos";
 import PointMap from "@/components/site/support/point-map";
 import SupporterOnboarding, { SupporterIntroSignedOut } from "@/components/site/support/supporter-onboarding";
 import { Button } from "@/components/ui/button";
-import { appNav, courseCopy, onboardingCopy, supportCopy } from "@/content/app";
+import { courseCopy, onboardingCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
 import { useSupporterProfile } from "@/hooks/use-supporter";
@@ -222,7 +222,7 @@ export default function ResponderScreen() {
 
   return (
     <Page>
-      <Navbar appLinks={appNav} />
+      <AppNav />
       <main className="mx-auto w-full max-w-180 px-4 pt-7 pb-12">
         <h1 className="text-[clamp(26px,3.4vw,36px)] leading-[1.15] font-black text-ink">{enrolled ? c.title : onboardingCopy.title}</h1>
 

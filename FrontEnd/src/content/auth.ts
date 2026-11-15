@@ -18,7 +18,7 @@ export const authCopy = {
   },
   login: {
     title: 'Đăng nhập',
-    lede: 'Đăng nhập để lưu tiến độ khóa học và quản lý gói sử dụng.',
+    lede: 'Đăng nhập để bắt đầu',
     submit: 'Đăng nhập',
     forgot: 'Quên mật khẩu?',
     noAccount: 'Chưa có tài khoản?',
@@ -27,7 +27,7 @@ export const authCopy = {
   },
   register: {
     title: 'Đăng ký',
-    lede: 'Tạo tài khoản SOS NOW để học sơ cứu và dùng gói B2C Premium hoặc B2B.',
+    lede: 'Tạo tài khoản SOS NOW',
     submit: 'Tạo tài khoản',
     haveAccount: 'Đã có tài khoản?',
     toLogin: 'Đăng nhập'
