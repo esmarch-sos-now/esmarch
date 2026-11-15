@@ -1,0 +1,38 @@
+SOS NOW — Proprietary License
+
+Copyright (c) 2026 ESMARCH. All rights reserved.
+
+This repository is published so that it can be viewed. Publishing it does not
+make it open source. Unless ESMARCH gives you prior written permission, you
+may not:
+
+  1. copy, reproduce or redistribute the source code or any part of it;
+  2. modify it, translate it or create derivative works based on it;
+  3. use it, deploy it or run it, in whole or in part, for any commercial or
+     non-commercial purpose, including offering it as a hosted service;
+  4. sublicense, sell, rent or otherwise transfer any rights in it;
+  5. remove or alter this notice or any other copyright or proprietary notice.
+
+The only exception is that you may view and fork this repository on GitHub, to
+the extent that GitHub's Terms of Service require for public repositories. A
+fork made under that exception does not grant any of the rights listed above.
+
+Third-party material keeps its own license. This includes files that carry
+their own license notice, such as the code under Archieved/ and vendored
+libraries, and dependencies installed from package registries. This license
+does not change the terms of that material.
+
+The names "SOS NOW" and "ESMARCH" and the associated logos belong to ESMARCH.
+This license gives you no right to use them.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL ESMARCH
+BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+The first-aid content and the AI voice assistant do not replace professional
+medical care or emergency services. In a life-threatening emergency, call 115.
+
+For permission requests, contact the ESMARCH team through the repository owner
+on GitHub.
