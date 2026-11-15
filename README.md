@@ -94,6 +94,17 @@ docker compose exec backend python -m app.modules.admin.promote 0912345678
 
 Khi khóa tài khoản, backend từ chối ngay mọi request của tài khoản đó và người hỗ trợ bị đưa khỏi ca trực. Nếu có `SUPABASE_SERVICE_KEY`, Supabase cũng cấm tài khoản đăng nhập lại, và vai trò được chép vào `app_metadata` để trình duyệt chuyển tài khoản admin vào `/admin`. Bản chép này chỉ dùng để chuyển trang.
 
+## Deploy lên Vercel
+
+Hai project trên Vercel cùng trỏ vào repo này: `BackEnd` (preset FastAPI) và `FrontEnd` (Next.js), nhánh production là `main`.
+
+Migration tự chạy khi deploy: Vercel chạy `python -m app.deploy` (khai báo ở `[tool.vercel.scripts]` trong `BackEnd/pyproject.toml`) sau khi cài dependency và trước khi bản mới nhận traffic. Script chạy `alembic upgrade head` rồi nạp seed, có advisory lock để hai bản build không migrate cùng lúc. Migration lỗi thì build lỗi, bản cũ vẫn chạy.
+
+- Chỉ chạy ở bản production. Bản preview bỏ qua, để migration chưa merge không đụng vào database production (đặt `MIGRATE_ON_PREVIEW=true` nếu preview có database riêng).
+- `DATABASE_URL`: chuỗi kết nối Supabase qua transaction pooler (cổng 6543) cho runtime. `DATABASE_URL_UNPOOLED`: kết nối trực tiếp hoặc session pooler (cổng 5432) cho migration. Dán nguyên chuỗi `postgresql://...` từ Supabase là được, backend tự đổi sang driver psycopg.
+
+Docker local cũng dùng script này khi container khởi động.
+
 ## Trợ lý giọng nói (chạy được trên serverless)
 
 Âm thanh, phụ đề và các lệnh gọi công cụ của model đi thẳng giữa trình duyệt và OpenAI qua WebRTC. Máy chủ chỉ trả lời các request HTTP ngắn và không giữ kết nối nào, nên chạy được trên Vercel Functions:

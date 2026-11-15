@@ -12,7 +12,12 @@ _engine: Engine | None = None
 def get_engine() -> Engine:
     global _engine
     if _engine is None:
-        _engine = create_engine(get_settings().database_url, pool_pre_ping=True)
+        _engine = create_engine(
+            get_settings().database_url,
+            pool_pre_ping=True,
+            # Server-side prepared statements break behind a transaction pooler (Supabase :6543, PgBouncer).
+            connect_args={"prepare_threshold": None},
+        )
     return _engine
 
 

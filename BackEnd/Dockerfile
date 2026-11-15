@@ -7,4 +7,4 @@ RUN uv sync --frozen --no-install-project
 COPY . .
 EXPOSE 8000
 # Single worker: Phase 3 presence/requests live in process memory. No access log: URLs carry coordinates.
-CMD ["sh", "-c", "alembic upgrade head && python -m app.seeds && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log --reload"]
+CMD ["sh", "-c", "python -m app.deploy && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log --reload"]

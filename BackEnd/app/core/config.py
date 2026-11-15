@@ -7,6 +7,14 @@ from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def normalize_database_url(url: str) -> str:
+    """Accept the `postgres://` and `postgresql://` URLs Supabase and Vercel hand out; the app uses psycopg 3."""
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url.removeprefix(prefix)
+    return url
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
@@ -67,6 +75,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate(self) -> Settings:
+        self.database_url = normalize_database_url(self.database_url)
         if not self.origins or any("*" in origin for origin in self.origins):
             raise ValueError("Configure explicit frontend origins in CORS_ORIGINS.")
         return self
