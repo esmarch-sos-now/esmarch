@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import useSWR from "swr";
-import { Bike, BookOpenCheck, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, Phone, Power, Volume2, X } from "lucide-react";
+import { Bike, BookOpenCheck, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, PartyPopper, Phone, Power, Volume2, X } from "lucide-react";
 import CourseLearning from "@/components/site/courses/course-learning";
 import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
 import Navbar from "@/components/site/landing/Navbar";
@@ -11,9 +10,9 @@ import { Page } from "@/components/site/primitives";
 import IncomingCallOverlay from "@/components/site/support/incoming-call-overlay";
 import { previewScenePhotos } from "@/components/site/support/incoming-call-preview-photos";
 import PointMap from "@/components/site/support/point-map";
-import SupporterOnboarding from "@/components/site/support/supporter-onboarding";
+import SupporterOnboarding, { SupporterIntroSignedOut } from "@/components/site/support/supporter-onboarding";
 import { Button } from "@/components/ui/button";
-import { appNav, courseCopy, supportCopy } from "@/content/app";
+import { appNav, courseCopy, onboardingCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
 import { useSupporterProfile } from "@/hooks/use-supporter";
@@ -49,6 +48,18 @@ export default function ResponderScreen() {
   const [active, setActive] = useState<ResponderRequest | null>(null);
   const [notice, setNotice] = useState("");
   const [reviewing, setReviewing] = useState(false);
+
+  // Approved since the last visit: say "Đăng ký thành công" for this visit, and tell the server it was seen so it is
+  // not said again (on any device).
+  const [welcome, setWelcome] = useState(false);
+  const welcomed = useRef(false);
+  const justVerified = profile.data?.justVerified === true;
+  useEffect(() => {
+    if (!justVerified || welcomed.current) return;
+    welcomed.current = true;
+    queueMicrotask(() => setWelcome(true));
+    void authFetch("/api/support/me/welcome", { method: "POST" });
+  }, [justVerified, authFetch]);
   // Waiting needs no GPS: the position is only read while helping (it moves us on the requester's map).
   const { position: gpsPosition, status: positionStatus } = useLivePosition(active !== null, false);
   // Demo (requester and supporter on one computer): stand 1 km north of the GPS reading, or of the requester when this
@@ -210,12 +221,18 @@ export default function ResponderScreen() {
     <Page>
       <Navbar appLinks={appNav} />
       <main className="mx-auto w-full max-w-180 px-4 pt-7 pb-12">
-        <h1 className="text-[clamp(26px,3.4vw,36px)] leading-[1.15] font-black text-ink">{c.title}</h1>
+        <h1 className="text-[clamp(26px,3.4vw,36px)] leading-[1.15] font-black text-ink">{enrolled ? c.title : onboardingCopy.title}</h1>
 
-        {sessionStatus === "unauthenticated" && (
-          <section className="mt-6 rounded-2xl border border-line bg-white p-6 text-center">
-            <p className="text-[15px] text-ink">{c.signIn}</p>
-            <Button asChild className="mt-4 rounded-full font-bold"><Link href={LOGIN_NEXT}>{c.signInButton}</Link></Button>
+        {sessionStatus === "unauthenticated" && <SupporterIntroSignedOut loginHref={LOGIN_NEXT} />}
+
+        {enrolled && welcome && (
+          <section className="mt-6 flex items-start gap-3 rounded-2xl border-2 border-[#1e9e4a] bg-[#f1fbf4] p-5" role="status">
+            <PartyPopper aria-hidden="true" className="mt-0.5 size-6 shrink-0 text-[#1e7d3a]" />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-black text-[#145c2a]">{c.welcomeTitle}</h2>
+              <p className="mt-1 text-[15px] leading-[1.55] text-ink">{c.welcomeBody}</p>
+            </div>
+            <button type="button" onClick={() => setWelcome(false)} aria-label={c.dismiss} className="cursor-pointer text-muted-foreground"><X className="size-4" /></button>
           </section>
         )}
 

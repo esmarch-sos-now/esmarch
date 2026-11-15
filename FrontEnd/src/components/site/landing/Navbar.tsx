@@ -16,10 +16,10 @@ import Logo from './Logo'
 // Mặc định là menu cuộn tới các mục của landing; các trang app truyền `appLinks` để chuyển trang
 type AppLink = { path: string; label: string }
 
-// "Chế độ hỗ trợ" là của người hỗ trợ đã được xác minh; tài khoản khác thấy cùng trang dưới tên "Trở thành người hỗ trợ"
-// (các bước: học khóa, gửi đăng ký, chờ xác minh). Chưa đăng nhập thì không hiện.
+// Ai cũng thấy "Đăng ký làm người hỗ trợ" (kể cả khi chưa đăng nhập: trang nói điều kiện trước). Người hỗ trợ đã
+// được xác minh thấy cùng trang dưới tên "Chế độ hỗ trợ".
 const SUPPORTER_PATH = '/app/san-sang-ho-tro'
-const BECOME_SUPPORTER = 'Trở thành người hỗ trợ'
+const BECOME_SUPPORTER = 'Đăng ký làm người hỗ trợ'
 
 export default function Navbar({ appLinks }: { appLinks?: AppLink[] }) {
   const pathname = usePathname()
@@ -57,7 +57,6 @@ export default function Navbar({ appLinks }: { appLinks?: AppLink[] }) {
   const linkHover = plain ? 'hover:text-brand' : 'lg:hover:text-white hover:text-brand'
   const links = appLinks
     ? appLinks
-        .filter((link) => link.path !== SUPPORTER_PATH || supporter.data !== undefined)
         .map((link) => ({
           key: link.path,
           href: link.path,

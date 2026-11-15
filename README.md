@@ -61,6 +61,7 @@ Dùng `docker compose watch` nếu muốn container tự build lại khi đổi 
 | `SUPPORT_ADMIN_TOKEN` | `BackEnd/.env` | Bật trang quản trị người hỗ trợ (tối thiểu 32 ký tự ngẫu nhiên) |
 | `CORS_ORIGINS` | `BackEnd/.env` | Các origin được gọi API (voice kiểm tra `Origin` theo danh sách này) |
 | `SUPPORT_RADIUS_METERS` | `BackEnd/.env` | Bán kính tìm người hỗ trợ, mặc định 3000 m |
+| `RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_SITE_URL` | `BackEnd/.env` | Gửi email kết quả đăng ký người hỗ trợ qua Resend |
 | `NEXT_PUBLIC_DEMO_LOCATION` | `FrontEnd/.env` | `true`: hiện ô chọn vị trí giả lập trên trang người hỗ trợ (demo trên một máy) |
 
 Danh sách đầy đủ có trong `FrontEnd/.env.example` và `BackEnd/.env.example`.

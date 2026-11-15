@@ -63,17 +63,24 @@ Xem trước màn hình cuộc gọi đến (không có yêu cầu thật): `/ap
 
 Chỉ người hỗ trợ **đã được xác minh** mới dùng được chế độ này:
 
-- `/app/san-sang-ho-tro` là trang cần đăng nhập: người chưa đăng nhập bị chuyển về trang đăng nhập.
-- Tài khoản chưa được xác minh thấy các bước để trở thành người hỗ trợ (mục menu **"Trở thành người hỗ trợ"**; khi đã
-  xác minh, mục này đổi thành **"Chế độ hỗ trợ"**):
+- Ai cũng thấy mục menu **"Đăng ký làm người hỗ trợ"** (khi đã được xác minh, mục này đổi thành **"Chế độ hỗ trợ"**).
+  `/app/san-sang-ho-tro` không cần đăng nhập để xem: trang nói **điều kiện đăng ký** trước (tài khoản đã xác minh số
+  điện thoại, hoàn thành các khóa sơ cứu, cam kết, được quản trị viên duyệt). Người chưa đăng nhập có nút đăng nhập
+  quay lại đúng trang này; người đã đăng nhập bấm **Bắt đầu đăng ký** để vào các bước:
   1. **Hoàn thành khóa sơ cứu**: tất cả các khóa. Khóa học không có trang riêng và không nằm trên menu: nó mở ngay
      dưới các bước khi bấm **Bắt đầu học** / **Học tiếp** (người đã xác minh xem lại bằng nút **Xem lại khóa học**).
      `/app/khoa-hoc` chỉ còn chuyển hướng về `/app/san-sang-ho-tro`; API `/api/courses` cần đăng nhập. Mỗi bài có
      bài kiểm tra, phải đúng hết; kết quả do máy chủ ghi nhận.
-  2. **Gửi đăng ký** (`POST /api/support/me/application`): tên hiển thị và ô cam kết. Số điện thoại là số đã xác minh
-     của tài khoản. Máy chủ từ chối (409) nếu chưa học xong.
-  3. **Chờ xác minh**: quản trị viên duyệt ở khu quản trị → Người hỗ trợ → **Chờ duyệt** (Duyệt / Từ chối). Từ chối
-     xóa đăng ký nhưng giữ kết quả khóa học, nên có thể đăng ký lại.
+  2. **Gửi đăng ký** (`POST /api/support/me/application`): tên hiển thị, **email nhận kết quả** (chỉ hỏi ở đây;
+     tài khoản tạo bằng số điện thoại) và ô cam kết. Số điện thoại là số đã xác minh của tài khoản, không nhập lại.
+     Máy chủ từ chối (409) nếu chưa học xong.
+  3. **Chờ xác minh**: quản trị viên duyệt ở khu quản trị → Người hỗ trợ → **Chờ duyệt** (Duyệt / Từ chối).
+     - Duyệt: gửi email "Bạn đã trở thành người hỗ trợ" kèm link về trang. Lần tới người đó vào trang (máy nào cũng
+       vậy) sẽ thấy **"Đăng ký thành công!"** một lần (`justVerified`, xác nhận bằng `POST /api/support/me/welcome`)
+       và nút **Bật sẵn sàng**.
+     - Từ chối: xóa đăng ký, gửi email báo có thể đăng ký lại; kết quả khóa học vẫn được giữ.
+     - Email gửi qua Resend (`RESEND_API_KEY`, `MAIL_FROM`, `PUBLIC_SITE_URL`). Gửi lỗi hoặc chưa cấu hình thì quyết
+       định vẫn có hiệu lực; trang quản trị hiện "Chưa gửi được email".
 - `GET /api/support/me` trả `status`: `none`, `learning`, `ready`, `pending`, `verified` hoặc `suspended`, cùng tiến độ
   khóa học. Chỉ `verified` mới bật sẵn sàng và nhận yêu cầu; người bị tạm ngưng không tự đăng ký lại được.
 - Người hỗ trợ dùng mã (không có tài khoản) vẫn do quản trị viên thêm qua `/api/admin/responders`.
@@ -166,6 +173,9 @@ Kênh `support:responder:<user id>` và `support:request:<request id>` nhận c�
 | Biến | Mặc định | Ý nghĩa |
 | --- | --- | --- |
 | `SUPPORT_RADIUS_METERS` | `3000` | Bán kính tìm kiếm cho yêu cầu theo toạ độ (API cũ, không có `area`). |
+| `RESEND_API_KEY` | (trống) | Khóa Resend để gửi email kết quả đăng ký người hỗ trợ. Trống thì không gửi. |
+| `MAIL_FROM` | `SOS NOW <no-reply@sos-esmarch.com>` | Người gửi; domain phải được xác minh trong Resend. |
+| `PUBLIC_SITE_URL` | `https://www.sos-esmarch.com` | Địa chỉ trang web dùng trong link của email. |
 | `SUPPORT_MAX_PHOTOS` | `3` | Số ảnh tối đa cho mỗi yêu cầu. |
 | `SUPPORT_PHOTO_MAX_BYTES` | `4000000` | Dung lượng ảnh tối đa (dưới giới hạn body của hàm serverless). |
 | `SUPPORT_VIDEO_MAX_BYTES` | `26214400` | Dung lượng video tối đa (25 MB). |
