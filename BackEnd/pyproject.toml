@@ -43,3 +43,7 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["C408"]
+
+[tool.vercel.scripts]
+# Vercel runs this after installing dependencies, before the deployment goes live (see app/deploy.py).
+build = "python -m app.deploy"
