@@ -1,6 +1,8 @@
 // Speech -> text for the "Mô tả tình huống" box, through the local Vietnamese ASR demo service (demo/asr, Fun-ASR,
-// CPU). The audio only goes to that local service. Override the address with NEXT_PUBLIC_ASR_URL.
-const ASR_URL = process.env.NEXT_PUBLIC_ASR_URL ?? "http://127.0.0.1:7860/api/transcribe";
+// CPU). The audio only goes to that service. Voice input is shown only when NEXT_PUBLIC_ASR_URL is set (a deployed
+// site cannot reach a service on the visitor's 127.0.0.1), e.g. NEXT_PUBLIC_ASR_URL=http://127.0.0.1:7860/api/transcribe.
+const ASR_URL = process.env.NEXT_PUBLIC_ASR_URL ?? "";
+export const ASR_ENABLED = ASR_URL !== "";
 const SAMPLE_RATE = 16_000;
 
 /** MediaRecorder gives webm/ogg; the ASR service reads WAV, so decode and re-encode as 16 kHz mono PCM. */

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Mic, Square, Trash2, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { transcribeSpeech } from "@/lib/support/asr";
+import { ASR_ENABLED, transcribeSpeech } from "@/lib/support/asr";
 
 export type IncidentReport = {
   text: string;
@@ -14,8 +14,9 @@ export type IncidentReport = {
 
 export const emptyReport: IncidentReport = { text: "", audio: null, photos: [], video: null };
 
-/** The situation must be described by typing or by voice; photos and video are optional. */
-export const hasDescription = (report: IncidentReport) => report.text.trim().length > 0 || report.audio !== null;
+/** The situation must be described by typing or by voice (only where speech-to-text is set up: the recording itself
+ * stays on this device); photos and video are optional. */
+export const hasDescription = (report: IncidentReport) => report.text.trim().length > 0 || (ASR_ENABLED && report.audio !== null);
 
 const MAX_PHOTOS = 3;
 const MAX_AUDIO_SECONDS = 60;
@@ -156,7 +157,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
         <legend className="text-sm font-bold text-ink">
           Mô tả tình huống <span className="text-brand">*</span>
         </legend>
-        <p className="-mt-1 text-xs text-muted-foreground">Bắt buộc: nhập chữ hoặc ghi âm (hoặc cả hai).</p>
+        <p className="-mt-1 text-xs text-muted-foreground">{ASR_ENABLED ? "Bắt buộc: nhập chữ hoặc ghi âm (hoặc cả hai)." : "Bắt buộc."}</p>
         <textarea
           value={value.text}
           onChange={(event) => onChange({ ...value, text: event.target.value })}
@@ -165,7 +166,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
           placeholder="Ví dụ: Người lớn tuổi ngã, không trả lời, đang thở yếu…"
           className="min-h-24 resize-y rounded-xl border border-line px-3.5 py-3 text-base outline-none focus:border-brand"
         />
-        <div className="flex flex-wrap items-center gap-3">
+        {ASR_ENABLED && <div className="flex flex-wrap items-center gap-3">
           {recording ? (
             <Button type="button" onClick={stopRecording} className="h-11 rounded-full bg-brand font-bold [&_svg]:size-4">
               <Square aria-hidden="true" className="fill-current" /> Dừng ghi · {formatClock(seconds)}
@@ -185,7 +186,7 @@ export default function IncidentReportFields({ value, onChange }: { value: Incid
               <span className="size-2 animate-pulse rounded-full bg-brand motion-reduce:animate-none" /> Đang ghi âm…
             </span>
           )}
-        </div>
+        </div>}
         {value.audio && !recording && (
           <div className="flex items-center gap-2">
             <audio controls src={value.audio.url} className="h-10 min-w-0 flex-1" />
