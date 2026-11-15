@@ -20,32 +20,26 @@ import { Page } from "@/components/site/primitives";
 import { Button } from "@/components/ui/button";
 import { appNav, courseCopy, formatCourseDate } from "@/content/app";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
+import { useSupporterProfile } from "@/hooks/use-supporter";
 import { ACCOUNT_PATH, loginUrl } from "@/lib/auth/paths";
 import type { Course, CourseLesson, CourseOverview, CourseVideo, LessonQuiz, QuizResult } from "@/lib/courses/types";
 import { cn } from "@/lib/utils";
-
-type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string };
 
 const LOGIN_NEXT = loginUrl("/app/khoa-hoc");
 const RESPONDER_PATH = "/app/san-sang-ho-tro";
 
 const watchKey = (courseId: string, lessonId: string) => `${courseId}:${lessonId}`;
 
-// First-aid courses: only accounts registered as responders see the content. Others get a locked card with a link to
-// the "Sẵn sàng hỗ trợ" page; the server also answers 403, so calling the API directly does not leak the content.
+// First-aid courses: open to every signed-in account. Finishing all of them is the first step to becoming a supporter;
+// then a banner leads to the application on the "Sẵn sàng hỗ trợ" page.
 // Each lesson: watch the video (YouTube, Bệnh viện Hoàn Mỹ Đà Nẵng) first, then the quiz unlocks.
 export default function CourseScreen() {
   const c = courseCopy;
   const { user, status: sessionStatus } = useSession();
   const authFetch = useAuthFetch();
-  const profile = useSWR<Profile>(user ? "support-profile" : null, async () => {
-    const response = await authFetch("/api/support/me");
-    if (!response.ok) throw new Error(String(response.status));
-    return (await response.json()) as Profile;
-  });
-  const enrolled = profile.data?.enrolled === true;
+  const supporter = useSupporterProfile();
   const overview = useSWR<CourseOverview>(
-    user && enrolled ? `courses:${user.id}` : null,
+    user ? `courses:${user.id}` : null,
     async () => {
       const response = await authFetch("/api/courses");
       if (!response.ok) throw new Error(String(response.status));
@@ -75,6 +69,8 @@ export default function CourseScreen() {
       (current) => current && { ...current, courses: current.courses.map((item) => (item.id === updated.id ? updated : item)) },
       { revalidate: updated.completed },
     );
+    // A passed lesson moves the way to supporter mode (learning -> ready)
+    void supporter.mutate();
   };
 
   return (
@@ -97,31 +93,19 @@ export default function CourseScreen() {
           </section>
         )}
 
-        {user && profile.isLoading && <p className="mt-8 text-sm text-muted-foreground">{c.loading}</p>}
+        {supporter.data?.status === "ready" && <ApplyBanner />}
+        {supporter.data?.status === "pending" && <PendingNotice />}
 
-        {user && profile.error && (
+        {user && overview.isLoading && <p className="mt-8 text-sm text-muted-foreground">{c.loading}</p>}
+
+        {user && overview.error && (
           <section className="mt-7 rounded-2xl border border-line bg-white p-6">
             <p className="text-[15px] text-ink">{c.loadFailed}</p>
-            <Button variant="outline" onClick={() => void profile.mutate()} className="mt-4 rounded-full">{c.retryLoad}</Button>
+            <Button variant="outline" onClick={() => void overview.mutate()} className="mt-4 rounded-full">{c.retryLoad}</Button>
           </section>
         )}
 
-        {user && profile.data && !enrolled && <Locked />}
-
-        {user && enrolled && overview.isLoading && <p className="mt-8 text-sm text-muted-foreground">{c.loading}</p>}
-
-        {user && enrolled && overview.error && (
-          <section className="mt-7 rounded-2xl border border-line bg-white p-6">
-            <p className="text-[15px] text-ink">{overview.error.message === "403" ? c.lockedNotice : c.loadFailed}</p>
-            {overview.error.message === "403" ? (
-              <Button asChild className="mt-4 rounded-full font-bold"><Link href={RESPONDER_PATH}>{c.lockedAction}</Link></Button>
-            ) : (
-              <Button variant="outline" onClick={() => void overview.mutate()} className="mt-4 rounded-full">{c.retryLoad}</Button>
-            )}
-          </section>
-        )}
-
-        {user && enrolled && overview.data && courses.length === 0 && (
+        {user && overview.data && courses.length === 0 && (
           <p className="mt-8 text-sm text-muted-foreground">{c.noCourses}</p>
         )}
 
@@ -150,23 +134,34 @@ export default function CourseScreen() {
   );
 }
 
-function Locked() {
+// Every course finished: the next step is the application on the supporter page
+function ApplyBanner() {
   const c = courseCopy;
   return (
-    <section className="mt-7 rounded-2xl border-2 border-brand bg-white p-6">
+    <section className="mt-7 rounded-2xl border-2 border-[#1e9e4a] bg-[#f1fbf4] p-6">
       <div className="flex items-start gap-3">
-        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-soft text-brand" aria-hidden="true">
-          <LockKeyhole className="size-5" />
+        <span className="grid size-11 shrink-0 place-items-center rounded-full bg-[#1e9e4a] text-white" aria-hidden="true">
+          <Award className="size-5" />
         </span>
         <div>
-          <h2 className="text-xl font-black text-ink">{c.lockedTitle}</h2>
-          <p className="mt-1.5 text-[15px] leading-[1.6] text-muted-foreground">{c.lockedBody}</p>
+          <h2 className="text-xl font-black text-ink">{c.applyTitle}</h2>
+          <p className="mt-1.5 text-[15px] leading-[1.6] text-muted-foreground">{c.applyBody}</p>
         </div>
       </div>
       <Button asChild className="mt-5 h-11 rounded-full font-bold">
-        <Link href={RESPONDER_PATH}>{c.lockedAction} <ArrowRight aria-hidden="true" /></Link>
+        <Link href={RESPONDER_PATH}>{c.applyAction} <ArrowRight aria-hidden="true" /></Link>
       </Button>
     </section>
+  );
+}
+
+function PendingNotice() {
+  const c = courseCopy;
+  return (
+    <p className="mt-7 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-[#f4f4f5] px-4 py-3 text-sm text-ink">
+      {c.pendingNotice}
+      <Link href={RESPONDER_PATH} className="font-semibold text-brand hover:underline">{c.supporterPage}</Link>
+    </p>
   );
 }
 
@@ -563,7 +558,7 @@ function QuizPanel({
     // 409: the question bank changed since this quiz was issued; 400 with every question answered means the token was
     // rejected. Either way the learner needs a fresh set.
     if (status === 409 || status === 400) reload(c.quizStale);
-    else setError(status === 403 ? c.lockedNotice : c.loadFailed);
+    else setError(c.loadFailed);
   };
 
   // The grading response already carries the updated course, so the "recorded" note shows right away
@@ -582,17 +577,8 @@ function QuizPanel({
 
       {current && !quiz && (
         <div className="mt-4">
-          {current.status === 403 ? (
-            <>
-              <p className="text-[15px] text-ink" role="alert">{c.lockedNotice}</p>
-              <Button asChild className="mt-3 rounded-full font-bold"><Link href={RESPONDER_PATH}>{c.lockedAction}</Link></Button>
-            </>
-          ) : (
-            <>
-              <p className="text-[15px] text-ink" role="alert">{c.quizLoadFailed}</p>
-              <Button type="button" variant="outline" onClick={() => reload()} className="mt-3 rounded-full">{c.retryLoad}</Button>
-            </>
-          )}
+          <p className="text-[15px] text-ink" role="alert">{c.quizLoadFailed}</p>
+          <Button type="button" variant="outline" onClick={() => reload()} className="mt-3 rounded-full">{c.retryLoad}</Button>
         </div>
       )}
 
