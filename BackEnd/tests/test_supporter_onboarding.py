@@ -13,7 +13,7 @@ from tests.auth_tokens import bearer
 from tests.helpers import approve, finish_courses
 
 HERE = {"available": True, "latitude": 10.8, "longitude": 106.7, "consentToLocationUse": True}
-APPLY = {"displayName": "Hải", "commitment": True}
+APPLY = {"displayName": "Hải", "commitment": True, "email": "Hai@Example.com"}
 
 
 def user_id(email: str) -> str:

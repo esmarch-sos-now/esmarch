@@ -29,6 +29,11 @@ class Responder(SQLModel, table=True):
     token_hash: str = Field(max_length=64, unique=True)
     applied_at: datetime | None = Field(default=None, sa_column=tstz())
     suspended_at: datetime | None = Field(default=None, sa_column=tstz())
+    # Where the application result goes (asked on the application form, not the account's), when the approval email
+    # was accepted for delivery, and when the user saw the "you are a supporter now" message on the site.
+    notify_email: str | None = Field(default=None, max_length=254)
+    notified_at: datetime | None = Field(default=None, sa_column=tstz())
+    welcomed_at: datetime | None = Field(default=None, sa_column=tstz())
 
 
 class Presence(SQLModel, table=True):

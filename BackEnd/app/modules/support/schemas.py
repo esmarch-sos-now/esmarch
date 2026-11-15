@@ -53,6 +53,7 @@ class ResponderApplication(CamelModel):
     """A signed-in user's application to become a responder, after the courses. The phone is the account's own."""
 
     display_name: str | None = None
+    email: str | None = None  # where the result is sent; asked here only (accounts sign up with a phone number)
     commitment: bool = False  # "I only accept a request I can really go to", ticked on the form
 
 

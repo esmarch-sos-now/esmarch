@@ -75,7 +75,9 @@ def become_responder(client, auth: dict, user_id: str) -> dict:
     """The whole way in for a signed-in user: courses, application, admin approval. Returns `auth`."""
     assert client.get("/api/support/me", headers=auth).status_code == 200  # creates the account row
     finish_courses(user_id)
-    r = client.post("/api/support/me/application", headers=auth, json={"commitment": True})
+    r = client.post(
+        "/api/support/me/application", headers=auth, json={"commitment": True, "email": "nguoihotro@example.com"}
+    )
     assert r.status_code == 200 and r.json()["status"] == "pending", r.text
     approve(user_id)
     return auth

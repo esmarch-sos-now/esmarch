@@ -35,7 +35,7 @@ from sqlmodel import Session, col, select
 from app.common import tokens
 from app.common.checks import location, meters, need, require, reviewed, text
 from app.common.checks import nearby as check_nearby
-from app.core import clock
+from app.core import clock, mailer
 from app.core.config import get_settings
 from app.core.errors import error
 from app.core.supabase import SupabaseStorage, get_storage
@@ -63,6 +63,7 @@ PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
 VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
 VIDEO_URL_SECONDS = 300  # signed video links handed to a responder
 APPLICATION_SOURCE = "Applied after completing the courses: {courses}"
+_EMAIL = r"[^@\s]+@[^@\s]+\.[^@\s]+"
 MAX_PRESENCE = 1000
 MAX_REQUESTS = 1000
 
@@ -112,6 +113,43 @@ def _phone(value: str | None) -> str:
     phone = re.sub(r"[\s.-]", "", text(value, 30, "contact phone"))
     require(re.fullmatch(_PHONE, phone) is not None, "Invalid contact phone.")
     return phone
+
+
+def _email(value: str | None) -> str:
+    email = text(value, 254, "email").lower()
+    require(re.fullmatch(_EMAIL, email) is not None, "Email chưa đúng.")
+    return email
+
+
+def _supporter_link() -> str:
+    return f"{get_settings().public_site_url.rstrip('/')}/app/san-sang-ho-tro"
+
+
+def _mail_approved(profile: Responder) -> bool:
+    return profile.notify_email is not None and mailer.send(
+        profile.notify_email,
+        "Bạn đã trở thành người hỗ trợ của SOS NOW",
+        [
+            f"Chào {profile.display_name},",
+            "Đăng ký làm người hỗ trợ của bạn đã được duyệt. Cảm ơn bạn đã hoàn thành khóa sơ cứu và sẵn sàng giúp đỡ "
+            "người khác.",
+            'Hãy mở SOS NOW và bật "Sẵn sàng hỗ trợ" khi bạn có thể nhận yêu cầu từ người cần giúp ở gần.',
+        ],
+        ("Mở chế độ hỗ trợ", _supporter_link()),
+    )
+
+
+def _mail_rejected(email: str | None, name: str) -> bool:
+    return email is not None and mailer.send(
+        email,
+        "Kết quả đăng ký người hỗ trợ SOS NOW",
+        [
+            f"Chào {name},",
+            "Đăng ký làm người hỗ trợ của bạn chưa được duyệt lần này. Kết quả các khóa học của bạn vẫn được giữ, nên "
+            "bạn có thể gửi đăng ký lại bất cứ lúc nào.",
+        ],
+        ("Xem đăng ký", _supporter_link()),
+    )
 
 
 def _signal(session: Session, kind: str, target: str, message: dict[str, Any]) -> None:
@@ -350,9 +388,13 @@ class SupportService:
         profile = session.get(Responder, rid)
         if profile is None:
             raise error(404, "Responder not found.")
+        rejected = _profile_status(profile, clock.now()) is ResponderStatus.PENDING
+        email, name = profile.notify_email, profile.display_name  # read before the row is gone
         self.withdraw(session, rid)
         session.delete(profile)
         session.commit()
+        if rejected:  # an application turned down: tell the applicant they may apply again
+            _mail_rejected(email, name)
 
     def _admin_view(
         self, profile: Responder, account: Account | None, online: bool, completed: list[dict[str, Any]]
@@ -367,6 +409,8 @@ class SupportService:
             "status": _profile_status(profile, clock.now()),
             "appliedAt": profile.applied_at,
             "completedCourses": completed,
+            "notifyEmail": profile.notify_email,
+            "notifiedAt": profile.notified_at,
             "verificationSource": profile.verification_source,
             "online": online,
             # Self-enrolled responders share their id with the account; admin-enrolled ones have no account.
@@ -415,8 +459,14 @@ class SupportService:
             profile.suspended_at = clock.now()
             self.withdraw(session, rid)
         elif verified and not reviewed(profile.verified_at, clock.now()):
+            approving = _profile_status(profile, clock.now()) is ResponderStatus.PENDING
             profile.verified_at = clock.now()
             profile.suspended_at = None
+            if approving:
+                profile.welcomed_at = None  # the "you are a supporter now" message on the user's next visit
+                session.commit()  # approved even if the email cannot be sent
+                if _mail_approved(profile):
+                    profile.notified_at = clock.now()
         session.commit()
         online = self._presence(session, rid) is not None
         return self._admin_view(profile, session.get(Account, rid), online, _completed_courses(session, rid))
@@ -448,6 +498,7 @@ class SupportService:
         if not user.phone:
             raise error(409, "Tài khoản chưa có số điện thoại đã xác minh.")
         phone = _phone(user.phone)
+        email = _email(body.email)
         name = text((body.display_name or user.display_name or "").strip() or "Người hỗ trợ", 100, "display name")
         finished = ", ".join(
             f"{c['id']} ({c['completedAt'].date().isoformat()})" for c in _completed_courses(session, user.id)
@@ -466,6 +517,7 @@ class SupportService:
             )
             session.add(profile)
         profile.display_name, profile.contact_phone, profile.verification_source = name, phone, source
+        profile.notify_email = email
         if profile.applied_at is None:
             profile.applied_at = clock.now()
         session.commit()
@@ -488,6 +540,7 @@ class SupportService:
             "courseProgress": requirement,
             "completedCourses": _completed_courses(session, user.id),
             "accountPhone": user.phone,
+            "accountEmail": user.email or None,
         }
         if profile is not None and status in (
             ResponderStatus.PENDING,
@@ -499,9 +552,19 @@ class SupportService:
                 "contactPhone": profile.contact_phone,
                 "skills": sorted(profile.skills),
                 "appliedAt": profile.applied_at,
+                "notifyEmail": profile.notify_email,
                 "available": self._presence(session, profile.id) is not None,
+                # Approved since the user last looked: the site says so once (`welcome` records that it did).
+                "justVerified": status is ResponderStatus.VERIFIED and profile.welcomed_at is None,
             }
         return view
+
+    def welcome(self, session: Session, user: AuthUser) -> None:
+        """The user has seen the "you are a supporter now" message."""
+        profile = session.get(Responder, user.id)
+        if profile is not None and profile.welcomed_at is None:
+            profile.welcomed_at = clock.now()
+            session.commit()
 
     # ---- responders (shared core: by profile) --------------------------------------------------
     def go_available(
