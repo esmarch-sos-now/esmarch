@@ -41,7 +41,6 @@ export type RequesterState = {
   };
 };
 
-export const SITUATIONS = ["Bất tỉnh", "Khó thở", "Chảy máu", "Ngã, chấn thương", "Co giật", "Khác"] as const;
 
 export type CreatedRequest = { id: string; requesterToken: string; invitedCount: number; expiresAt: string };
 
