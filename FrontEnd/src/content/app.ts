@@ -85,7 +85,7 @@ export const supportCopy = {
     consent: 'Tôi đồng ý chia sẻ vị trí và số điện thoại với người nhận trợ giúp, và ảnh, video với những người hỗ trợ được báo. Thông tin sẽ được xoá khi yêu cầu kết thúc.',
     demoStart: 'Bắt đầu demo SOS',
     demoDone: 'Kết thúc demo',
-    needDescription: 'Hãy mô tả tình huống bằng chữ hoặc ghi âm.',
+    needDescription: 'Hãy nhập mô tả tình huống (ghi âm sẽ tự điền vào ô mô tả).',
     mediaFailed: (n: number) => `Chưa gửi được ${n} tệp ảnh/video. Yêu cầu vẫn được gửi; hãy mô tả bằng chữ hoặc gọi 115 nếu khẩn cấp.`,
     send: 'Gửi tín hiệu tìm người hỗ trợ',
     needLocation: 'Chưa có vị trí của bạn. Hãy cho phép vị trí rồi thử lại.',
