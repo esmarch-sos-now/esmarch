@@ -21,6 +21,7 @@ def test_valid_token_identifies_the_user(client):
         "phone": "+84912345678",
         "email": None,
         "displayName": "An Nguyễn",
+        "role": "USER",
     }
 
 

@@ -98,3 +98,25 @@ def broadcast(topics: list[tuple[str, dict]]) -> None:
         ).raise_for_status()
     except httpx.HTTPError:
         log.warning("realtime broadcast failed", exc_info=True)
+
+
+class AuthAdminError(Exception):
+    """Supabase Auth's admin API refused or could not be reached."""
+
+
+def update_auth_user(user_id: str, attributes: dict) -> bool:
+    """Change a Supabase Auth user with the service key (`PUT /auth/v1/admin/users/{id}`), e.g. to ban it or to put
+    its role in `app_metadata` (which only the service key can write). False when no service key is configured."""
+    s = get_settings()
+    if not (s.supabase_service_key and s.supabase_url):
+        return False
+    try:
+        httpx.put(
+            f"{s.supabase_url.rstrip('/')}/auth/v1/admin/users/{user_id}",
+            json=attributes,
+            headers={"apikey": s.supabase_service_key, "Authorization": f"Bearer {s.supabase_service_key}"},
+            timeout=TIMEOUT,
+        ).raise_for_status()
+    except httpx.HTTPError as e:
+        raise AuthAdminError("Supabase Auth admin request failed") from e
+    return True

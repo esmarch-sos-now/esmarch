@@ -12,7 +12,17 @@ export type User = {
   phone: string;
   displayName: string | null;
   createdAt: string;
+  /**
+   * "ADMIN" sends the account to /admin. Read from `app_metadata.role`, which only the backend can write (with the
+   * service key); it only decides where pages route. The backend checks the role in its database on every call.
+   */
+  role: Role;
 };
+
+export type Role = "USER" | "ADMIN";
+
+export const roleOf = (appMetadata: unknown): Role =>
+  (appMetadata as { role?: unknown } | null | undefined)?.role === "ADMIN" ? "ADMIN" : "USER";
 
 /** A failed account action. `code` is Supabase Auth's error code (e.g. "invalid_credentials") or one of ours. */
 export class AuthError extends Error {
@@ -43,6 +53,7 @@ export function toUser(user: SupabaseUser | null | undefined): User | null {
     phone: e164(user.phone),
     displayName: typeof name === "string" && name.trim() ? name : null,
     createdAt: user.created_at,
+    role: roleOf(user.app_metadata),
   };
 }
 
@@ -59,6 +70,7 @@ export const authApi = {
   login: async (phone: string, password: string) => {
     const { data, error } = await supabase().auth.signInWithPassword({ phone, password });
     if (error) fail(error);
+    introduce();
     return toUser(data.user);
   },
   /** Creates the account and texts a code. Returns the user only when the project skips phone confirmation. */
@@ -80,6 +92,7 @@ export const authApi = {
   verifyPhone: async (phone: string, code: string) => {
     const { data, error } = await supabase().auth.verifyOtp({ phone, token: code, type: "sms" });
     if (error) fail(error);
+    introduce();
     return toUser(data.user);
   },
   /** Password reset, step 1: texts a code to an existing account's number (never creates an account). */
@@ -124,6 +137,11 @@ export const authApi = {
     if (error && error.status !== 401 && error.status !== 403) fail(error); // an already-ended session is fine
   },
 };
+
+/** Lets the backend know the account (it keeps each account's role and lock, for the admin page). Best effort. */
+function introduce() {
+  void authFetch("/api/auth/me").catch(() => undefined);
+}
 
 /** The current access token, refreshed by supabase-js when it is about to expire. */
 async function accessToken(): Promise<string | null> {

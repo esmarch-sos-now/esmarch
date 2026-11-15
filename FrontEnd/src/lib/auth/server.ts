@@ -3,7 +3,8 @@
 import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import type { User } from "@/lib/auth/client";
+import { roleOf, type Role, type User } from "@/lib/auth/client";
+import { BACKEND_URL } from "@/lib/api/backend";
 import { loginUrl } from "@/lib/auth/paths";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,6 +24,7 @@ export const getSession = cache(async (): Promise<User | null> => {
     phone: phone && !phone.startsWith("+") ? `+${phone}` : phone, // Supabase stores numbers without the "+"
     displayName: typeof name === "string" && name.trim() ? name : null,
     createdAt: "",
+    role: roleOf(claims.app_metadata),
   };
 });
 
@@ -31,4 +33,27 @@ export async function requireUser(returnTo: string): Promise<User> {
   const user = await getSession();
   if (!user) redirect(loginUrl(returnTo));
   return user;
+}
+
+/**
+ * The account's role as the backend sees it (its database is the source of truth; the token's `app_metadata` copy
+ * can lag until the session refreshes). "USER" when the backend cannot be asked or refuses the token.
+ */
+export async function backendRole(): Promise<Role> {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getSession(); // the token is only passed on: the backend verifies it
+  const token = data.session?.access_token;
+  if (!token) return "USER";
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return "USER";
+    const me = (await response.json()) as { role?: unknown };
+    return me.role === "ADMIN" ? "ADMIN" : "USER";
+  } catch {
+    return "USER";
+  }
 }

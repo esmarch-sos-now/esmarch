@@ -30,6 +30,7 @@ from app.core import clock
 from app.core.config import get_settings
 from app.core.errors import error
 from app.core.supabase import get_storage
+from app.modules.auth.models import Account
 from app.modules.auth.security import AuthUser
 from app.modules.guides.schemas import Audience
 from app.modules.guides.service import catalog
@@ -49,6 +50,7 @@ REQUEST_TTL = timedelta(minutes=10)
 _PHONE = r"\+?[0-9]{8,15}"
 PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
 DEMO_SOURCE = "Demo self-enrolment (SUPPORT_DEMO_SELF_ENROLL); qualification not verified"
+ADMIN_SOURCE = "Reinstated by an administrator on the admin page"
 MAX_PRESENCE = 1000
 MAX_REQUESTS = 1000
 
@@ -81,7 +83,11 @@ def _count(session: Session, column) -> int:
 
 class SupportService:
     # ---- helpers ------------------------------------------------------------------------------
-    def _admin(self, credential: str | None) -> None:
+    def _admin(self, credential: str | None, user: AuthUser | None = None) -> None:
+        """Responder administration: a signed-in ADMIN account (role read from the database by `auth.deps`), or the
+        shared X-Admin-Token for scripts."""
+        if user is not None and user.is_admin:
+            return
         admin = get_settings().support_admin_token
         if len(admin) < 32:
             raise error(503, "Responder administration is not configured.")
@@ -236,19 +242,83 @@ class SupportService:
         session.commit()
         return {"responderId": rid, "accessToken": token, "tokenType": "Bearer", "showTokenOnce": True}
 
-    def revoke(self, session: Session, credential: str | None, rid: str) -> None:
-        self._admin(credential)
+    def withdraw(self, session: Session, rid: str) -> None:
+        """Takes a responder off duty now: no presence, no invitations, and a request it accepted is cancelled (its
+        personal data wiped). The caller commits."""
+        session.exec(delete(Presence).where(col(Presence.responder_id) == rid))
+        session.exec(delete(SupportInvite).where(col(SupportInvite.responder_id) == rid))
+        accepted = select(SupportRequest).where(
+            SupportRequest.accepted_by == rid, SupportRequest.state == State.ACCEPTED
+        )
+        for t in session.exec(accepted).all():
+            t.state = State.CANCELLED
+            self._clear(session, t)
+            _signal(session, "request", t.id, {"type": "request.cancelled", "requestId": t.id})
+        _signal(session, "responder", rid, {"type": "request.cancelled"})
+
+    def revoke(self, session: Session, credential: str | None, rid: str, user: AuthUser | None = None) -> None:
+        """Deletes a responder profile. Allowed with X-Admin-Token or as a signed-in ADMIN account (the admin page)."""
+        self._admin(credential, user)
         self.purge(session)
         profile = session.get(Responder, rid)
         if profile is None:
             raise error(404, "Responder not found.")
-        session.exec(delete(Presence).where(col(Presence.responder_id) == rid))
-        session.exec(delete(SupportInvite).where(col(SupportInvite.responder_id) == rid))
-        for t in session.exec(select(SupportRequest).where(SupportRequest.accepted_by == rid)).all():
-            t.state = State.CANCELLED
-            self._clear(session, t)
+        self.withdraw(session, rid)
         session.delete(profile)
         session.commit()
+
+    def _admin_view(self, profile: Responder, account: Account | None, online: bool) -> dict[str, Any]:
+        return {
+            "id": profile.id,
+            "displayName": profile.display_name,
+            "contactPhone": profile.contact_phone,
+            "skills": sorted(profile.skills),
+            "verified": reviewed(profile.verified_at, clock.now()),
+            "verifiedAt": profile.verified_at,
+            "verificationSource": profile.verification_source,
+            "online": online,
+            # Self-enrolled responders share their id with the account; admin-enrolled ones have no account.
+            "account": None
+            if account is None
+            else {
+                "id": account.id,
+                "phone": account.phone,
+                "email": account.email,
+                "displayName": account.display_name,
+            },
+        }
+
+    def admin_list(self, session: Session, user: AuthUser) -> list[dict[str, Any]]:
+        """Every responder profile for the admin page, with its linked account and whether it is on duty."""
+        self._admin(None, user)
+        self.purge(session)
+        profiles = session.exec(select(Responder).order_by(col(Responder.display_name))).all()
+        ids = [p.id for p in profiles]
+        if not ids:
+            return []
+        accounts = {a.id: a for a in session.exec(select(Account).where(col(Account.id).in_(ids))).all()}
+        online = set(session.exec(select(Presence.responder_id).where(col(Presence.responder_id).in_(ids))).all())
+        return [self._admin_view(p, accounts.get(p.id), p.id in online) for p in profiles]
+
+    def admin_update(
+        self, session: Session, user: AuthUser, rid: str, verified: bool | None, skills: list[Skill] | None
+    ) -> dict[str, Any]:
+        """Suspends (verified=False) or reinstates a responder, or changes its skills."""
+        self._admin(None, user)
+        profile = session.get(Responder, rid)
+        if profile is None:
+            raise error(404, "Responder not found.")
+        if skills is not None:
+            profile.skills = sorted({s.value for s in need(skills or None, "Verified skills are required.")})
+        if verified is False:
+            profile.verified_at = None
+            self.withdraw(session, rid)
+        elif verified and not reviewed(profile.verified_at, clock.now()):
+            profile.verified_at = clock.now()
+            if profile.verification_source == DEMO_SOURCE:
+                profile.verification_source = ADMIN_SOURCE
+        session.commit()
+        return self._admin_view(profile, session.get(Account, rid), self._presence(session, rid) is not None)
 
     def rotate(self, session: Session, credential: str | None, rid: str) -> dict:
         self._admin(credential)

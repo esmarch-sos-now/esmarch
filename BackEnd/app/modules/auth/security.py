@@ -31,6 +31,7 @@ class AuthUser:
     phone: str | None  # E.164 with "+", e.g. +84912345678; accounts sign in with phone number + password
     email: str | None
     display_name: str | None
+    is_admin: bool = False  # set by `deps.get_optional_user` from the `accounts` table, never from a token claim
 
 
 @lru_cache

@@ -1,7 +1,7 @@
 """drop local auth tables: accounts moved to Supabase Auth
 
 Revision ID: e3a9c71f5b20
-Revises: b7e2c4a91f03
+Revises: d8a3e5f1c2b6
 Create Date: 2026-11-15 10:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "e3a9c71f5b20"
-down_revision: str | Sequence[str] | None = "b7e2c4a91f03"
+down_revision: str | Sequence[str] | None = "d8a3e5f1c2b6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -29,19 +29,23 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Recreates the empty tables of b7e2c4a91f03; the dropped accounts themselves cannot come back.
+    # Recreates the empty tables as of d8a3e5f1c2b6; the dropped accounts themselves cannot come back.
     text = sqlmodel.sql.sqltypes.AutoString
     op.create_table(
         "users",
         sa.Column("id", text(length=36), nullable=False),
-        sa.Column("email", text(length=254), nullable=False),
+        sa.Column("email", text(length=254), nullable=True),
+        sa.Column("phone", text(length=16), nullable=True),
         sa.Column("password_hash", text(length=255), nullable=False),
         sa.Column("display_name", text(length=100), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False),
+        sa.Column("role", text(length=10), nullable=False, server_default="USER"),
         sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("phone_verified_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("email"),
+        sa.UniqueConstraint("phone", name="users_phone_key"),
     )
     op.create_table(
         "refresh_tokens",

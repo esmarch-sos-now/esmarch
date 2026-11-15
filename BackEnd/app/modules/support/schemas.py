@@ -13,6 +13,13 @@ class Enrollment(CamelModel):
     verification_source: str | None = None
 
 
+class ResponderUpdate(CamelModel):
+    """Admin page: `verified` false suspends a responder, true reinstates it; `skills` replaces its skills."""
+
+    verified: bool | None = None
+    skills: list[Skill] | None = None
+
+
 class Availability(CamelModel):
     available: bool
     latitude: float | None = None

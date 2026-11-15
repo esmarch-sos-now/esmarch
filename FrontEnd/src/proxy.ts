@@ -1,5 +1,6 @@
 // Runs before every page, RSC request and /backend call:
-//  1. Pages: refreshes the Supabase session cookies (lib/supabase/proxy.ts) and guards protected pages.
+//  1. Pages: refreshes the Supabase session cookies (lib/supabase/proxy.ts), guards protected pages and keeps ADMIN
+//     accounts inside /admin.
 //  2. /backend/*: proxies to FastAPI unchanged. The browser already sends `Authorization: Bearer <Supabase access
 //     token>` (lib/auth/client.ts authFetch) and FastAPI verifies it; cookies are dropped on the way.
 //  3. Rejects cross-origin state-changing requests to /backend and /api.

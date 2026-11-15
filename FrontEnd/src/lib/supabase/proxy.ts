@@ -1,10 +1,11 @@
 // Supabase session refresh for src/proxy.ts, from the official Supabase Next.js SSR guide
 // (https://supabase.com/docs/guides/auth/server-side/nextjs, installed via `shadcn add @supabase/supabase-client-nextjs`).
-// Changes from the stock helper: only SOS NOW's protected pages redirect to its own login page, and the cache headers
-// @supabase/ssr hands to setAll are applied so no CDN caches a response that sets session cookies.
+// Changes from the stock helper: only SOS NOW's protected pages redirect to its own login page, admin accounts are
+// kept inside /admin, and the cache headers @supabase/ssr hands to setAll are applied so no CDN caches a response
+// that sets session cookies.
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { isProtected, loginUrl } from '@/lib/auth/paths'
+import { ADMIN_PATH, isAdminPath, isProtected, loginUrl } from '@/lib/auth/paths'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -51,6 +52,16 @@ export async function updateSession(request: NextRequest) {
     // (e.g. a cleared session) and cache headers set above, as the guide requires for a new response object.
     const url = new URL(loginUrl(request.nextUrl.pathname + request.nextUrl.search), request.url)
     const redirect = NextResponse.redirect(url)
+    supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
+    Object.entries(cacheHeaders).forEach(([key, value]) => redirect.headers.set(key, value))
+    return redirect
+  }
+
+  // Admin accounts only manage: every user-facing page sends them to the admin area. The role is the backend's copy in
+  // app_metadata (only the service key writes it); it only routes pages; the backend checks the role on every call.
+  const pathname = request.nextUrl.pathname
+  if (user?.app_metadata?.role === 'ADMIN' && !isAdminPath(pathname) && !pathname.startsWith('/api/')) {
+    const redirect = NextResponse.redirect(new URL(ADMIN_PATH, request.url))
     supabaseResponse.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie))
     Object.entries(cacheHeaders).forEach(([key, value]) => redirect.headers.set(key, value))
     return redirect

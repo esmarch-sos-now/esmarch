@@ -82,6 +82,18 @@ Mọi thao tác đi qua HTTP; trạng thái nằm trong Postgres. Tín hiệu "c
 
 Giới hạn của bản web: người hỗ trợ phải đang mở trang mới nhận được tín hiệu (đóng tab hoặc tắt màn hình là mất kết nối). Nhận tín hiệu khi đã đóng tab cần Web Push, dự kiến ở giai đoạn 2.
 
+## Trang quản trị (`/admin`)
+
+Tài khoản nằm ở Supabase Auth. Backend giữ vai trò (USER/ADMIN) và trạng thái khóa của từng tài khoản trong bảng `accounts`. Một tài khoản xuất hiện ở đây sau lần đầu đăng nhập trên web. Backend kiểm tra vai trò và trạng thái khóa trong database ở mọi request, không tin claim trong token.
+
+Tạo admin đầu tiên (tài khoản phải đăng nhập trên web ít nhất một lần):
+
+```bash
+docker compose exec backend python -m app.modules.admin.promote 0912345678
+```
+
+Khi khóa tài khoản, backend từ chối ngay mọi request của tài khoản đó và người hỗ trợ bị đưa khỏi ca trực. Nếu có `SUPABASE_SERVICE_KEY`, Supabase cũng cấm tài khoản đăng nhập lại, và vai trò được chép vào `app_metadata` để trình duyệt chuyển tài khoản admin vào `/admin`. Bản chép này chỉ dùng để chuyển trang.
+
 ## Trợ lý giọng nói (chạy được trên serverless)
 
 Âm thanh, phụ đề và các lệnh gọi công cụ của model đi thẳng giữa trình duyệt và OpenAI qua WebRTC. Máy chủ chỉ trả lời các request HTTP ngắn và không giữ kết nối nào, nên chạy được trên Vercel Functions:

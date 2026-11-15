@@ -65,7 +65,7 @@ def reset_state(database):
         c.execute(
             text(
                 "TRUNCATE facility_phones, facilities, aeds, verified_responders, sos_alert, "
-                "support_presence, support_requests, voice_calls CASCADE"
+                "support_presence, support_requests, voice_calls, accounts CASCADE"
             )
         )
     catalog.invalidate()
