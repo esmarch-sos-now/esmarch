@@ -181,8 +181,10 @@ export default function ResponderScreen() {
 
   // The ringing offer's video: a short-lived Storage link (or the backend stream in local dev).
   const ringingOffer = ringing ? offers[0] : null;
-  const ringingVideo = useSWR(ringingOffer?.hasVideo ? ["support-video", ringingOffer.id] : null, () =>
-    videoSource(authFetch, ringingOffer!.id),
+  // The fetcher takes the id from the SWR key: a `ringingOffer!` here lets the React Compiler read
+  // ringingOffer.hasVideo without the null check, which crashed the page whenever nothing was ringing.
+  const ringingVideo = useSWR(ringingOffer?.hasVideo ? ["support-video", ringingOffer.id] : null, ([, id]: [string, string]) =>
+    videoSource(authFetch, id),
   );
 
   // Design preview of the incoming-call screen: /app/san-sang-ho-tro?preview=call (no real request is involved).
