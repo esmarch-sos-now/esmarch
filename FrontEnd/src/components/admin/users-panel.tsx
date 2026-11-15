@@ -19,7 +19,7 @@ import { FormAlert } from "@/components/auth/form-fields";
 import { adminCopy } from "@/content/admin";
 import { useSession } from "@/hooks/use-auth";
 import { PAGE_SIZE, useAdminUsers, type AdminUser, type Role, type UserView } from "@/hooks/use-admin";
-import { formatPhone } from "@/lib/auth/schemas";
+import { formatPhone } from "@/lib/auth/phone";
 import { adminErrorMessage } from "./admin-error";
 import ConfirmAction from "./confirm-action";
 import { BulkBar, Chip, Mark, ViewTabs, formatDate, headCell } from "./table-kit";

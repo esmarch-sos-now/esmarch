@@ -24,7 +24,7 @@ import {
 import { adminCopy } from "@/content/admin";
 import { useLogout, useSession } from "@/hooks/use-auth";
 import { ADMIN_PAGES, LOGIN_PATH } from "@/lib/auth/paths";
-import { formatPhone } from "@/lib/auth/schemas";
+import { formatPhone } from "@/lib/auth/phone";
 import { Mark } from "./table-kit";
 
 const nav = adminCopy.nav;
@@ -48,7 +48,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   const { user } = useSession();
   const logout = useLogout();
   const name = user?.displayName || adminCopy.roles.ADMIN;
-  const login = user?.phone ? formatPhone(user.phone) : user?.email;
+  const login = user?.phone ? formatPhone(user.phone) : null;
 
   async function signOut() {
     await logout.trigger({ everywhere: false }).catch(() => undefined);

@@ -10,7 +10,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useSession } from "@/hooks/use-auth";
 import { authCopy } from "@/content/auth";
 import { AuthError } from "@/lib/auth/client";
-import { SmsError, type SmsErrorCode } from "@/lib/auth/firebase";
 
 const { errors } = authCopy;
 
@@ -33,51 +32,48 @@ export function FormAlert({ error, success }: { error?: string; success?: string
   return null;
 }
 
-const smsMessages: Record<SmsErrorCode, string> = {
-  "not-configured": errors.smsNotConfigured,
-  "invalid-phone": errors.invalidPhone,
-  "invalid-code": errors.invalidCode,
-  "code-expired": errors.codeExpired,
-  "too-many-requests": errors.tooMany,
-  "quota-exceeded": errors.smsQuota,
-  "captcha-failed": errors.captchaFailed,
-  network: errors.unavailable,
-  unknown: errors.generic,
+// Supabase Auth error codes (https://supabase.com/docs/guides/auth/debugging/error-codes) plus our own.
+const MESSAGES: Record<string, string> = {
+  invalid_credentials: errors.invalidLogin,
+  phone_not_confirmed: errors.phoneNotConfirmed,
+  phone_exists: errors.phoneTaken,
+  user_already_exists: errors.phoneTaken,
+  otp_expired: errors.invalidCode, // Supabase's answer to a wrong as well as an expired code
+  otp_disabled: errors.phoneUnknown, // signInWithOtp({ shouldCreateUser: false }) for a number without an account
+  sms_send_failed: errors.smsFailed,
+  phone_provider_disabled: errors.smsDisabled,
+  validation_failed: errors.invalidPhone,
+  weak_password: errors.weakPassword,
+  same_password: errors.samePassword,
+  wrong_current_password: errors.wrongCurrent,
+  user_banned: errors.disabled,
+  over_sms_send_rate_limit: errors.tooMany,
+  over_request_rate_limit: errors.tooMany,
+  signup_disabled: errors.signupDisabled,
 };
 
-/** Maps a backend/BFF error or a Firebase SMS error to a Vietnamese message. Backend details are stable English strings. */
-export function errorMessage(error: unknown, context: "login" | "default" = "default"): string {
-  if (error instanceof SmsError) return smsMessages[error.code];
+/** Maps a Supabase Auth error to a Vietnamese message. */
+export function errorMessage(error: unknown): string {
   if (!(error instanceof AuthError)) return errors.generic;
-  if (error.detail === "Phone verification is not configured.") return errors.smsNotConfigured;
-  if (error.status === 0 || error.status >= 500) return errors.unavailable;
-  if (error.detail === "Phone number already registered.") return errors.phoneTaken;
-  if (error.detail === "No account for this phone number.") return errors.phoneUnknown;
-  if (error.detail === "Invalid or expired phone verification.") return errors.phoneSessionExpired;
+  if (MESSAGES[error.code]) return MESSAGES[error.code];
   if (error.status === 429) return errors.tooMany;
-  if (error.status === 401 && context === "login") return errors.invalidLogin;
-  if (error.detail === "Invalid or expired code.") return errors.invalidCode;
-  if (error.detail === "Invalid email address.") return errors.invalidEmail;
-  if (error.detail === "Current password is incorrect.") return errors.wrongCurrent;
-  if (error.detail === "This account is disabled.") return errors.disabled;
+  if (error.status === 0 || error.status >= 500) return errors.unavailable;
   return errors.generic;
 }
 
-/** Puts a failed submission on the matching field (by backend detail) or on the form as `root.server`. */
+/** Puts a failed submission on the matching field (by error code) or on the form as `root.server`. */
 export function reportError<T extends FieldValues>(
   setError: UseFormSetError<T>,
   error: unknown,
   fields: Partial<Record<string, FieldPath<T>>> = {},
-  context?: "login",
 ) {
-  const message = errorMessage(error, context);
-  const field = error instanceof AuthError ? fields[error.detail] : undefined;
+  const message = errorMessage(error);
+  const field = error instanceof AuthError ? fields[error.code] : undefined;
   if (field) setError(field, { type: "server", message }, { shouldFocus: true });
   else setError("root.server" as FieldPath<T>, { type: "server", message });
 }
 
-export const isUnverified = (error: unknown) =>
-  error instanceof AuthError && error.status === 403 && error.detail === "Email address is not verified.";
+export const isUnverified = (error: unknown) => error instanceof AuthError && error.code === "phone_not_confirmed";
 
 /** Login/register pages send an already signed-in visitor on to their destination. */
 export function useRedirectIfSignedIn(next: string, enabled = true) {

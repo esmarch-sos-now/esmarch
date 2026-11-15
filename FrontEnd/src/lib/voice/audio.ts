@@ -50,6 +50,10 @@ export type LineEvents = {
   onConnection: (state: LineConnection) => void;
   /** The microphone track ended on its own (device unplugged, permission revoked). */
   onMicEnded: () => void;
+  /** A message from OpenAI on the call's data channel (captions, the backend's function calls). */
+  onEvent: (raw: string) => void;
+  /** The data channel closed: the session is over (hung up, timed out or lost). */
+  onChannelClosed: () => void;
 };
 
 export type VoiceLine = {
@@ -65,15 +69,21 @@ export type VoiceLine = {
 
 /**
  * The call's audio: the microphone goes to GPT-Live and its voice comes back over one WebRTC connection (the
- * browser talks to OpenAI directly; the server only signals and runs the tools). Whether the assistant is audible
- * is measured here, since Live reports no speech events.
+ * browser talks to OpenAI directly; the server only starts the session and runs the tools). A data channel carries
+ * captions and the backend's function calls down to the page; the session refuses anything the page sends on it.
+ * Whether the assistant is audible is measured here, since Live reports no speech events.
  */
 export function openVoiceLine(
   context: AudioContext,
   stream: MediaStream,
-  { onPlayback, onConnection, onMicEnded }: LineEvents,
+  { onPlayback, onConnection, onMicEnded, onEvent, onChannelClosed }: LineEvents,
 ): VoiceLine {
   const pc = new RTCPeerConnection();
+  const channel = pc.createDataChannel("oai-events");
+  channel.onmessage = (event: MessageEvent) => {
+    if (typeof event.data === "string") onEvent(event.data);
+  };
+  channel.onclose = onChannelClosed;
   const mic = new Meter(context);
   const voice = new Meter(context);
   context.createMediaStreamSource(stream).connect(mic.input);
@@ -141,6 +151,7 @@ export function openVoiceLine(
     },
     stop: () => {
       clearInterval(poll);
+      channel.onmessage = channel.onclose = null;
       pc.removeEventListener("connectionstatechange", report);
       pc.removeEventListener("iceconnectionstatechange", report);
       for (const track of stream.getAudioTracks()) track.onended = null;

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
-import type { ConfirmationResult } from "firebase/auth";
 import type * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,35 +11,29 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Spinner } from "@/components/ui/spinner";
 import { authCopy } from "@/content/auth";
-import { AuthError } from "@/lib/auth/client";
-import { SmsError, confirmSmsCode, sendSmsCode } from "@/lib/auth/firebase";
-import { formatPhone, verifySchema } from "@/lib/auth/schemas";
-import { FormAlert, errorMessage } from "./form-fields";
+import { formatPhone } from "@/lib/auth/phone";
+import { codeSchema } from "@/lib/auth/schemas";
+import { FormAlert, errorMessage, reportError } from "./form-fields";
 
-const COOLDOWN = 60;
+const COOLDOWN = 60; // Supabase sends at most one SMS per number every 60 s by default
 const copy = authCopy.sms;
 
 /**
- * Second step of phone sign-up and password reset: enter the SMS code. Mounted right after the first code was sent
- * (so the resend cooldown starts now). `onVerified` gets the Firebase ID token proving the number; when it throws,
- * the error shows here and the token is kept so the user can retry without a new SMS.
+ * Verifies the phone number with the texted 6-digit code (sign-up, or before a password reset). Mounted right after
+ * a code was sent, so the resend cooldown starts now.
  */
 export default function SmsCodeStep({
   phone,
-  confirmation: initial,
-  recaptchaId,
-  onVerified,
+  onVerify,
+  onResend,
   onBack,
 }: {
   phone: string;
-  confirmation: ConfirmationResult;
-  recaptchaId: string;
-  onVerified: (idToken: string) => Promise<void>;
+  onVerify: (code: string) => Promise<void>;
+  onResend: () => Promise<void>;
   onBack: () => void;
 }) {
-  const form = useForm<z.infer<typeof verifySchema>>({ resolver: zodResolver(verifySchema), defaultValues: { code: "" } });
-  const [confirmation, setConfirmation] = useState(initial);
-  const [idToken, setIdToken] = useState<string | null>(null);
+  const form = useForm<z.infer<typeof codeSchema>>({ resolver: zodResolver(codeSchema), defaultValues: { code: "" } });
   const [lastSent, setLastSent] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   const [notice, setNotice] = useState<string | null>(null);
@@ -52,27 +45,21 @@ export default function SmsCodeStep({
   }, []);
   const wait = Math.max(0, COOLDOWN - Math.floor((now - lastSent) / 1000));
 
-  async function onSubmit(data: z.infer<typeof verifySchema>) {
+  async function onSubmit(data: z.infer<typeof codeSchema>) {
     setNotice(null);
     try {
-      const token = idToken ?? (await confirmSmsCode(confirmation, data.code));
-      setIdToken(token);
-      await onVerified(token);
+      await onVerify(data.code);
     } catch (error) {
-      if (error instanceof AuthError && error.status === 400) setIdToken(null); // stale proof: a new SMS is needed
-      const onCode = error instanceof SmsError && (error.code === "invalid-code" || error.code === "code-expired");
-      if (onCode) form.setError("code", { type: "server", message: errorMessage(error) }, { shouldFocus: true });
-      else form.setError("root.server", { type: "server", message: errorMessage(error) });
+      reportError(form.setError, error, { otp_expired: "code" });
     }
   }
 
-  async function onResend() {
+  async function resend() {
     form.clearErrors();
     setNotice(null);
     setResending(true);
     try {
-      setConfirmation(await sendSmsCode(phone, recaptchaId));
-      setIdToken(null);
+      await onResend();
       form.reset({ code: "" });
       setLastSent(Date.now());
       setNotice(copy.resent);
@@ -106,7 +93,6 @@ export default function SmsCodeStep({
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     autoFocus
-                    disabled={idToken !== null}
                     aria-invalid={fieldState.invalid}
                   >
                     <InputOTPGroup className="*:data-[slot=input-otp-slot]:size-11 *:data-[slot=input-otp-slot]:text-lg">
@@ -127,7 +113,7 @@ export default function SmsCodeStep({
           {copy.submit}
         </Button>
         <Field orientation="horizontal" className="justify-between">
-          <Button type="button" variant="link" className="h-auto px-0" onClick={onResend} disabled={wait > 0 || resending}>
+          <Button type="button" variant="link" className="h-auto px-0" onClick={resend} disabled={wait > 0 || resending}>
             {wait > 0 ? copy.resendIn(wait) : copy.resend}
           </Button>
           <Button type="button" variant="link" className="h-auto px-0 text-muted-foreground" onClick={onBack}>

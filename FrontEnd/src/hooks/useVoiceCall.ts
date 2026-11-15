@@ -16,11 +16,17 @@ import {
 } from "@/lib/voice/audio";
 import { assistantScreen } from "@/content/app";
 import {
-  CLOSE_UNKNOWN_CALL,
-  parseServerMessage,
-  voiceSocketUrl,
+  VoiceApiError,
+  callApi,
+  cleanCaption,
+  parseLiveEvent,
+  startCall,
+  type CallInfo,
   type CallPhase,
-  type ServerMessage,
+  type EndReason,
+  type NudgeKind,
+  type RelayedCall,
+  type ScreenMessage,
   type StepInfo,
 } from "@/lib/voice/protocol";
 
@@ -28,14 +34,16 @@ export type CallStatus = "idle" | "connecting" | "live" | "ended" | "error";
 export type Mode = "idle" | "listening" | "thinking" | "speaking";
 export type Line = { key: string; speaker: "user" | "assistant"; text: string };
 
-/** The backend keeps a dropped call for 20 s; stop retrying a little before that. */
-const RESUME_WINDOW_MS = 18_000;
-const RESUME_DELAYS_MS = [500, 1000, 2000, 4000];
 /** A WebRTC `disconnected` often heals by itself; past this it is treated as lost. */
 const ICE_GRACE_MS = 8000;
 const NOTICE_MS = 20_000;
 /** Hold-to-talk keeps the microphone open a moment after release so the last syllable is not cut. */
 const HOLD_TAIL_MS = 300;
+/** After the hand-over: end once the assistant has been quiet this long, or after HANDOFF_MAX_MS at the latest. */
+const HANDOFF_QUIET_MS = 1500;
+const HANDOFF_MAX_MS = 25_000;
+/** How often the silence timer looks (the server decides whether a check-in is really due). */
+const CHECKIN_POLL_MS = 2000;
 
 // Noisy-place heuristic: a heuristic to be tuned on real devices, not a measurement. Normal speech has gaps, so a
 // level that stays high for most of a window means a crowd or machinery, not one person talking. The level is read
@@ -63,27 +71,37 @@ export type TalkMode = "open" | "hold";
 
 /** Everything imperative about one call. Lives in a ref: none of it is rendered. */
 type Runtime = {
-  /** Replaced on every resume; null between a drop and the next attempt. */
-  ws: WebSocket | null;
-  /** Credential for resuming the call: kept here only, never rendered or logged. */
-  callId: string | null;
+  /** The call and its credential, once the server has started it. */
+  call: CallInfo | null;
   context: AudioContext;
   line: VoiceLine;
   ready: boolean;
   /** The call is over and released (by us, the server or a failure): every handler must ignore events from now on. */
   closedByUs: boolean;
-  socketDown: boolean;
   iceDown: boolean;
-  attempt: number;
+  /** Function calls of the backend response in progress, relayed together when it completes. */
+  pendingCalls: RelayedCall[];
+  /** Relays go out one after another, in order. */
+  relays: Promise<void>;
+  /** The hand-over was given: the call ends once it has been spoken. */
+  handedOff: boolean;
+  /** Last time anyone spoke or the backend acted (silence timer for check-ins). */
+  lastActivity: number;
+  /** Caption being built per speaker; a new one starts when the other side speaks. */
+  caption: { speaker: "user" | "assistant" | null; index: number; raw: string };
   timers: {
-    retry?: ReturnType<typeof setTimeout>;
-    giveUp?: ReturnType<typeof setTimeout>;
     ice?: ReturnType<typeof setTimeout>;
     notice?: ReturnType<typeof setTimeout>;
     /** Pending mute after a hold-to-talk release. */
     release?: ReturnType<typeof setTimeout>;
     /** Interval sampling the mic level for the noisy-place hint (cleared with clearTimeout like the rest). */
     noise?: ReturnType<typeof setInterval>;
+    heartbeat?: ReturnType<typeof setInterval>;
+    checkin?: ReturnType<typeof setInterval>;
+    warning?: ReturnType<typeof setTimeout>;
+    limit?: ReturnType<typeof setTimeout>;
+    handoffQuiet?: ReturnType<typeof setTimeout>;
+    handoffMax?: ReturnType<typeof setTimeout>;
   };
   /** What the server actually hears (mirrors the `micOn` state); always derived by `applyMic`. */
   micOn: boolean;
@@ -118,7 +136,7 @@ const meters = {
 };
 
 const stepOf = (
-  message: Extract<ServerMessage, { type: "step" }>,
+  message: Extract<ScreenMessage, { type: "step" }>,
 ): StepInfo => ({
   guideId: message.guideId,
   file: message.file,
@@ -138,6 +156,8 @@ function friendly(error: unknown): string {
   }
   if (error instanceof DOMException && error.name === "NotFoundError")
     return "Không tìm thấy micro trên thiết bị.";
+  if (error instanceof VoiceApiError && (error.status === 503 || error.status === 429))
+    return "Chưa kết nối được trợ lý (đang bận hoặc chưa sẵn sàng). Nếu khẩn cấp, hãy gọi 115 ngay.";
   return "Không mở được cuộc gọi. Nếu khẩn cấp, hãy gọi 115 ngay.";
 }
 
@@ -145,24 +165,15 @@ type Outcome = {
   status: "ended" | "error";
   error?: string;
   notice?: string;
-  /** Tell the server we are leaving (only possible while the socket is open). */
-  stop?: boolean;
+  /** Tell the server the call is over (it hangs up the paid session), with this reason. */
+  end?: EndReason;
 };
 
-/** What the user is told for each reason the server gives when it ends the call. */
-function outcomeOf(reason: string): Outcome {
-  if (reason === "completed" || reason === "stopped")
-    return { status: "ended" };
-  if (reason === "time_limit")
-    return { status: "ended", notice: assistantScreen.timeLimit };
-  // error, session_ended, no_offer, disconnected and anything unknown: never look like a normal end.
-  return { status: "error", error: assistantScreen.problem };
-}
-
 /**
- * One voice call with the first-aid assistant: microphone -> WebSocket -> realtime model -> assistant voice.
+ * One voice call with the first-aid assistant: microphone -> GPT-Live (WebRTC) -> assistant voice, with the
+ * backend's tools run by our server over HTTP.
  * `frameRef` is the iframe of the 3D guide the assistant opens (it narrates itself and reports its own steps).
- * `onLive` runs once each time the call goes live (the server's `ready`), for UI that should react to that moment.
+ * `onLive` runs once when the call goes live, for UI that should react to that moment.
  */
 export function useVoiceCall(
   frameRef: RefObject<HTMLIFrameElement | null>,
@@ -216,24 +227,16 @@ export function useVoiceCall(
   }, [postStep]);
 
   /** Release everything of a call, exactly once (later calls are no-ops). */
-  const teardown = useCallback((rt: Runtime) => {
+  const teardown = useCallback((rt: Runtime, end?: EndReason) => {
     if (rt.closedByUs) return;
     rt.closedByUs = true;
     for (const timer of Object.values(rt.timers)) clearTimeout(timer);
     rt.timers = {};
     rt.line.stop();
     active.user = active.assistant = null;
-    const ws = rt.ws;
-    rt.ws = null;
-    if (ws) {
-      // Detach first: the close we cause must not look like a drop.
-      ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
-      try {
-        ws.close();
-      } catch {
-        // already closed
-      }
-    }
+    // Ask the server to hang up the paid session (it also does so by itself once heartbeats stop).
+    if (end && rt.call)
+      void callApi(rt.call, "/end", { reason: end }, { keepalive: true }).catch(() => {});
     void rt.context.close().catch(() => {});
     if (runtime.current === rt) runtime.current = null;
   }, []);
@@ -242,9 +245,7 @@ export function useVoiceCall(
   const finish = useCallback(
     (rt: Runtime, outcome: Outcome) => {
       if (rt.closedByUs) return;
-      if (outcome.stop && rt.ws?.readyState === WebSocket.OPEN)
-        rt.ws.send(JSON.stringify({ type: "stop" }));
-      teardown(rt);
+      teardown(rt, outcome.end);
       setStatus(outcome.status);
       setError(outcome.error ?? null);
       setNotice(outcome.notice ?? null);
@@ -262,161 +263,140 @@ export function useVoiceCall(
     setMicOn(heard);
   }, []);
 
-  const syncReconnecting = (rt: Runtime) =>
-    setReconnecting(rt.socketDown || rt.iceDown);
+  const showNotice = useCallback((rt: Runtime, text: string) => {
+    setNotice(text);
+    clearTimeout(rt.timers.notice);
+    rt.timers.notice = setTimeout(() => setNotice(null), NOTICE_MS);
+  }, []);
 
-  const handle = useCallback(
-    (rt: Runtime, message: ServerMessage) => {
-      switch (message.type) {
-        case "answer":
-          if (typeof message.callId === "string") rt.callId = message.callId;
-          void rt.line.accept(message.sdp).catch(() =>
-            finish(rt, {
-              status: "error",
-              error:
-                "Không mở được kênh âm thanh. Nếu khẩn cấp, hãy gọi 115 ngay.",
-              stop: true,
-            }),
-          );
-          break;
-        case "ready":
-          rt.ready = true;
-          setStatus("live");
-          setMode("listening");
-          onLiveRef.current?.();
-          break;
-        case "resumed":
-          clearTimeout(rt.timers.retry);
-          clearTimeout(rt.timers.giveUp);
-          rt.timers.retry = rt.timers.giveUp = undefined;
-          rt.attempt = 0;
-          rt.socketDown = false;
-          syncReconnecting(rt);
-          break;
-        case "transcript": {
-          const text = message.text.trim();
+  /** After the hand-over has been spoken (the assistant fell quiet), the call ends by itself. */
+  const scheduleHandoffEnd = useCallback(
+    (rt: Runtime) => {
+      clearTimeout(rt.timers.handoffQuiet);
+      if (!rt.handedOff || rt.playing) return;
+      rt.timers.handoffQuiet = setTimeout(
+        () => finish(rt, { status: "ended", end: "completed" }),
+        HANDOFF_QUIET_MS,
+      );
+    },
+    [finish],
+  );
+
+  const screen = useCallback(
+    (rt: Runtime, messages: ScreenMessage[]) => {
+      for (const message of messages) {
+        switch (message.type) {
+          case "phase":
+            setPhase(message.phase);
+            break;
+          case "signs":
+            setUrgent(message.awake === false || message.breathing === false);
+            break;
+          case "handoff":
+            setHandoff(message.summary);
+            break;
+          case "step":
+            show(rt, stepOf(message));
+            break;
+        }
+      }
+    },
+    [show],
+  );
+
+  /** Send the completed response's function calls to the server, which answers OpenAI itself. */
+  const relay = useCallback(
+    (rt: Runtime) => {
+      const calls = rt.pendingCalls.splice(0);
+      if (!calls.length || !rt.call) return;
+      const call = rt.call;
+      const send = async () => {
+        let lastError: unknown;
+        for (let attempt = 0; attempt < 3 && !rt.closedByUs; attempt++) {
+          try {
+            const result = await callApi<{ messages: ScreenMessage[]; handoff: boolean }>(
+              call,
+              "/tools",
+              { calls },
+            );
+            if (rt.closedByUs) return;
+            screen(rt, result.messages);
+            if (result.handoff && !rt.handedOff) {
+              rt.handedOff = true;
+              rt.timers.handoffMax = setTimeout(
+                () => finish(rt, { status: "ended", end: "completed" }),
+                HANDOFF_MAX_MS,
+              );
+            }
+            return;
+          } catch (cause) {
+            lastError = cause;
+            // A retry is answered from the server's stored results, so the backend never sees a call twice.
+            // Only a call that is over (410) or not ours (401/404) is not worth another try.
+            if (cause instanceof VoiceApiError && [401, 404, 410].includes(cause.status)) break;
+            await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+          }
+        }
+        if (rt.closedByUs) return;
+        if (lastError instanceof VoiceApiError && lastError.status === 410) {
+          finish(rt, { status: "ended", notice: assistantScreen.timeLimit });
+          return;
+        }
+        setError(assistantScreen.problem);
+      };
+      rt.relays = rt.relays.then(send, send);
+    },
+    [screen, finish],
+  );
+
+  const nudge = useCallback(
+    async (rt: Runtime, kind: NudgeKind) => {
+      if (!rt.call || rt.closedByUs) return null;
+      try {
+        return await callApi<{ said: boolean; seconds?: number }>(rt.call, "/nudge", { kind });
+      } catch {
+        return null; // a missed nudge is not worth interrupting the call for
+      }
+    },
+    [],
+  );
+
+  const onLiveEvent = useCallback(
+    (rt: Runtime, raw: string) => {
+      if (rt.closedByUs) return;
+      const event = parseLiveEvent(raw);
+      if (!event) return;
+      switch (event.kind) {
+        case "caption": {
+          rt.lastActivity = performance.now();
+          if (rt.caption.speaker !== event.speaker) {
+            rt.caption = { speaker: event.speaker, index: rt.caption.index + 1, raw: "" };
+          }
+          // Fragments can split a word, so the raw text is joined as is and cleaned as a whole.
+          rt.caption.raw += event.delta;
+          const key = `${event.speaker}:${rt.caption.index}`;
+          const text = cleanCaption(rt.caption.raw);
           if (!text) break;
-          const key = `${message.speaker}:${message.index}`;
           setLines((current) => {
             const at = current.findIndex((line) => line.key === key);
-            if (at < 0)
-              return [...current, { key, speaker: message.speaker, text }];
+            if (at < 0) return [...current, { key, speaker: event.speaker, text }];
             const next = [...current];
             next[at] = { ...next[at], text };
             return next;
           });
           break;
         }
-        case "phase":
-          setPhase(message.phase);
+        case "call":
+          rt.lastActivity = performance.now();
+          rt.pendingCalls.push(event.call);
+          setMode((now) => (now === "speaking" ? now : "thinking"));
           break;
-        case "signs":
-          setUrgent(message.awake === false || message.breathing === false);
-          break;
-        case "ending_soon": {
-          const seconds = Number(message.seconds);
-          const left =
-            seconds >= 90
-              ? `${Math.round(seconds / 60)} phút`
-              : `${Math.max(1, Math.round(seconds || 60))} giây`;
-          setNotice(`${assistantScreen.endingSoon} (còn khoảng ${left})`);
-          clearTimeout(rt.timers.notice);
-          rt.timers.notice = setTimeout(() => setNotice(null), NOTICE_MS);
-          break;
-        }
-        case "handoff":
-          setHandoff(message.summary);
-          break;
-        case "step":
-          show(rt, stepOf(message));
-          break;
-        case "turn_complete":
-          setMode((current) =>
-            current === "thinking" ? "listening" : current,
-          );
-          break;
-        case "error":
-          setError(message.message);
-          break;
-        case "ended":
-          // The server is done and about to close: release everything here, so a new call can start.
-          finish(rt, outcomeOf(message.reason));
+        case "response_done":
+          relay(rt);
           break;
       }
     },
-    [show, finish],
-  );
-
-  /** Open the signaling socket: a fresh `start`, or a `resume` of a live call after a drop. */
-  const attach = useCallback(
-    (rt: Runtime, firstResume: boolean) => {
-      open(firstResume);
-
-      function open(resume: boolean) {
-        const ws = new WebSocket(voiceSocketUrl());
-        rt.ws = ws;
-
-        const lose = () => {
-          if (rt.closedByUs) return;
-          finish(rt, {
-            status: "error",
-            error: assistantScreen.connectionLost,
-            stop: true,
-          });
-        };
-
-        const retry = () => {
-          const delay =
-            RESUME_DELAYS_MS[Math.min(rt.attempt, RESUME_DELAYS_MS.length - 1)];
-          rt.attempt += 1;
-          rt.timers.retry = setTimeout(() => {
-            rt.timers.retry = undefined;
-            if (!rt.closedByUs) open(true);
-          }, delay);
-        };
-
-        ws.onopen = () => {
-          if (resume) {
-            ws.send(JSON.stringify({ type: "resume", callId: rt.callId }));
-            return;
-          }
-          ws.send(JSON.stringify({ type: "start", consent: true }));
-          void rt.line
-            .offer()
-            .then((sdp) => ws.send(JSON.stringify({ type: "offer", sdp })))
-            .catch(() => ws.close());
-        };
-        ws.onmessage = (event: MessageEvent<string>) => {
-          if (rt.ws !== ws) return;
-          const message = parseServerMessage(event.data);
-          if (message) handle(rt, message);
-        };
-        ws.onclose = (event: CloseEvent) => {
-          if (rt.closedByUs || rt.ws !== ws) return;
-          rt.ws = null;
-          if (!rt.ready || !rt.callId) {
-            finish(rt, {
-              status: "error",
-              error:
-                "Chưa kết nối được trợ lý (đang bận hoặc chưa sẵn sàng). Nếu khẩn cấp, hãy gọi 115 ngay.",
-            });
-            return;
-          }
-          // The audio is a separate WebRTC link and may be fine: keep it and take the call back on a new socket.
-          if (event.code === CLOSE_UNKNOWN_CALL) {
-            lose();
-            return;
-          }
-          if (!rt.socketDown) {
-            rt.socketDown = true;
-            syncReconnecting(rt);
-            rt.timers.giveUp = setTimeout(lose, RESUME_WINDOW_MS);
-          }
-          retry();
-        };
-      }
-    },
-    [handle, finish],
+    [relay],
   );
 
   const start = useCallback(async () => {
@@ -460,25 +440,41 @@ export function useVoiceCall(
       }
       const line = openVoiceLine(context, stream, {
         onPlayback: (state: PlaybackState) => onPlayback(state),
-        onConnection: (state) => onConnection(rt, state),
+        onConnection: (state) => onConnection(state),
         onMicEnded: () =>
-          finish(rt, {
-            status: "error",
-            error: assistantScreen.micLost,
-            stop: true,
-          }),
+          finish(rt, { status: "error", error: assistantScreen.micLost, end: "error" }),
+        onEvent: (raw) => onLiveEvent(rt, raw),
+        onChannelClosed: () => {
+          if (rt.closedByUs) return;
+          // OpenAI closed the session: the hand-over ended it, the server hung it up (time limit), or the link
+          // was lost. The server knows which: a call it ended answers 410.
+          if (rt.handedOff) {
+            finish(rt, { status: "ended" });
+            return;
+          }
+          const lost = () =>
+            finish(rt, { status: "error", error: assistantScreen.connectionLost, end: "disconnected" });
+          if (!rt.call) return lost();
+          void callApi(rt.call, "/heartbeat").then(lost, (cause: unknown) => {
+            if (cause instanceof VoiceApiError && cause.status === 410)
+              finish(rt, { status: "ended", notice: assistantScreen.timeLimit });
+            else lost();
+          });
+        },
       });
 
       const rt: Runtime = {
-        ws: null,
-        callId: null,
+        call: null,
         context,
         line,
         ready: false,
         closedByUs: false,
-        socketDown: false,
         iceDown: false,
-        attempt: 0,
+        pendingCalls: [],
+        relays: Promise.resolve(),
+        handedOff: false,
+        lastActivity: performance.now(),
+        caption: { speaker: null, index: 0, raw: "" },
         timers: {},
         micOn: true,
         talkMode: "open",
@@ -496,12 +492,14 @@ export function useVoiceCall(
       function onPlayback(state: PlaybackState) {
         if (rt.closedByUs) return;
         rt.playing = state === "playing";
+        rt.lastActivity = performance.now();
         if (state === "playing") setMode("speaking");
         else setMode((now) => (now === "speaking" ? "listening" : now));
+        if (rt.handedOff) scheduleHandoffEnd(rt);
       }
 
       /** Sustained loudness while the assistant is silent and the mic is open means a noisy place. */
-      function sampleNoise(rt: Runtime) {
+      function sampleNoise() {
         if (
           rt.closedByUs ||
           !rt.ready ||
@@ -524,53 +522,91 @@ export function useVoiceCall(
         }
       }
 
-      function onConnection(_rt: Runtime, state: LineConnection) {
+      function onConnection(state: LineConnection) {
         if (rt.closedByUs) return;
         if (state === "failed") {
-          finish(rt, {
-            status: "error",
-            error: assistantScreen.connectionLost,
-            stop: true,
-          });
+          finish(rt, { status: "error", error: assistantScreen.connectionLost, end: "disconnected" });
         } else if (state === "disconnected") {
           rt.iceDown = true;
-          syncReconnecting(rt);
+          setReconnecting(true);
           rt.timers.ice ??= setTimeout(
-            () =>
-              finish(rt, {
-                status: "error",
-                error: assistantScreen.connectionLost,
-                stop: true,
-              }),
+            () => finish(rt, { status: "error", error: assistantScreen.connectionLost, end: "disconnected" }),
             ICE_GRACE_MS,
           );
         } else if (state === "connected") {
           clearTimeout(rt.timers.ice);
           rt.timers.ice = undefined;
           rt.iceDown = false;
-          syncReconnecting(rt);
+          setReconnecting(false);
+          if (!rt.ready) goLive();
         }
       }
 
-      rt.timers.noise = setInterval(() => sampleNoise(rt), NOISE_SAMPLE_MS);
+      /** The audio is flowing: greet, and start the call's clocks (the server enforces the same limits itself). */
+      function goLive() {
+        const call = rt.call;
+        if (!call || rt.ready || rt.closedByUs) return;
+        rt.ready = true;
+        setStatus("live");
+        setMode("listening");
+        onLiveRef.current?.();
+        void nudge(rt, "greeting");
+        rt.timers.heartbeat = setInterval(() => {
+          void callApi(call, "/heartbeat").catch((cause: unknown) => {
+            if (cause instanceof VoiceApiError && cause.status === 410)
+              finish(rt, { status: "ended", notice: assistantScreen.timeLimit });
+          });
+        }, call.heartbeatSeconds * 1000);
+        if (call.checkinSeconds > 0) {
+          rt.timers.checkin = setInterval(() => {
+            const quiet = performance.now() - rt.lastActivity;
+            if (rt.playing || rt.pendingCalls.length || quiet < call.checkinSeconds * 1000) return;
+            rt.lastActivity = performance.now();
+            void nudge(rt, "checkin");
+          }, CHECKIN_POLL_MS);
+        }
+        if (call.warningSeconds > 0 && call.warningSeconds < call.limitSeconds) {
+          rt.timers.warning = setTimeout(async () => {
+            const said = await nudge(rt, "ending_soon");
+            if (!said?.said || rt.closedByUs) return;
+            const seconds = said.seconds ?? call.warningSeconds;
+            const left =
+              seconds >= 90 ? `${Math.round(seconds / 60)} phút` : `${Math.max(1, Math.round(seconds))} giây`;
+            showNotice(rt, `${assistantScreen.endingSoon} (còn khoảng ${left})`);
+          }, (call.limitSeconds - call.warningSeconds) * 1000);
+        }
+        rt.timers.limit = setTimeout(
+          () => finish(rt, { status: "ended", notice: assistantScreen.timeLimit, end: "time_limit" }),
+          call.limitSeconds * 1000,
+        );
+      }
 
-      attach(rt, false);
+      rt.timers.noise = setInterval(sampleNoise, NOISE_SAMPLE_MS);
+
+      const offer = await line.offer();
+      const call = await startCall(offer);
+      if (rt.closedByUs) {
+        void callApi(call, "/end", { reason: "stopped" }, { keepalive: true }).catch(() => {});
+        return;
+      }
+      rt.call = call;
+      await line.accept(call.sdp);
     } catch (cause) {
       stream?.getTracks().forEach((track) => track.stop());
       void context?.close().catch(() => {});
       const rt = runtime.current;
-      if (rt) teardown(rt);
+      if (rt) teardown(rt, "error");
       setStatus("error");
       setError(friendly(cause));
     } finally {
       starting.current = false;
     }
-  }, [attach, finish, teardown]);
+  }, [finish, teardown, onLiveEvent, nudge, scheduleHandoffEnd, showNotice]);
 
   const end = useCallback(() => {
     const rt = runtime.current;
     if (!rt) return;
-    finish(rt, { status: "ended", stop: true });
+    finish(rt, { status: "ended", end: "stopped" });
   }, [finish]);
 
   const toggleMic = useCallback(() => {
@@ -624,7 +660,7 @@ export function useVoiceCall(
     setTalkMode("hold");
   }, [setTalkMode]);
 
-  /** The caller picked a step by hand (progress bar): move the guide and tell the assistant. */
+  /** The caller picked a step by hand (progress bar): move the guide and tell the server. */
   const selectStep = useCallback(
     (index: number, push = true) => {
       const rt = runtime.current;
@@ -637,18 +673,20 @@ export function useVoiceCall(
         index === current.stepIndex
       )
         return;
-      if (rt.ws?.readyState === WebSocket.OPEN) {
-        rt.ws.send(
-          JSON.stringify({
-            type: "ui_step",
-            guideId: current.guideId,
-            stepIndex: index,
-          }),
-        );
+      if (rt.call) {
+        void callApi<{ messages: ScreenMessage[] }>(rt.call, "/step", {
+          guideId: current.guideId,
+          stepIndex: index,
+        })
+          .then((result) => {
+            if (!rt.closedByUs)
+              screen(rt, result.messages.filter((m) => m.type !== "step"));
+          })
+          .catch(() => {});
       }
       show(rt, { ...current, stepIndex: index, stepTitle: "" }, push);
     },
-    [show],
+    [show, screen],
   );
 
   // The 3D guide reports when its own step buttons are used. It is a silent visual here: the assistant is the only
@@ -673,12 +711,22 @@ export function useVoiceCall(
     return () => window.removeEventListener("message", onMessage);
   }, [frameRef, selectStep]);
 
+  // Closing the tab ends the paid session at once (the server would otherwise wait for heartbeats to stop).
+  useEffect(() => {
+    const onHide = () => {
+      const rt = runtime.current;
+      if (rt) teardown(rt, "disconnected");
+    };
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, [teardown]);
+
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
       const rt = runtime.current;
-      if (rt) teardown(rt);
+      if (rt) teardown(rt, "stopped");
     };
   }, [teardown]);
 

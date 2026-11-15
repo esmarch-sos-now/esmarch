@@ -4,45 +4,61 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import type * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { useLogin, useResendVerification } from "@/hooks/use-auth";
+import { useLogin, useResendSignupCode, useVerifyPhone } from "@/hooks/use-auth";
 import { authCopy } from "@/content/auth";
+import { normalizePhone } from "@/lib/auth/phone";
 import { loginSchema } from "@/lib/auth/schemas";
 import { FormAlert, isUnverified, reportError, useRedirectIfSignedIn } from "./form-fields";
-import VerifyEmail from "./verify-email";
+import PhoneInput from "./phone-input";
+import SmsCodeStep from "./sms-code-step";
 
 const copy = authCopy.login;
 
 export default function LoginForm({ next, notice }: { next: string; notice?: string }) {
   const router = useRouter();
   const login = useLogin();
-  const resend = useResendVerification();
+  const resend = useResendSignupCode();
+  const verify = useVerifyPhone();
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { username: "", password: "" },
+    defaultValues: { phone: "", password: "" },
   });
-  // An unverified (older, email) account signs in through the email code step instead.
-  const [verify, setVerify] = useState<string | null>(null);
-  useRedirectIfSignedIn(next, !form.formState.isSubmitting && !form.formState.isSubmitSuccessful);
+  // A number that was never confirmed gets the SMS step first; the code signs the user in.
+  const [unconfirmed, setUnconfirmed] = useState<string | null>(null);
+  const phoneInput = useWatch({ control: form.control, name: "phone" });
+  useRedirectIfSignedIn(next, !form.formState.isSubmitting && !form.formState.isSubmitSuccessful && unconfirmed === null);
 
   async function onSubmit(data: z.infer<typeof loginSchema>) {
+    const phone = normalizePhone(data.phone)!; // the schema already checked it
     try {
-      await login.trigger(data);
+      await login.trigger({ phone, password: data.password });
       router.replace(next);
     } catch (error) {
-      if (!isUnverified(error)) return reportError(form.setError, error, {}, "login");
-      await resend.trigger({ email: data.username }).catch(() => undefined);
-      setVerify(data.username);
+      if (!isUnverified(error)) return reportError(form.setError, error, { invalid_credentials: "password" });
+      await resend.trigger({ phone }).catch(() => undefined);
+      setUnconfirmed(phone);
     }
   }
 
-  if (verify) return <VerifyEmail email={verify} next={next} onBack={() => setVerify(null)} />;
+  if (unconfirmed)
+    return (
+      <SmsCodeStep
+        phone={unconfirmed}
+        onVerify={async (code) => {
+          await verify.trigger({ phone: unconfirmed, code });
+          router.replace(next);
+        }}
+        onResend={() => resend.trigger({ phone: unconfirmed })}
+        onBack={() => setUnconfirmed(null)}
+      />
+    );
 
   return (
     <Card className="w-full rounded-3xl [--card-spacing:--spacing(6)]">
@@ -55,21 +71,12 @@ export default function LoginForm({ next, notice }: { next: string; notice?: str
           <FieldGroup>
             <FormAlert success={notice} />
             <Controller
-              name="username"
+              name="phone"
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="form-login-phone">{authCopy.fields.phone}</FieldLabel>
-                  <Input
-                    {...field}
-                    id="form-login-phone"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="username"
-                    placeholder="0912 345 678"
-                    maxLength={254}
-                    aria-invalid={fieldState.invalid}
-                  />
+                  <PhoneInput {...field} id="form-login-phone" aria-invalid={fieldState.invalid} />
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
               )}
@@ -81,7 +88,7 @@ export default function LoginForm({ next, notice }: { next: string; notice?: str
                 <Field data-invalid={fieldState.invalid}>
                   <div className="flex items-center justify-between">
                     <FieldLabel htmlFor="form-login-password">{authCopy.fields.password}</FieldLabel>
-                    <Link className="text-sm font-medium text-brand hover:underline" href="/quen-mat-khau">
+                    <Link className="text-sm font-medium text-brand hover:underline" href={`/quen-mat-khau?phone=${encodeURIComponent(phoneInput)}`}>
                       {copy.forgot}
                     </Link>
                   </div>

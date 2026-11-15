@@ -17,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FormAlert } from "@/components/auth/form-fields";
 import { adminCopy } from "@/content/admin";
 import { useAdminResponders, type AdminResponder } from "@/hooks/use-admin";
-import { formatPhone } from "@/lib/auth/schemas";
+import { formatPhone } from "@/lib/auth/phone";
 import { adminErrorMessage } from "./admin-error";
 import ConfirmAction from "./confirm-action";
 import { BulkBar, Chip, Mark, ViewTabs, headCell, type Tone } from "./table-kit";

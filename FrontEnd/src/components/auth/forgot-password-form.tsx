@@ -5,67 +5,73 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-import type { ConfirmationResult } from "firebase/auth";
 import type * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { useLogout, usePhoneResetPassword } from "@/hooks/use-auth";
+import { useLogout, useSendResetCode, useSetNewPassword, useVerifyPhone } from "@/hooks/use-auth";
 import { authCopy } from "@/content/auth";
-import { AuthError } from "@/lib/auth/client";
-import { sendSmsCode } from "@/lib/auth/firebase";
 import { LOGIN_PATH } from "@/lib/auth/paths";
-import { forgotSchema, formatPhone, normalizePhone, resetSchema } from "@/lib/auth/schemas";
+import { formatPhone, normalizePhone } from "@/lib/auth/phone";
+import { forgotSchema, newPasswordSchema } from "@/lib/auth/schemas";
 import { FormAlert, reportError } from "./form-fields";
+import PhoneInput from "./phone-input";
 import SmsCodeStep from "./sms-code-step";
 
 const copy = authCopy.forgot;
 const { fields } = authCopy;
 const submitClass = "h-11 w-full rounded-full text-base font-semibold";
-const RECAPTCHA_ID = "forgot-recaptcha";
 
-type Step =
-  | { kind: "phone" }
-  | { kind: "code"; phone: string; confirmation: ConfirmationResult }
-  | { kind: "password"; phone: string; idToken: string };
+type Step = { name: "phone" } | { name: "code"; phone: string } | { name: "password"; phone: string };
 
-/** Step 1: phone number, an SMS code is sent. Step 2: enter the code. Step 3: choose the new password. */
-export default function ForgotPasswordForm() {
-  const [step, setStep] = useState<Step>({ kind: "phone" });
-  const restart = () => setStep({ kind: "phone" });
-  return (
-    <>
-      <div id={RECAPTCHA_ID} />
-      {step.kind === "phone" && <RequestCode onSent={(phone, confirmation) => setStep({ kind: "code", phone, confirmation })} />}
-      {step.kind === "code" && (
-        <SmsCodeStep
-          phone={step.phone}
-          confirmation={step.confirmation}
-          recaptchaId={RECAPTCHA_ID}
-          onVerified={async (idToken) => setStep({ kind: "password", phone: step.phone, idToken })}
-          onBack={restart}
-        />
-      )}
-      {step.kind === "password" && <NewPassword phone={step.phone} idToken={step.idToken} onRestart={restart} />}
-    </>
-  );
+/** Step 1: the account's phone number. Step 2: the texted code verifies it. Step 3: choose a new password. */
+export default function ForgotPasswordForm({ initialPhone }: { initialPhone: string }) {
+  const [step, setStep] = useState<Step>({ name: "phone" });
+  const sendCode = useSendResetCode();
+  const verify = useVerifyPhone();
+  const logout = useLogout();
+
+  if (step.name === "code")
+    return (
+      <SmsCodeStep
+        phone={step.phone}
+        onVerify={async (code) => {
+          await verify.trigger({ phone: step.phone, code });
+          setStep({ name: "password", phone: step.phone });
+        }}
+        onResend={() => sendCode.trigger({ phone: step.phone })}
+        onBack={() => setStep({ name: "phone" })}
+      />
+    );
+  if (step.name === "password")
+    return (
+      <NewPassword
+        phone={step.phone}
+        onBack={async () => {
+          await logout.trigger({ everywhere: false }).catch(() => undefined); // the code signed the user in
+          setStep({ name: "phone" });
+        }}
+      />
+    );
+  return <RequestCode initialPhone={initialPhone} onSent={(phone) => setStep({ name: "code", phone })} />;
 }
 
-function RequestCode({ onSent }: { onSent: (phone: string, confirmation: ConfirmationResult) => void }) {
+function RequestCode({ initialPhone, onSent }: { initialPhone: string; onSent: (phone: string) => void }) {
+  const sendCode = useSendResetCode();
   const form = useForm<z.infer<typeof forgotSchema>>({
     resolver: zodResolver(forgotSchema),
-    defaultValues: { phone: "" },
+    defaultValues: { phone: initialPhone },
   });
 
   async function onSubmit(data: z.infer<typeof forgotSchema>) {
-    const phone = normalizePhone(data.phone);
-    if (!phone) return;
+    const phone = normalizePhone(data.phone)!; // the schema already checked it
     try {
-      onSent(phone, await sendSmsCode(phone, RECAPTCHA_ID));
+      await sendCode.trigger({ phone });
+      onSent(phone);
     } catch (error) {
-      reportError(form.setError, error);
+      reportError(form.setError, error, { otp_disabled: "phone", validation_failed: "phone" });
     }
   }
 
@@ -84,16 +90,7 @@ function RequestCode({ onSent }: { onSent: (phone: string, confirmation: Confirm
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="form-forgot-phone">{fields.phone}</FieldLabel>
-                  <Input
-                    {...field}
-                    id="form-forgot-phone"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel-national"
-                    placeholder="0912 345 678"
-                    maxLength={20}
-                    aria-invalid={fieldState.invalid}
-                  />
+                  <PhoneInput {...field} id="form-forgot-phone" aria-invalid={fieldState.invalid} />
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
               )}
@@ -113,29 +110,22 @@ function RequestCode({ onSent }: { onSent: (phone: string, confirmation: Confirm
   );
 }
 
-function NewPassword({ phone, idToken, onRestart }: { phone: string; idToken: string; onRestart: () => void }) {
+function NewPassword({ phone, onBack }: { phone: string; onBack: () => void }) {
   const router = useRouter();
-  const reset = usePhoneResetPassword();
-  const logout = useLogout();
-  const form = useForm<z.infer<typeof resetSchema>>({
-    resolver: zodResolver(resetSchema),
+  const setPassword = useSetNewPassword();
+  const form = useForm<z.infer<typeof newPasswordSchema>>({
+    resolver: zodResolver(newPasswordSchema),
     defaultValues: { password: "", confirm: "" },
   });
 
-  async function onSubmit(data: z.infer<typeof resetSchema>) {
+  async function onSubmit(data: z.infer<typeof newPasswordSchema>) {
     try {
-      await reset.trigger({ idToken, newPassword: data.password });
-      // The backend revoked every session, but this browser's short-lived access cookie would still work: drop it so
-      // the login page asks for the new password instead of redirecting a "signed-in" visitor.
-      await logout.trigger({ everywhere: false }).catch(() => undefined);
+      await setPassword.trigger({ newPassword: data.password });
       router.replace(`${LOGIN_PATH}?reset=1`);
     } catch (error) {
-      reportError(form.setError, error);
+      reportError(form.setError, error, { weak_password: "password", same_password: "password" });
     }
   }
-
-  const error = reset.error;
-  const needsNewCode = error instanceof AuthError && (error.status === 400 || error.status === 404);
 
   return (
     <Card className="w-full rounded-3xl [--card-spacing:--spacing(6)]">
@@ -144,15 +134,15 @@ function NewPassword({ phone, idToken, onRestart }: { phone: string; idToken: st
         <CardDescription className="text-base">{copy.newPasswordLede(formatPhone(phone))}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form id="form-reset" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+        <form id="form-new-password" onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <FieldGroup>
             <Controller
               name="password"
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="form-reset-password">{fields.newPassword}</FieldLabel>
-                  <Input {...field} id="form-reset-password" type="password" autoComplete="new-password" maxLength={128} autoFocus aria-invalid={fieldState.invalid} />
+                  <FieldLabel htmlFor="form-new-password-input">{fields.newPassword}</FieldLabel>
+                  <Input {...field} id="form-new-password-input" type="password" autoComplete="new-password" maxLength={72} autoFocus aria-invalid={fieldState.invalid} />
                   <FieldDescription>{authCopy.hints.password}</FieldDescription>
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
@@ -163,8 +153,8 @@ function NewPassword({ phone, idToken, onRestart }: { phone: string; idToken: st
               control={form.control}
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
-                  <FieldLabel htmlFor="form-reset-confirm">{fields.confirmPassword}</FieldLabel>
-                  <Input {...field} id="form-reset-confirm" type="password" autoComplete="new-password" aria-invalid={fieldState.invalid} />
+                  <FieldLabel htmlFor="form-new-password-confirm">{fields.confirmPassword}</FieldLabel>
+                  <Input {...field} id="form-new-password-confirm" type="password" autoComplete="new-password" aria-invalid={fieldState.invalid} />
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
               )}
@@ -174,11 +164,13 @@ function NewPassword({ phone, idToken, onRestart }: { phone: string; idToken: st
         </form>
       </CardContent>
       <CardFooter className="flex-col gap-3">
-        <Button type="submit" form="form-reset" size="lg" className={submitClass} disabled={form.formState.isSubmitting || needsNewCode}>
+        <Button type="submit" form="form-new-password" size="lg" className={submitClass} disabled={form.formState.isSubmitting}>
           {form.formState.isSubmitting && <Spinner data-icon="inline-start" />}
           {copy.resetSubmit}
         </Button>
-        <Button type="button" variant="link" className="h-auto px-0 text-muted-foreground" onClick={onRestart}>{authCopy.sms.back}</Button>
+        <Button type="button" variant="link" className="h-auto px-0 text-muted-foreground" onClick={onBack}>
+          {authCopy.sms.back}
+        </Button>
       </CardFooter>
     </Card>
   );

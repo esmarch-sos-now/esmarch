@@ -4,11 +4,11 @@ import ForgotPasswordForm from "@/components/auth/forgot-password-form";
 
 export const metadata: Metadata = { title: "Quên mật khẩu – SOS NOW" };
 
-// The phone number is not taken from the URL: it would end up in browser history and server logs.
-export default function Page() {
+export default async function Page({ searchParams }: PageProps<"/quen-mat-khau">) {
+  const { phone } = await searchParams;
   return (
     <AuthShell>
-      <ForgotPasswordForm />
+      <ForgotPasswordForm initialPhone={typeof phone === "string" ? phone.slice(0, 20) : ""} />
     </AuthShell>
   );
 }

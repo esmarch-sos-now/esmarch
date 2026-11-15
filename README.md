@@ -55,13 +55,13 @@ Dùng `docker compose watch` nếu muốn container tự build lại khi đổi 
 | Biến | File | Dùng để |
 | ---- | ---- | ------- |
 | `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN` | `FrontEnd/.env` | Hiện bản đồ (không có thì vẫn xem được danh sách) |
-| `NEXT_PUBLIC_VOICE_WS_URL` | `FrontEnd/.env` | Địa chỉ WebSocket của trợ lý giọng nói khi chạy qua tunnel |
 | `OPENAI_API_KEY` | `BackEnd/.env` | Bật trợ lý giọng nói AI |
+| `CRON_SECRET` | `BackEnd/.env` | Bí mật cho `GET /api/voice/reap` (cron mỗi phút cúp các cuộc gọi quá hạn) |
+| `CLIENT_IP_HEADER` | `BackEnd/.env` | Header chứa IP người gọi do proxy Next gửi (`x-sosnow-client-ip`) |
 | `SUPPORT_ADMIN_TOKEN` | `BackEnd/.env` | Bật trang quản trị người hỗ trợ (tối thiểu 32 ký tự ngẫu nhiên) |
-| `CORS_ORIGINS` | `BackEnd/.env` | Các origin được gọi API và mở WebSocket (voice, người hỗ trợ) |
+| `CORS_ORIGINS` | `BackEnd/.env` | Các origin được gọi API (voice kiểm tra `Origin` theo danh sách này) |
 | `SUPPORT_DEMO_SELF_ENROLL` | `BackEnd/.env` | `true`: tài khoản đăng nhập tự đăng ký làm người hỗ trợ (chỉ dùng cho demo) |
 | `SUPPORT_RADIUS_METERS` | `BackEnd/.env` | Bán kính tìm người hỗ trợ, mặc định 3000 m |
-| `NEXT_PUBLIC_SUPPORT_WS_URL` | `FrontEnd/.env` | Địa chỉ WebSocket người hỗ trợ khi chạy qua HTTPS / tunnel (`wss://…/api/support/ws`) |
 | `NEXT_PUBLIC_DEMO_LOCATION` | `FrontEnd/.env` | `true`: hiện ô chọn vị trí giả lập trên trang người hỗ trợ (demo trên một máy) |
 
 Danh sách đầy đủ có trong `FrontEnd/.env.example` và `BackEnd/.env.example`.
@@ -69,7 +69,7 @@ Danh sách đầy đủ có trong `FrontEnd/.env.example` và `BackEnd/.env.exam
 ## Demo "Tìm kiếm người hỗ trợ"
 
 Người cần giúp mở `/app/nguoi-ho-tro` (không cần đăng nhập), người hỗ trợ mở `/app/san-sang-ho-tro` (cần đăng nhập).
-Hai bên kết nối qua WebSocket `/api/support/ws`; khi WebSocket không mở được, trang tự chuyển sang hỏi lại máy chủ mỗi 3 giây.
+Mọi thao tác đi qua HTTP; trạng thái nằm trong Postgres. Tín hiệu "có thay đổi" đi qua Supabase Realtime, và khi kênh này chưa mở được thì trang tự hỏi lại máy chủ mỗi 3 giây.
 
 **Trên một máy**
 1. `BackEnd/.env`: `SUPPORT_DEMO_SELF_ENROLL=true` (cần cả `AUTH_SECRET_KEY` để đăng nhập). `FrontEnd/.env`: `NEXT_PUBLIC_DEMO_LOCATION=true`.
@@ -78,9 +78,44 @@ Hai bên kết nối qua WebSocket `/api/support/ws`; khi WebSocket không mở 
 4. Tab 2: `/app/nguoi-ho-tro` → chọn "Chợ Bến Thành", nhập số điện thoại, tình huống, ảnh → **Gửi tín hiệu**.
 5. Tab 1 kêu và hiện yêu cầu → **Nhận** → thấy số điện thoại, ảnh, dẫn đường. Tab 2 thấy người hỗ trợ và khoảng cách cập nhật trực tiếp.
 
-**Trên hai điện thoại**: trình duyệt chỉ cho lấy vị trí và chụp ảnh qua HTTPS. Mở tunnel HTTPS (vd. `cloudflared tunnel --url http://localhost:3001` và một tunnel nữa cho `http://localhost:8000`), đặt `NEXT_PUBLIC_SUPPORT_WS_URL=wss://<tunnel-backend>/api/support/ws`, thêm địa chỉ tunnel frontend vào `CORS_ORIGINS`, rồi build lại.
+**Trên hai điện thoại**: trình duyệt chỉ cho lấy vị trí và chụp ảnh qua HTTPS. Mở tunnel HTTPS (vd. `cloudflared tunnel --url http://localhost:3001` và một tunnel nữa cho `http://localhost:8000`), thêm địa chỉ tunnel frontend vào `CORS_ORIGINS`, rồi build lại. Cập nhật trực tiếp dùng Supabase Realtime (cần `SUPABASE_SERVICE_KEY` ở backend), nếu không có thì trang tự hỏi lại mỗi 3 giây.
 
 Giới hạn của bản web: người hỗ trợ phải đang mở trang mới nhận được tín hiệu (đóng tab hoặc tắt màn hình là mất kết nối). Nhận tín hiệu khi đã đóng tab cần Web Push, dự kiến ở giai đoạn 2.
+
+## Trang quản trị (`/admin`)
+
+Tài khoản nằm ở Supabase Auth. Backend giữ vai trò (USER/ADMIN) và trạng thái khóa của từng tài khoản trong bảng `accounts`. Một tài khoản xuất hiện ở đây sau lần đầu đăng nhập trên web. Backend kiểm tra vai trò và trạng thái khóa trong database ở mọi request, không tin claim trong token.
+
+Tạo admin đầu tiên (tài khoản phải đăng nhập trên web ít nhất một lần):
+
+```bash
+docker compose exec backend python -m app.modules.admin.promote 0912345678
+```
+
+Khi khóa tài khoản, backend từ chối ngay mọi request của tài khoản đó và người hỗ trợ bị đưa khỏi ca trực. Nếu có `SUPABASE_SERVICE_KEY`, Supabase cũng cấm tài khoản đăng nhập lại, và vai trò được chép vào `app_metadata` để trình duyệt chuyển tài khoản admin vào `/admin`. Bản chép này chỉ dùng để chuyển trang.
+
+## Trợ lý giọng nói (chạy được trên serverless)
+
+Âm thanh, phụ đề và các lệnh gọi công cụ của model đi thẳng giữa trình duyệt và OpenAI qua WebRTC. Máy chủ chỉ trả lời các request HTTP ngắn và không giữ kết nối nào, nên chạy được trên Vercel Functions:
+
+- `POST /api/voice/calls`: nhận SDP offer và mở phiên GPT-Live. Endpoint này giới hạn số cuộc gọi đồng thời và số cuộc mới theo IP, rồi trả về `token` riêng cho cuộc gọi.
+- `POST /api/voice/calls/{id}/tools`: trình duyệt chuyển lại các lệnh gọi công cụ. Máy chủ chạy công cụ theo trạng thái lưu trong Postgres, rồi tự gửi kết quả cho OpenAI qua một sideband mở trong chưa tới 1 giây.
+- `nudge` (lời chào, hỏi thăm, báo sắp hết giờ), `step`, `heartbeat`, `end`: lời nói do máy chủ chọn; trình duyệt chỉ báo "đến lúc".
+- `GET /api/voice/reap` (cần `Authorization: Bearer $CRON_SECRET`): cúp các cuộc gọi quá `VOICE_SESSION_SECONDS`, các cuộc mà trình duyệt ngừng gửi heartbeat, và các cuộc đã bàn giao xong. Mỗi cuộc gọi mới cũng tự chạy bước này.
+
+Bảo mật: trình duyệt không gửi được gì lên OpenAI (`allowed_client_events: []`, OpenAI trả `event_not_allowed`). Trình duyệt cũng không nhận được cấu hình phiên (instructions, tools). API key chỉ nằm ở máy chủ. Khi cuộc gọi kết thúc, dữ liệu cuộc gọi trong DB bị xóa.
+
+Lịch chạy reaper mỗi phút:
+- Vercel **Pro**: thêm cron `* * * * *` gọi `/api/voice/reap`. Gói Hobby chỉ cho cron chạy mỗi ngày một lần.
+- Gói nào cũng dùng được: Supabase `pg_cron` + `pg_net`
+  ```sql
+  select cron.schedule('voice-reap', '* * * * *', $$
+    select net.http_get(url := 'https://<backend>/api/voice/reap',
+                        headers := jsonb_build_object('Authorization', 'Bearer <CRON_SECRET>'))
+  $$);
+  ```
+
+Khi trình duyệt biến mất, OpenAI tự đóng phiên trong vài giây (đã kiểm tra). Cron vẫn cần cho hai việc: chặn trình duyệt cố giữ kết nối quá giờ, và giải phóng chỗ trong giới hạn số cuộc gọi.
 
 ## Kiểm tra code
 

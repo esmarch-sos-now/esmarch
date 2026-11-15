@@ -1,4 +1,4 @@
-"""users: phone number (verified by Firebase SMS OTP); email becomes optional
+"""users: phone number (verified by an SMS code); email becomes optional
 
 Revision ID: c4f1a8d2e7b9
 Revises: b7e2c4a91f03

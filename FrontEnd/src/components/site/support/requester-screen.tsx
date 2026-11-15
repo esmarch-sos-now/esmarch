@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Camera, HandHeart, Loader2, MapPin, Phone, X } from "lucide-react";
 import Navbar from "@/components/site/landing/Navbar";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { appNav, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useLivePosition } from "@/hooks/useLivePosition";
-import { useSupportSocket } from "@/hooks/useSupportSocket";
+import { useSupportChannel } from "@/hooks/useSupportChannel";
 import {
   SITUATIONS,
   cancelSupportRequest,
@@ -20,7 +20,6 @@ import {
   fetchRequesterState,
   uploadSupportPhoto,
   type CreatedRequest,
-  type RequesterMessage,
   type RequesterState,
 } from "@/lib/support/protocol";
 import { cn } from "@/lib/utils";
@@ -52,7 +51,7 @@ function save(request: CreatedRequest | null) {
 }
 
 // Người cần giúp: gửi tín hiệu (số điện thoại, tình huống, mô tả, ảnh, vị trí) tới người hỗ trợ trong bán kính 3 km,
-// rồi theo dõi qua WebSocket: số người đã được báo, ai đã nhận, vị trí người đó đang tới. Không cần tài khoản.
+// rồi theo dõi qua Supabase Realtime: số người đã được báo, ai đã nhận, vị trí người đó đang tới. Không cần tài khoản.
 export default function RequesterScreen() {
   const c = supportCopy.requester;
   const { position, status: positionStatus, demoPlace, setDemoPlace } = useLivePosition(true);
@@ -94,37 +93,18 @@ export default function RequesterScreen() {
   };
 
   const live = phase === "searching" || phase === "accepted";
-  const { status: socketStatus, send } = useSupportSocket<RequesterMessage>({
+  // The request is read over HTTP with its token; a Supabase Realtime signal (or a timer) only says "fetch again".
+  const refresh = useCallback(async () => {
+    if (!request) return;
+    const state = await fetchRequesterState(request);
+    if (state) apply(state);
+    else finish("expired");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request]);
+  const { status: socketStatus } = useSupportChannel({
     enabled: live && request !== null,
-    hello: async () => (request ? { type: "hello", role: "requester", requestId: request.id, token: request.requesterToken } : null),
-    onMessage: (message) => {
-      switch (message.type) {
-        case "request.state":
-        case "request.accepted":
-          return apply(message.request);
-        case "request.invited":
-          return setInfo((current) => (current ? { ...current, invitedCount: message.invitedCount } : current));
-        case "responder.location":
-          return setInfo((current) =>
-            current?.responder
-              ? { ...current, responder: { ...current.responder, latitude: message.latitude, longitude: message.longitude, distanceMeters: message.distanceMeters } }
-              : current,
-          );
-        case "request.completed":
-          return finish("completed");
-        case "request.cancelled":
-          return finish("cancelled");
-        case "request.expired":
-          return finish("expired");
-      }
-    },
-    poll: async () => {
-      if (!request) return;
-      const state = await fetchRequesterState(request);
-      if (state) apply(state);
-      else finish("expired");
-    },
-    onRejected: () => finish("expired"),
+    topic: request ? `support:request:${request.id}` : null,
+    refresh,
   });
 
   // After 2 minutes without anyone accepting, suggest 115 and the nearest facilities (the request stays open).
@@ -184,7 +164,7 @@ export default function RequesterScreen() {
 
   const cancel = async () => {
     if (!request) return;
-    if (!send({ type: "cancel" })) await cancelSupportRequest(request);
+    await cancelSupportRequest(request);
     finish("cancelled");
   };
 

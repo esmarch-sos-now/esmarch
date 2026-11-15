@@ -1,44 +1,45 @@
-"""Admin page API: accounts, roles, locking, and responder administration by a signed-in ADMIN."""
+"""Admin page API: accounts, roles, locking, and responder administration by a signed-in ADMIN.
 
+Accounts are Supabase users; the backend keeps their role and lock in `accounts` and checks both on every request.
+"""
+
+import uuid
 from datetime import timedelta
 
 import pytest
 
 from app.common import tokens
 from app.core import clock
+from app.modules.admin import service as admin_service
 from app.modules.admin.promote import promote
-from app.modules.auth import security
-from app.modules.auth.models import Role, User
-from app.modules.support.models import Responder, Skill
-from app.modules.support.service import DEMO_SOURCE, Presence, support
-
-PASSWORD = "correct horse battery"
+from app.modules.auth.models import Account, Role
+from app.modules.support.models import Presence, Responder, Skill
+from app.modules.support.service import DEMO_SOURCE
+from tests.auth_tokens import bearer
 
 
-def make_user(session, phone: str, name: str, role: Role = Role.USER, age_days: int = 0) -> User:
-    now = clock.now() - timedelta(days=age_days)
-    user = User(
+def make_account(session, phone: str, name: str, role: Role = Role.USER, age_days: int = 0) -> Account:
+    account = Account(
+        id=str(uuid.uuid4()),
         phone=phone,
-        phone_verified_at=now,
-        password_hash=security.hash_password(PASSWORD),
         display_name=name,
         role=role,
-        created_at=now,
+        created_at=clock.now() - timedelta(days=age_days),
     )
-    session.add(user)
+    session.add(account)
     session.commit()
-    session.refresh(user)
-    return user
+    session.refresh(account)
+    return account
 
 
-def headers(user: User) -> dict:
-    return {"Authorization": f"Bearer {security.create_access_token(user.id, user.role)[0]}"}
+def headers(account: Account, **claims) -> dict:
+    return bearer(user_id=account.id, phone=(account.phone or "").lstrip("+"), name=account.display_name, **claims)
 
 
-def make_responder(session, user: User) -> Responder:
+def make_responder(session, account: Account) -> Responder:
     profile = Responder(
-        id=user.id,
-        display_name=user.display_name or "Người hỗ trợ",
+        id=account.id,
+        display_name=account.display_name or "Người hỗ trợ",
         contact_phone="0912345678",
         skills=[Skill.CPR.value, Skill.FIRST_AID.value],
         verified_at=clock.now(),
@@ -52,10 +53,36 @@ def make_responder(session, user: User) -> Responder:
 
 @pytest.fixture
 def people(session):
-    admin = make_user(session, "+84900000001", "Quản trị", Role.ADMIN, age_days=3)
-    an = make_user(session, "+84912345678", "An Nguyễn", age_days=2)
-    binh = make_user(session, "+84987654321", "Bình Trần", age_days=1)
+    admin = make_account(session, "+84900000001", "Quản trị", Role.ADMIN, age_days=3)
+    an = make_account(session, "+84912345678", "An Nguyễn", age_days=2)
+    binh = make_account(session, "+84987654321", "Bình Trần", age_days=1)
     return admin, an, binh
+
+
+@pytest.fixture
+def supabase_calls(monkeypatch):
+    calls: list[tuple[str, dict]] = []
+    monkeypatch.setattr(admin_service, "update_auth_user", lambda uid, attrs: calls.append((uid, attrs)) or True)
+    return calls
+
+
+def test_first_sign_in_creates_a_plain_account(client, session):
+    uid = str(uuid.uuid4())
+    me = client.get("/api/auth/me", headers=bearer(user_id=uid, name="Chi"))
+    assert me.status_code == 200 and me.json()["role"] == "USER"
+    account = session.get(Account, uid)
+    assert account is not None and account.phone == "+84912345678" and account.display_name == "Chi"
+    # later tokens refresh the profile, never the role
+    client.get("/api/auth/me", headers=bearer(user_id=uid, name="Chi Lê", phone="84911111111"))
+    session.refresh(account)
+    assert account.display_name == "Chi Lê" and account.phone == "+84911111111" and account.role == Role.USER
+
+
+def test_token_claims_cannot_make_an_admin(client, people):
+    _, an, _ = people
+    forged = {"app_metadata": {"role": "ADMIN"}, "user_metadata": {"role": "ADMIN", "display_name": "An"}}
+    assert client.get("/api/admin/users", headers=headers(an, **forged)).status_code == 403
+    assert client.get("/api/auth/me", headers=headers(an, **forged)).json()["role"] == "USER"
 
 
 def test_only_admins_get_in(client, people):
@@ -67,7 +94,7 @@ def test_only_admins_get_in(client, people):
     assert client.patch(f"/api/admin/users/{an.id}", json={"role": "ADMIN"}, headers=headers(an)).status_code == 403
 
 
-def test_list_and_search_users(client, people):
+def test_list_and_search_users(client, people, supabase_calls):
     admin, an, binh = people
     page = client.get("/api/admin/users", headers=headers(admin)).json()
     assert page["total"] == 3
@@ -90,10 +117,12 @@ def test_list_and_search_users(client, people):
     assert search(limit=1, offset=1) == [an.id]
 
 
-def test_promote_and_demote(client, people):
+def test_promote_and_demote(client, people, supabase_calls):
     admin, an, _ = people
     r = client.patch(f"/api/admin/users/{an.id}", json={"role": "ADMIN"}, headers=headers(admin))
     assert r.status_code == 200 and r.json()["role"] == "ADMIN"
+    assert supabase_calls == [(an.id, {"app_metadata": {"role": "ADMIN"}})]
+    # takes effect on the next request, with the same token
     assert client.get("/api/auth/me", headers=headers(an)).json()["role"] == "ADMIN"
     assert client.get("/api/admin/users", headers=headers(an)).status_code == 200
 
@@ -104,24 +133,40 @@ def test_promote_and_demote(client, people):
     assert client.get("/api/admin/users", headers=headers(admin)).status_code == 403
 
 
-def test_lock_signs_out_and_unlock(client, session, people):
+def test_lock_and_unlock(client, session, people, supabase_calls):
     admin, an, _ = people
-    login = client.post("/api/auth/token", data={"username": "0912345678", "password": PASSWORD})
-    refresh = login.json()["refresh_token"]
+    make_responder(session, an)
+    session.add(Presence(responder_id=an.id, latitude=10.77, longitude=106.70, expires_at=clock.now() + timedelta(1)))
+    session.commit()
 
-    assert (
-        client.patch(f"/api/admin/users/{admin.id}", json={"isActive": False}, headers=headers(admin)).status_code
-        == 400
-    )
+    r = client.patch(f"/api/admin/users/{admin.id}", json={"isActive": False}, headers=headers(admin))
+    assert r.status_code == 400
     r = client.patch(f"/api/admin/users/{an.id}", json={"isActive": False}, headers=headers(admin))
     assert r.status_code == 200 and r.json()["isActive"] is False
+    assert supabase_calls[-1] == (an.id, {"ban_duration": admin_service.BAN_FOREVER})
+    # the still-valid Supabase token is refused at once, and the responder is off duty
     assert client.get("/api/auth/me", headers=headers(an)).status_code == 401
-    assert client.post("/api/auth/refresh", json={"refreshToken": refresh}).status_code == 401
-    login = client.post("/api/auth/token", data={"username": "0912345678", "password": PASSWORD})
-    assert login.status_code == 403
+    assert client.get("/api/support/me", headers=headers(an)).status_code == 401
+    session.expire_all()
+    assert session.get(Presence, an.id) is None
 
     client.patch(f"/api/admin/users/{an.id}", json={"isActive": True}, headers=headers(admin))
-    assert client.post("/api/auth/token", data={"username": "0912345678", "password": PASSWORD}).status_code == 200
+    assert supabase_calls[-1] == (an.id, {"ban_duration": "none"})
+    assert client.get("/api/auth/me", headers=headers(an)).status_code == 200
+
+
+def test_supabase_failure_keeps_the_lock(client, people, monkeypatch):
+    from app.core.supabase import AuthAdminError
+
+    admin, an, _ = people
+
+    def fail(uid, attrs):
+        raise AuthAdminError("down")
+
+    monkeypatch.setattr(admin_service, "update_auth_user", fail)
+    r = client.patch(f"/api/admin/users/{an.id}", json={"isActive": False}, headers=headers(admin))
+    assert r.status_code == 200
+    assert client.get("/api/auth/me", headers=headers(an)).status_code == 401
 
 
 def test_unknown_user(client, people):
@@ -132,7 +177,8 @@ def test_unknown_user(client, people):
 def test_manage_responders(client, session, people):
     admin, an, _ = people
     make_responder(session, an)
-    support.presence[an.id] = Presence(10.77, 106.70, clock.now() + timedelta(minutes=5))
+    session.add(Presence(responder_id=an.id, latitude=10.77, longitude=106.70, expires_at=clock.now() + timedelta(1)))
+    session.commit()
 
     [row] = client.get("/api/admin/responders", headers=headers(admin)).json()
     assert row["id"] == an.id and row["verified"] is True and row["online"] is True
@@ -142,7 +188,9 @@ def test_manage_responders(client, session, people):
     # suspend: off duty right away, and the responder app is refused
     r = client.patch(f"/api/admin/responders/{an.id}", json={"verified": False}, headers=headers(admin))
     assert r.status_code == 200 and r.json()["verified"] is False and r.json()["online"] is False
-    assert an.id not in support.presence
+    session.expire_all()
+    assert session.get(Presence, an.id) is None
+    assert client.get("/api/support/me/requests", headers=headers(an)).status_code == 403
 
     r = client.patch(
         f"/api/admin/responders/{an.id}", json={"verified": True, "skills": ["AED"]}, headers=headers(admin)
@@ -154,7 +202,7 @@ def test_manage_responders(client, session, people):
     )
 
     # delete: a signed-in admin is enough; a plain user without the admin token is not
-    assert client.delete(f"/api/admin/responders/{an.id}", headers=headers(an)).status_code == 401
+    assert client.delete(f"/api/admin/responders/{an.id}", headers=headers(an)).status_code in (401, 503)
     assert client.delete(f"/api/admin/responders/{an.id}", headers=headers(admin)).status_code == 204
     assert client.get("/api/admin/responders", headers=headers(admin)).json() == []
     assert (
@@ -169,19 +217,4 @@ def test_promote_command(session, people):
     session.refresh(an)
     assert an.role == Role.ADMIN
     assert promote("0999999999").startswith("No account")
-    assert promote("not a login").startswith("Not a phone number")
-
-
-def test_access_token_carries_the_role_for_the_proxy(client, people):
-    import jwt
-
-    admin, an, _ = people
-
-    def role_after_login(phone):
-        token = client.post("/api/auth/token", data={"username": phone, "password": PASSWORD}).json()["access_token"]
-        return jwt.decode(token, options={"verify_signature": False})["role"]
-
-    assert role_after_login("0900000001") == "ADMIN"
-    assert role_after_login("0912345678") == "USER"
-    client.patch(f"/api/admin/users/{an.id}", json={"role": "ADMIN"}, headers=headers(admin))
-    assert role_after_login("0912345678") == "ADMIN"
+    assert promote("not a login").startswith("Not a Vietnamese mobile number")

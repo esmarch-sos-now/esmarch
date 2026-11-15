@@ -1,32 +1,46 @@
 """Makes an existing account an administrator, for the very first admin (later ones are promoted on the admin page).
 
-docker compose exec backend python -m app.modules.admin.promote 0912345678
-docker compose exec backend python -m app.modules.admin.promote someone@example.com
+The account must have signed in on the site once, so the backend knows it:
+
+python -m app.modules.admin.promote 0912345678
 """
 
+import re
 import sys
 
 from sqlmodel import Session, select
 
 from app.core import registry  # noqa: F401  (loads every table model)
 from app.core.db import get_engine
-from app.modules.auth import security
-from app.modules.auth.models import Role, User
+from app.core.supabase import AuthAdminError, update_auth_user
+from app.modules.auth.models import Account, Role
+
+
+def normalize_phone(value: str) -> str | None:
+    """Vietnamese mobile number as E.164 (+84…), from 09…, 849… or +849…; None if it is not one."""
+    digits = re.sub(r"[\s.()-]", "", value)
+    if digits.startswith("+"):
+        digits = digits[1:]
+    elif digits.startswith("0"):
+        digits = "84" + digits[1:]
+    return f"+{digits}" if re.fullmatch(r"84[1-9][0-9]{8}", digits) else None
 
 
 def promote(login: str) -> str:
-    phone = security.normalize_phone(login)
-    email = None if phone else security.normalize_email(login)
-    if phone is None and email is None:
-        return f"Not a phone number or email: {login}"
+    phone = normalize_phone(login)
+    if phone is None:
+        return f"Not a Vietnamese mobile number: {login}"
     with Session(get_engine()) as session:
-        where = User.phone == phone if phone else User.email == email
-        user = session.exec(select(User).where(where)).first()
-        if user is None:
-            return f"No account for {phone or email}. Sign up on the site first."
-        user.role = Role.ADMIN
+        account = session.exec(select(Account).where(Account.phone == phone)).first()
+        if account is None:
+            return f"No account for {phone}. Sign up and sign in on the site first."
+        account.role = Role.ADMIN
         session.commit()
-        return f"{phone or email} is now an administrator."
+        try:
+            update_auth_user(account.id, {"app_metadata": {"role": Role.ADMIN.value}})
+        except AuthAdminError:
+            pass  # the backend reads the role from the database; the copy only routes the browser to /admin
+        return f"{phone} is now an administrator."
 
 
 if __name__ == "__main__":

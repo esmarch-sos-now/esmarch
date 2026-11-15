@@ -1,11 +1,12 @@
 """Admin page API: accounts and roles. Responder administration lives with the support module (/api/admin/responders).
 
-Every route needs a signed-in account with the ADMIN role (see `python -m app.modules.admin.promote` for the first one).
+Every route needs a signed-in account whose role in the database is ADMIN (see `python -m app.modules.admin.promote`
+for the first one).
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 
 from app.modules.admin import service
 from app.modules.admin.schemas import AdminUserView, UserPage, UserUpdate
@@ -30,6 +31,8 @@ def list_users(
 
 
 @router.patch("/users/{user_id}")
-def update_user(user_id: str, body: UserUpdate, session: Db, admin: AdminUser) -> AdminUserView:
+def update_user(
+    user_id: Annotated[str, Path(max_length=36)], body: UserUpdate, session: Db, admin: AdminUser
+) -> AdminUserView:
     """Changes the role (USER/ADMIN) or locks/unlocks an account. Not allowed on your own account."""
     return service.update_user(session, admin, user_id, body.role, body.is_active)

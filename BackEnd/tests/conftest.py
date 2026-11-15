@@ -18,9 +18,7 @@ os.environ.update(
     CORS_ORIGINS="https://esmarch.example,http://localhost:3000",
     PUBLIC_API_RATE_LIMIT_REQUESTS="100000",
     OPENAI_API_KEY="",  # tests must not depend on the developer's .env
-    AUTH_SECRET_KEY="test-auth-secret-key-at-least-32-characters-long",
-    RESEND_API_KEY="",
-    FIREBASE_PROJECT_ID="sos-esmarch",
+    SUPABASE_URL="https://test-project.supabase.co",
 )
 
 
@@ -59,19 +57,19 @@ def reset_state(database):
 
     from app.core import clock
     from app.core.db import get_engine
-    from app.modules.auth.service import reset_login_limiter
     from app.modules.facilities import catalog
     from app.modules.guides.service import catalog as guides
-    from app.modules.support.service import support
 
     clock.reset()
     with get_engine().begin() as c:
-        c.execute(text("TRUNCATE facility_phones, facilities, aeds, verified_responders, sos_alert, users CASCADE"))
+        c.execute(
+            text(
+                "TRUNCATE facility_phones, facilities, aeds, verified_responders, sos_alert, "
+                "support_presence, support_requests, voice_calls, accounts CASCADE"
+            )
+        )
     catalog.invalidate()
     guides._guides = {}
-    support.presence.clear()
-    support.requests.clear()
-    reset_login_limiter()
 
 
 @pytest.fixture(scope="session")
@@ -87,3 +85,12 @@ def client():
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def supabase_keys(monkeypatch):
+    """Tests sign their own ES256 tokens; the backend checks them against this key instead of the project JWKS."""
+    from app.modules.auth import security
+    from tests.auth_tokens import PUBLIC_KEY
+
+    monkeypatch.setattr(security, "signing_key", lambda token: PUBLIC_KEY)
