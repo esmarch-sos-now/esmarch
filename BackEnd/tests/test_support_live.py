@@ -7,6 +7,7 @@ import pytest
 
 from app.core import clock, supabase
 from app.core.config import get_settings
+from app.modules.support.models import Presence
 from tests.auth_tokens import bearer
 from tests.helpers import become_responder
 
@@ -200,13 +201,13 @@ def test_state_is_in_the_database_not_in_the_process(client, session):
     assert rows == 1 and presence == 1
 
 
-# ---- area dispatch, readiness without GPS, scene media -------------------------------------------
+# ---- nearest-first dispatch, readiness with or without GPS, scene media -------------------------------------------
 AREA = "Quận 1"
 MP4 = b"\x00\x00\x00\x18ftypmp42" + b"0" * 64
 
 
 def ready(client, auth):
-    """Ready to help the way the supporter page does it: no GPS."""
+    """Ready to help without sharing a position (GPS refused or unavailable)."""
     r = client.put("/api/support/me/availability", headers=auth, json={"available": True})
     assert r.status_code == 200 and r.json()["available"] is True, r.text
 
@@ -225,23 +226,73 @@ def ask_in_area(client, where=HERE, area=AREA):
     )
 
 
-def test_area_request_invites_every_ready_responder_without_gps(client, signals):
-    a, b = responder(client, "a@example.com", "A"), responder(client, "b@example.com", "B")
+def ids(client, auth) -> list[str]:
+    return [r["id"] for r in client.get("/api/support/me/requests", headers=auth).json()]
+
+
+KM12 = (10.908, 106.7)  # ~12 km north of HERE
+KM30 = (11.07, 106.7)  # ~30 km: beyond every ring
+
+
+def test_app_request_reaches_the_nearest_ready_responders_first(client, signals):
+    near, mid = responder(client, "a@example.com", "A"), responder(client, "b@example.com", "B")
+    far, blind = responder(client, "c@example.com", "C"), responder(client, "d@example.com", "D")
     responder(client, "idle@example.com", "Idle")  # enrolled but not ready
     assert ask_in_area(client).status_code == 409  # nobody is ready yet
-    ready(client, a)
-    go_available(client, b, FAR)  # a position outside any radius does not matter for area requests
+    go_available(client, near, NEAR)  # ~1.1 km
+    go_available(client, mid, FAR)  # ~4.4 km: still inside 5 km
+    go_available(client, far, KM12)
+    ready(client, blind)  # shares no position
     assert ask_in_area(client, area="Mars").status_code == 400
+
     created = ask_in_area(client).json()
     assert created["invitedCount"] == 2
-    [offer] = client.get("/api/support/me/requests", headers=a).json()
-    assert offer["area"] == AREA and "approximateDistanceMeters" not in offer and "latitude" not in offer
+    [offer] = client.get("/api/support/me/requests", headers=near).json()
+    assert offer["approximateDistanceMeters"] == 1100 and "area" not in offer and "latitude" not in offer
+    assert ids(client, far) == [] and ids(client, blind) == []
     assert (f"support:responder:{user_id('idle@example.com')}", {"type": "request.new"}) not in signals
 
-    # A responder who gets ready later also gets the waiting area request.
-    late = responder(client, "c@example.com", "C")
+
+def test_the_ring_widens_when_nobody_is_close(client):
+    far, blind = responder(client, "c@example.com", "C"), responder(client, "d@example.com", "D")
+    go_available(client, far, KM12)
+    ready(client, blind)
+    created = ask_in_area(client).json()
+    assert created["invitedCount"] == 1  # 20 km ring: the responder 12 km away, not the one without a position
+    assert client.get("/api/support/me/requests", headers=far).json()[0]["approximateDistanceMeters"] == 12000
+    assert ids(client, blind) == []
+
+    # Late joiners: within the largest ring they get it, further away or without a position they do not.
+    joiner, distant, unknown = (responder(client, f"{n}@example.com", n) for n in ("e", "f", "g"))
+    go_available(client, joiner, NEAR)
+    go_available(client, distant, KM30)
+    ready(client, unknown)
+    assert ids(client, joiner) == [created["id"]]
+    assert ids(client, distant) == [] and ids(client, unknown) == []
+
+
+def test_without_anyone_close_every_ready_responder_is_asked(client):
+    blind, distant = responder(client, "d@example.com", "D"), responder(client, "f@example.com", "F")
+    ready(client, blind)
+    go_available(client, distant, KM30)
+    created = ask_in_area(client).json()
+    assert created["invitedCount"] == 2
+    [offer] = client.get("/api/support/me/requests", headers=blind).json()
+    assert "approximateDistanceMeters" not in offer  # no position shared: no distance
+    assert client.get("/api/support/me/requests", headers=distant).json()[0]["approximateDistanceMeters"] == 30000
+
+    # A request that already went to everyone also reaches someone who gets ready later, position or not.
+    late = responder(client, "late@example.com", "Late")
     ready(client, late)
-    assert [r["id"] for r in client.get("/api/support/me/requests", headers=late).json()] == [created["id"]]
+    assert ids(client, late) == [created["id"]]
+
+
+def test_the_position_shared_while_ready_is_dropped_when_not_ready(client, session):
+    auth = responder(client)
+    go_available(client, auth, NEAR)
+    assert client.put("/api/support/me/availability", headers=auth, json={"available": False}).status_code == 200
+    session.expire_all()
+    assert session.get(Presence, user_id("hai@example.com")) is None
 
 
 def test_scene_media_is_shown_to_invited_responders_until_someone_accepts(client, signals):
