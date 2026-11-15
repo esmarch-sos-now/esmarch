@@ -141,3 +141,9 @@ feat/xxx ──PR──▶ dev ──PR──▶ main
 ```
 
 Không push thẳng vào `dev` hoặc `main`. Xem chi tiết trong [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Giấy phép
+
+Bản quyền © 2026 ESMARCH. Mọi quyền được bảo lưu.
+
+Repo được công khai để xem, nhưng **không phải mã nguồn mở**. Không được sao chép, chỉnh sửa, phân phối hay triển khai mã nguồn khi chưa có sự đồng ý bằng văn bản của ESMARCH. Xem chi tiết trong [LICENSE](LICENSE). Mã của bên thứ ba (thư mục `Archieved/`, thư viện đi kèm và các dependency) giữ nguyên giấy phép riêng của chúng.
