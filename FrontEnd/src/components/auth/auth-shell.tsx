@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import Navbar from "@/components/site/landing/Navbar";
+import AppNav from "@/components/site/app-nav";
 import { Page } from "@/components/site/primitives";
-import { appNav } from "@/content/app";
 import { authCopy } from "@/content/auth";
 import { cn } from "@/lib/utils";
 
@@ -9,7 +8,7 @@ import { cn } from "@/lib/utils";
 export default function AuthShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
     <Page>
-      <Navbar appLinks={appNav} />
+      <AppNav />
       <main className={cn("mx-auto flex w-full flex-col gap-6 px-4 pt-10 pb-16", wide ? "max-w-2xl" : "max-w-md")}>
         {children}
         <p className="text-center text-sm text-muted-foreground">

@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import Navbar from '@/components/site/landing/Navbar'
+import AppNav from '@/components/site/app-nav'
 import { Page } from '@/components/site/primitives'
-import { appNav } from '@/content/app'
 import { strokePractice } from '@/content/stroke-practice'
 import CameraDrill from './camera-drill'
 import DailyPractice from './daily-practice'
@@ -15,8 +14,8 @@ export default function PracticeScreen() {
 
   return (
     <Page>
-      <Navbar appLinks={appNav} />
-      <main className="mx-auto min-h-[calc(100vh-68px)] w-full max-w-205 px-4 pt-10 pb-16 max-lg:min-h-[calc(100vh-56px)]">
+      <AppNav />
+      <main className="mx-auto min-h-[calc(100svh-152px)] w-full max-w-205 px-4 pt-10 pb-16 max-lg:min-h-[calc(100svh-140px)]">
         <h1 className="text-[clamp(30px,4vw,44px)] leading-[1.15] font-black tracking-[-.01em] text-ink">{strokePractice.title}</h1>
         <p className="mt-3 max-w-160 text-[17px] leading-[1.6] text-muted-foreground">{strokePractice.lede}</p>
 

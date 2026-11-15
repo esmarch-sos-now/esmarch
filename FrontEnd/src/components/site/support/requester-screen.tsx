@@ -4,14 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { HandHeart, Loader2, MapPin, Phone } from "lucide-react";
 import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
-import Navbar from "@/components/site/landing/Navbar";
+import AppNav from "@/components/site/app-nav";
 import { Page } from "@/components/site/primitives";
 import DemoNearbyRespondersMap from "@/components/site/support/demo-nearby-responders-map";
 import DemoPlacePicker from "@/components/site/support/demo-place-picker";
 import IncidentReportFields, { emptyReport, hasDescription, type IncidentReport } from "@/components/site/support/incident-report-fields";
 import PointMap from "@/components/site/support/point-map";
 import { Button } from "@/components/ui/button";
-import { appNav, courseCopy, supportCopy } from "@/content/app";
+import { courseCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useSession } from "@/hooks/use-auth";
 import { formatPhone as formatAccountPhone } from "@/lib/auth/phone";
@@ -198,7 +198,7 @@ export default function RequesterScreen() {
 
   return (
     <Page>
-      <Navbar appLinks={appNav} />
+      <AppNav />
       <main className={cn("mx-auto w-full px-4 pt-7 pb-12", phase === "demo" ? "max-w-6xl" : "max-w-180")}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
