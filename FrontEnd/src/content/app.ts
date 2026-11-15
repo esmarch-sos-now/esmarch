@@ -35,6 +35,13 @@ export const appPages: AppPageDef[] = [
     description: 'Nhận dấu hiệu FAST trước camera và ghi năm động tác theo video. Bài luyện không chẩn đoán đột quỵ.'
   },
   {
+    // Courses are open only to accounts registered as responders (see /app/san-sang-ho-tro)
+    path: '/app/khoa-hoc',
+    nav: 'Khóa học',
+    title: 'Khóa học sơ cứu cho người hỗ trợ',
+    description: 'Video sơ cứu ngắn và câu hỏi kiểm tra dành riêng cho người đã đăng ký hỗ trợ dự án.'
+  },
+  {
     // Tìm người hỗ trợ đã có (/app/nguoi-ho-tro); phần tìm AED làm sau
     path: '/app/nguoi-ho-tro',
     nav: 'Tìm kiếm AED và người hỗ trợ',
@@ -42,6 +49,7 @@ export const appPages: AppPageDef[] = [
   },
   {
     path: '/app/san-sang-ho-tro',
+    nav: 'Chế độ hỗ trợ',
     title: 'Sẵn sàng hỗ trợ'
   }
 ]
@@ -60,7 +68,7 @@ export const sosScreen = {
 export const supportCopy = {
   requester: {
     title: 'Tìm người hỗ trợ gần bạn',
-    subtitle: 'Gửi tín hiệu tới những người biết sơ cứu trong bán kính 3 km. Người nhận trợ giúp sẽ thấy vị trí, số điện thoại và ảnh bạn gửi.',
+    subtitle: 'Gửi tín hiệu tới những người hỗ trợ đã xác minh đang sẵn sàng. Họ thấy khu vực, mô tả, ảnh và video; vị trí chính xác và số điện thoại chỉ được chia sẻ với người nhận trợ giúp.',
     locating: 'Đang xác định vị trí của bạn…',
     located: 'Đã có vị trí của bạn.',
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí trong trình duyệt để gửi tín hiệu.',
@@ -73,7 +81,11 @@ export const supportCopy = {
     photo: 'Ảnh',
     addPhoto: 'Thêm ảnh',
     removePhoto: 'Xoá ảnh',
-    consent: 'Tôi đồng ý chia sẻ vị trí, số điện thoại và ảnh với người nhận trợ giúp. Thông tin sẽ được xoá khi yêu cầu kết thúc.',
+    consent: 'Tôi đồng ý chia sẻ vị trí và số điện thoại với người nhận trợ giúp, và ảnh, video với những người hỗ trợ được báo. Thông tin sẽ được xoá khi yêu cầu kết thúc.',
+    demoStart: 'Bắt đầu demo SOS',
+    demoDone: 'Kết thúc demo',
+    needDescription: 'Hãy mô tả tình huống bằng chữ hoặc ghi âm.',
+    mediaFailed: (n: number) => `Chưa gửi được ${n} tệp ảnh/video. Yêu cầu vẫn được gửi; hãy mô tả bằng chữ hoặc gọi 115 nếu khẩn cấp.`,
     send: 'Gửi tín hiệu tìm người hỗ trợ',
     needLocation: 'Chưa có vị trí của bạn. Hãy cho phép vị trí rồi thử lại.',
     badPhone: 'Số điện thoại chưa đúng.',
@@ -82,7 +94,7 @@ export const supportCopy = {
     network: 'Chưa gửi được tín hiệu. Hãy thử lại hoặc gọi 115.',
     sendingSignal: 'Đang gửi tín hiệu…',
     searching: 'Đang tìm người hỗ trợ…',
-    invited: (count: number) => (count > 0 ? `Đã báo cho ${count} người gần bạn` : 'Đang chờ người hỗ trợ gần bạn'),
+    invited: (count: number) => (count > 0 ? `Đã báo cho ${count} người hỗ trợ đang sẵn sàng` : 'Đang chờ người hỗ trợ'),
     live: 'Kết nối trực tiếp',
     connecting: 'Đang kết nối…',
     polling: 'Kết nối dự phòng (cập nhật mỗi 3 giây)',
@@ -100,7 +112,7 @@ export const supportCopy = {
       expired: 'Yêu cầu đã hết hạn.'
     },
     again: 'Gửi yêu cầu mới',
-    none: 'Hiện chưa có người hỗ trợ nào trong bán kính 3 km',
+    none: 'Hiện chưa có người hỗ trợ nào đang sẵn sàng',
     noneHint: 'Hãy gọi 115 hoặc tới cơ sở y tế gần nhất. Bạn có thể thử gửi lại sau ít phút.',
     retry: 'Thử lại',
     helperPrompt: 'Bạn biết sơ cứu và muốn giúp người khác?',
@@ -112,7 +124,7 @@ export const supportCopy = {
     signInButton: 'Đăng nhập',
     enrollTitle: 'Đăng ký làm người hỗ trợ',
     enrollHint: 'Bản demo: bạn tự khai, chưa cần xác minh chứng chỉ sơ cứu.',
-    enrollDisabled: 'Đăng ký người hỗ trợ đang tắt trên máy chủ (SUPPORT_DEMO_SELF_ENROLL).',
+    enrollDisabled: 'Tài khoản của bạn chưa được xác minh là người hỗ trợ nên chưa dùng được chế độ này.',
     name: 'Tên hiển thị',
     phone: 'Số điện thoại (người cần giúp sẽ thấy sau khi bạn nhận)',
     badPhone: 'Số điện thoại chưa đúng.',
@@ -123,8 +135,10 @@ export const supportCopy = {
     off: 'Chưa sẵn sàng',
     turnOn: 'Bật sẵn sàng',
     turnOff: 'Tắt',
+    courseLink: 'Học khóa sơ cứu',
     locating: 'Đang xác định vị trí của bạn…',
-    locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí để nhận yêu cầu gần bạn.',
+    locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí để chia sẻ trong phiên hỗ trợ.',
+    locationPrivacy: 'Khi chờ yêu cầu, trang không lấy GPS. Vị trí chỉ được hỏi sau khi bạn nhận một yêu cầu và chỉ dùng trong phiên hỗ trợ.',
     connection: {
       open: 'Kết nối trực tiếp',
       connecting: 'Đang kết nối…',
@@ -139,6 +153,8 @@ export const supportCopy = {
     alertTitle: 'Có người cần trợ giúp',
     someone: 'Người cần trợ giúp',
     away: (d: string) => `Cách bạn khoảng ${d}`,
+    requestArea: (area: string) => `Khu vực: ${area}`,
+    previewClosed: 'Bản xem trước: chưa nhận yêu cầu thật nào.',
     photoCount: (n: number) => `${n} ảnh`,
     accept: 'Nhận',
     decline: 'Bỏ qua',
@@ -153,6 +169,88 @@ export const supportCopy = {
     routesHint: 'bấm tuyến xám trên bản đồ để đổi tuyến',
     requesterPin: 'Người cần hỗ trợ'
   }
+}
+
+// First-aid courses: only accounts registered as responders can open the content
+export const courseCopy = {
+  eyebrow: 'Dành cho người hỗ trợ',
+  title: 'Khóa học sơ cứu',
+  subtitle:
+    'Hai khóa ngắn từ video của bác sĩ Bệnh viện Hoàn Mỹ Đà Nẵng. Xem video từng bài rồi làm câu hỏi kiểm tra; khóa đã hoàn thành được ghi nhận lên hồ sơ của bạn.',
+  signIn: 'Đăng nhập để học khóa sơ cứu dành cho người hỗ trợ.',
+  signInButton: 'Đăng nhập',
+  loading: 'Đang tải khóa học…',
+  lockedTitle: 'Khóa học dành riêng cho người hỗ trợ',
+  lockedBody:
+    'Chỉ tài khoản đã đăng ký làm người hỗ trợ của dự án mới học được khóa này. Đăng ký (demo) mất chưa đến một phút, sau đó quay lại đây để mở khóa toàn bộ bài học.',
+  lockedAction: 'Đăng ký làm người hỗ trợ',
+  enrolledAs: (name: string) => `Bạn đang học với tư cách người hỗ trợ: ${name}`,
+  progress: (done: number, total: number) => `${done}/${total} bài đã hoàn thành`,
+  completed: 'Đã hoàn thành khóa học',
+  next: 'Học bài tiếp theo',
+  lesson: (index: number) => `Bài ${index}`,
+  minutes: (minutes: number) => `${minutes} phút`,
+  done: 'Đã học',
+  quizTitle: 'Kiểm tra nhanh',
+  quizHint: 'Câu hỏi được tạo ngẫu nhiên từ tài liệu sơ cứu, mỗi lần làm là một bộ khác. Trả lời đúng tất cả để hoàn thành bài học.',
+  quizLoading: 'Đang tạo bộ câu hỏi…',
+  quizLoadFailed: 'Chưa tải được bài kiểm tra. Hãy thử lại.',
+  quizStale: 'Bộ câu hỏi vừa được cập nhật, đây là bộ câu hỏi mới.',
+  submit: 'Nộp bài',
+  submitting: 'Đang chấm…',
+  retry: 'Làm bộ câu hỏi khác',
+  passed: 'Chính xác! Bạn đã hoàn thành bài học này.',
+  lessonDone: 'Đã hoàn thành bài học',
+  failed: (correct: number, total: number) => `Đúng ${correct}/${total} câu. Xem giải thích rồi thử lại nhé.`,
+  correctAnswer: 'Đáp án đúng',
+  answerRequired: 'Hãy trả lời đủ các câu hỏi trước khi nộp.',
+  loadFailed: 'Chưa tải được khóa học. Hãy thử lại.',
+  lockedNotice: 'Tài khoản này chưa phải người hỗ trợ đã đăng ký nên nội dung khóa học được ẩn.',
+  retryLoad: 'Thử lại',
+  noCourses: 'Chưa có khóa học nào.',
+  lessons:'Nội dung khóa học',
+  // Course picker
+  pickCourse: 'Chọn khóa học',
+  lessonCount: (done: number, total: number) => `${done}/${total} bài`,
+  courseDone: 'Đã hoàn thành',
+  // Video and the notes under it
+  videoCredit: (title: string, source: string) => `Video: ${title} — ${source}`,
+  watchOnYouTube: 'Xem trên YouTube',
+  playVideo: (title: string) => `Phát video: ${title}`,
+  videoBlockedHint: 'Video không phát được trên trang (do trình duyệt hoặc tiện ích chặn quảng cáo)? Bấm "Xem trên YouTube".',
+  newTab: '(mở thẻ mới)',
+  keyPoints: 'Ghi nhớ',
+  // Watch the video first, then take the quiz
+  watchedButton: 'Tôi đã xem xong video — làm bài kiểm tra',
+  quizLocked: 'Xem hết video ở trên, sau đó bấm nút để mở bài kiểm tra.',
+  // Recorded on the profile when the course is finished
+  recorded: (badge: string) => `Đã ghi nhận lên hồ sơ: ${badge}`,
+  completedOn: (date: string) => `Hoàn thành ngày ${date}`,
+  viewProfile: 'Xem hồ sơ',
+  // Video source
+  sourceTitle: 'Nguồn video',
+  sourcePlaylist: 'Danh sách phát',
+  // "Khóa học sơ cứu" card on the account page
+  profile: {
+    title: 'Khóa học sơ cứu',
+    loading: 'Đang tải…',
+    loadFailed: 'Chưa tải được thông tin khóa học.',
+    none: 'Chưa hoàn thành khóa học nào.',
+    start: 'Vào học',
+    notEnrolled: 'Khóa học sơ cứu dành cho người hỗ trợ.',
+    enroll: 'Đăng ký làm người hỗ trợ',
+    completedOn: (date: string) => `Hoàn thành ${date}`,
+  },
+  // Chips on the responder / requester screens
+  earned: 'Khóa đã hoàn thành',
+  responderCompleted: 'Đã hoàn thành:',
+}
+
+/** Course completion date in Vietnamese format (dd/mm/yyyy); empty string when it cannot be parsed. */
+export function formatCourseDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('vi-VN')
 }
 
 // Menu trên các trang app; trang Cơ sở y tế được mở từ luồng SOS nên không nằm trong menu

@@ -9,14 +9,22 @@ users (a profile whose id is the user id, see `self_enroll`) over `/api/support/
 changed" signal (`_signal`) that is sent through Supabase Realtime once the HTTP request is done (`app.core.db`).
 Signals carry no personal data: clients refetch over authenticated HTTP.
 
-Privacy: before accepting, a responder only sees the situation, a short description and a distance rounded to 100 m.
-The exact location, the requester's phone number and photos go to the accepting responder only.
+Dispatch: readiness needs no GPS. A request with an incident `area` (the district the requester's browser derived from
+GPS) invites every ready, verified responder with the right skills, wherever they are; a request without one (the
+legacy radius API) invites responders whose last known position is within the radius.
+
+Privacy: before accepting, a responder sees the situation, a short description, the area (or a distance rounded to
+100 m) and the scene photos and video, as long as they were invited and have not declined. The exact location and the
+requester's phone number go to the accepting responder only, and once someone accepts, so do the photos and video.
+The responder's own position is shared only while helping and is wiped when the request ends. Once a responder
+accepts, the requester also sees the courses that responder has completed (`completedCourses`), the same record shown
+on the responder's own profile.
 """
 
 import logging
 import re
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
@@ -29,9 +37,11 @@ from app.common.checks import nearby as check_nearby
 from app.core import clock
 from app.core.config import get_settings
 from app.core.errors import error
-from app.core.supabase import get_storage
+from app.core.supabase import SupabaseStorage, get_storage
 from app.modules.auth.models import Account
 from app.modules.auth.security import AuthUser
+from app.modules.courses.service import course_service
+from app.modules.districts import service as districts
 from app.modules.guides.schemas import Audience
 from app.modules.guides.service import catalog
 from app.modules.support.models import Presence, Responder, Skill, SupportInvite, SupportPhoto, SupportRequest
@@ -49,6 +59,8 @@ PRESENCE_TTL = timedelta(minutes=5)
 REQUEST_TTL = timedelta(minutes=10)
 _PHONE = r"\+?[0-9]{8,15}"
 PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
+VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
+VIDEO_URL_SECONDS = 300  # signed video links handed to a responder
 DEMO_SOURCE = "Demo self-enrolment (SUPPORT_DEMO_SELF_ENROLL); qualification not verified"
 ADMIN_SOURCE = "Reinstated by an administrator on the admin page"
 MAX_PRESENCE = 1000
@@ -66,6 +78,14 @@ def _rounded(d: float) -> int:
     return round(d / 100) * 100
 
 
+def _completed_courses(session: Session, user_id: str) -> list[dict[str, Any]]:
+    """Finished courses for profile views ("Đã hoàn thành khóa ..."); camelCase like every dict in this module."""
+    return [
+        {"id": c.id, "title": c.title, "badge": c.badge, "completedAt": c.completed_at}
+        for c in course_service.completed_courses(session, user_id)
+    ]
+
+
 def _phone(value: str | None) -> str:
     phone = re.sub(r"[\s.-]", "", text(value, 30, "contact phone"))
     require(re.fullmatch(_PHONE, phone) is not None, "Invalid contact phone.")
@@ -75,6 +95,22 @@ def _phone(value: str | None) -> str:
 def _signal(session: Session, kind: str, target: str, message: dict[str, Any]) -> None:
     """Queue a "changed" signal for `support:<kind>:<target>`; `get_session` sends it after the request."""
     session.info.setdefault("signals", []).append((f"support:{kind}:{target}", {"type": message["type"]}))
+
+
+def _point(live: Presence | None) -> tuple[float, float] | None:
+    """The responder's last position, if known (readiness alone shares none)."""
+    if live is None or live.latitude is None or live.longitude is None:
+        return None
+    return live.latitude, live.longitude
+
+
+def _video_path(request_id: str) -> str:
+    """Fixed per request, so `_clear` removes it even when an upload was never confirmed."""
+    return f"{request_id}/video"
+
+
+def _media_type(content_type: str | None) -> str:
+    return (content_type or "").split(";")[0].strip().lower()
 
 
 def _count(session: Session, column) -> int:
@@ -142,6 +178,22 @@ class SupportService:
         query = select(func.count()).select_from(SupportPhoto).where(SupportPhoto.request_id == request_id)
         return session.exec(query).one()
 
+    def _ready(self, profile: Responder, now: datetime, skill: Skill, audience: Audience) -> bool:
+        """Verified and qualified for a request of this skill and audience."""
+        return (
+            reviewed(profile.verified_at, now)
+            and skill.value in profile.skills
+            and (audience == Audience.ADULT or Skill.PEDIATRIC.value in profile.skills)
+        )
+
+    def _ready_anywhere(self, session: Session, skill: Skill, audience: Audience) -> list[str]:
+        """Area dispatch: every available, verified, qualified responder, wherever they are (no GPS needed)."""
+        now = clock.now()
+        rows = session.exec(
+            select(Responder, Presence).join(Presence, col(Presence.responder_id) == col(Responder.id))
+        ).all()
+        return sorted(p.id for p, live in rows if live.expires_at > now and self._ready(p, now, skill, audience))
+
     def _eligible(self, profile: Responder, ticket: SupportRequest) -> bool:
         return ticket.skill in profile.skills and (
             ticket.audience == Audience.ADULT or Skill.PEDIATRIC.value in profile.skills
@@ -157,12 +209,15 @@ class SupportService:
             "situation": t.situation,
             "description": t.description,
             "photoCount": self._photo_count(session, t.id),
+            "hasVideo": t.video_type is not None,
         }
         if accepted:
             view["latitude"], view["longitude"] = t.latitude, t.longitude
             view["contactPhone"] = t.contact_phone
-        elif live is not None and t.latitude is not None and t.longitude is not None:
-            view["approximateDistanceMeters"] = _rounded(meters(live.latitude, live.longitude, t.latitude, t.longitude))
+        elif t.area is not None:
+            view["area"] = t.area
+        elif (here := _point(live)) is not None and t.latitude is not None and t.longitude is not None:
+            view["approximateDistanceMeters"] = _rounded(meters(*here, t.latitude, t.longitude))
         return view
 
     def _requester_view(self, session: Session, t: SupportRequest, responder: Responder | None) -> dict[str, Any]:
@@ -172,6 +227,7 @@ class SupportService:
             "expiresAt": t.expires_at,
             "invitedCount": len(self._invited(session, t.id)),
             "photoCount": self._photo_count(session, t.id),
+            "hasVideo": t.video_type is not None,
             "dispatchConnected": False,
             "emergencyNumber": "115",
         }
@@ -180,19 +236,28 @@ class SupportService:
                 "id": responder.id,
                 "displayName": responder.display_name,
                 "contactPhone": responder.contact_phone,
+                "completedCourses": _completed_courses(session, responder.id),
             }
-            live = self._presence(session, responder.id)
-            if live is not None:
-                info["latitude"], info["longitude"] = live.latitude, live.longitude
+            here = _point(self._presence(session, responder.id))
+            if here is not None:
+                info["latitude"], info["longitude"] = here
                 if t.latitude is not None and t.longitude is not None:
-                    info["distanceMeters"] = round(meters(live.latitude, live.longitude, t.latitude, t.longitude))
+                    info["distanceMeters"] = round(meters(*here, t.latitude, t.longitude))
             view["responder"] = info
         return view
 
     def _clear(self, session: Session, t: SupportRequest) -> None:
-        """Drop everything personal: location, phone number, description, photos and invitations."""
-        t.latitude = t.longitude = t.contact_phone = t.description = None
+        """Drop everything personal: location, phone number, description, photos, video and invitations, and the
+        helping responder's position (it was only shared for this request)."""
+        if t.accepted_by:
+            session.exec(
+                update(Presence)  # type: ignore[call-overload]
+                .where(col(Presence.responder_id) == t.accepted_by)
+                .values(latitude=None, longitude=None)
+            )
+        t.latitude = t.longitude = t.contact_phone = t.description = t.video_type = None
         paths = [p.path for p in session.exec(select(SupportPhoto).where(SupportPhoto.request_id == t.id)).all()]
+        paths.append(_video_path(t.id))  # deleting a missing object is a no-op
         session.exec(delete(SupportPhoto).where(col(SupportPhoto.request_id) == t.id))
         session.exec(delete(SupportInvite).where(col(SupportInvite.request_id) == t.id))
         session.add(t)
@@ -367,14 +432,22 @@ class SupportService:
             "contactPhone": profile.contact_phone,
             "skills": sorted(profile.skills),
             "available": self._presence(session, profile.id) is not None,
+            "completedCourses": _completed_courses(session, user.id),
         }
 
     # ---- responders (shared core: by profile) --------------------------------------------------
-    def go_available(self, session: Session, profile: Responder, lat: float, lng: float) -> dict:
+    def go_available(
+        self, session: Session, profile: Responder, lat: float | None = None, lng: float | None = None
+    ) -> dict:
+        """Ready for requests. No GPS needed; a position (legacy radius API) is only used for radius requests."""
         self.purge(session)
-        location(lat, lng)
-        if session.get(Presence, profile.id) is None and _count(session, Presence.responder_id) >= MAX_PRESENCE:
+        if lat is not None and lng is not None:
+            location(lat, lng)
+        current = session.get(Presence, profile.id)
+        if current is None and _count(session, Presence.responder_id) >= MAX_PRESENCE:
             raise error(503, "Live responder capacity reached.")
+        if lat is None or lng is None:  # a keep-alive must not wipe the position shared while helping
+            lat, lng = (current.latitude, current.longitude) if current is not None else (None, None)
         expires = clock.now() + PRESENCE_TTL
         live = Presence(responder_id=profile.id, latitude=lat, longitude=lng, expires_at=expires)
         session.merge(live)
@@ -389,12 +462,19 @@ class SupportService:
         return {"available": False}
 
     def _invite_to_open(self, session: Session, profile: Responder, live: Presence) -> None:
-        """A responder who becomes available also gets the open requests already waiting within their radius."""
+        """A responder who becomes available also gets the open requests already waiting: every area request, and
+        radius requests within reach of their last known position."""
         known = set(session.exec(select(SupportInvite.request_id).where(SupportInvite.responder_id == profile.id)))
+        here = _point(live)
         for t in session.exec(select(SupportRequest).where(SupportRequest.state == State.OPEN)).all():
-            if t.id in known or t.latitude is None or t.longitude is None or not self._eligible(profile, t):
+            if t.id in known or not self._eligible(profile, t):
                 continue
-            if meters(live.latitude, live.longitude, t.latitude, t.longitude) > t.radius:
+            if t.area is None and (
+                here is None
+                or t.latitude is None
+                or t.longitude is None
+                or meters(*here, t.latitude, t.longitude) > t.radius
+            ):
                 continue
             session.add(SupportInvite(request_id=t.id, responder_id=profile.id))
             _signal(session, "responder", profile.id, {"type": "request.new"})
@@ -516,11 +596,10 @@ class SupportService:
             select(Responder, Presence).join(Presence, col(Presence.responder_id) == col(Responder.id))
         ).all()
         for p, live in rows:
-            if live.expires_at <= now or not reviewed(p.verified_at, now) or skill.value not in p.skills:
+            here = _point(live)
+            if here is None or live.expires_at <= now or not self._ready(p, now, skill, audience):
                 continue
-            if audience != Audience.ADULT and Skill.PEDIATRIC.value not in p.skills:
-                continue
-            d = meters(lat, lng, live.latitude, live.longitude)
+            d = meters(lat, lng, *here)
             if d <= radius:
                 found.append((d, p))
         found.sort(key=lambda c: (c[0], c[1].id))
@@ -557,10 +636,15 @@ class SupportService:
         phone = _phone(r.contact_phone) if r.contact_phone is not None else None
         situation = text(r.situation, 60, "situation") if r.situation else None
         description = text(r.description, 500, "description") if r.description else None
+        area = districts.canonical(r.area) if r.area is not None else None
+        require(r.area is None or area is not None, "Choose an incident area from /api/districts.")
         self.purge(session)
-        candidates = self.nearby(session, lat, lng, radius, 5, skill, audience)
+        if area is not None:
+            candidates = self._ready_anywhere(session, skill, audience)
+        else:
+            candidates = [c.responder_id for c in self.nearby(session, lat, lng, radius, 5, skill, audience)]
         if not candidates:
-            raise error(409, "No verified available responders in the requested radius.")
+            raise error(409, "No verified available responders right now.")
         if _count(session, SupportRequest.id) >= MAX_REQUESTS:
             raise error(503, "Support request capacity reached.")
         rid, token = str(uuid.uuid4()), tokens.issue()
@@ -578,14 +662,15 @@ class SupportService:
             contact_phone=phone,
             situation=situation,
             description=description,
+            area=area,
         )
         session.add(ticket)
         session.flush()
-        for c in candidates:
-            session.add(SupportInvite(request_id=rid, responder_id=c.responder_id))
+        for responder_id in candidates:
+            session.add(SupportInvite(request_id=rid, responder_id=responder_id))
         session.commit()
-        for c in candidates:
-            _signal(session, "responder", c.responder_id, {"type": "request.new"})
+        for responder_id in candidates:
+            _signal(session, "responder", responder_id, {"type": "request.new"})
         return {
             "id": rid,
             "status": ticket.state,
@@ -640,22 +725,113 @@ class SupportService:
             SupportPhoto(id=photo_id, request_id=request_id, position=count, content_type=str(content_type), path=path)
         )
         session.commit()
-        if ticket.state == State.ACCEPTED and ticket.accepted_by:
-            _signal(session, "responder", ticket.accepted_by, {"type": "request.detail"})
+        self._media_changed(session, ticket)
         return {"photoCount": count + 1}
 
+    def _media_changed(self, session: Session, ticket: SupportRequest) -> None:
+        """A photo or the video arrived after the offer went out: whoever can see the request refetches it."""
+        if ticket.state == State.ACCEPTED and ticket.accepted_by:
+            _signal(session, "responder", ticket.accepted_by, {"type": "request.detail"})
+        elif ticket.state == State.OPEN:
+            for responder_id in self._invited(session, ticket.id):
+                _signal(session, "responder", responder_id, {"type": "request.detail"})
+
+    def _may_view_media(self, session: Session, ticket: SupportRequest, responder_id: str) -> None:
+        """Invited responders (who have not declined) see the scene while the request is open, so they can decide;
+        once someone accepts, only that responder does."""
+        if ticket.state == State.ACCEPTED and ticket.accepted_by == responder_id:
+            return
+        if ticket.state == State.OPEN and responder_id in self._invited(session, ticket.id):
+            return
+        raise error(403, "Only invited responders can see the scene photos and video.")
+
     def photo_for(self, session: Session, responder_id: str, request_id: str, index: int) -> tuple[str, bytes]:
-        """Photos are shown to the accepting responder only."""
         self.purge(session)
         ticket = self._find(session, request_id)
-        if ticket.accepted_by != responder_id or ticket.state != State.ACCEPTED:
-            raise error(403, "Only the accepting responder can see the photos.")
+        self._may_view_media(session, ticket, responder_id)
         photo = session.exec(
             select(SupportPhoto).where(SupportPhoto.request_id == request_id, SupportPhoto.position == index)
         ).first()
         if photo is None:
             raise error(404, "Photo not found.")
         return photo.content_type, get_storage().get(photo.path)
+
+    # ---- video --------------------------------------------------------------------------------
+    # With Supabase Storage: `video_upload` hands the requester a signed upload token for "<id>/video", the browser
+    # uploads straight to Storage, and `confirm_video` checks type and size before responders see it. Without it (local
+    # dev, tests) the browser posts the file to `add_video` instead.
+    def _active_owned(self, session: Session, authorization: str | None, request_id: str) -> SupportRequest:
+        self.purge(session)
+        ticket = self._owned(session, authorization, request_id)
+        if ticket.state not in (State.OPEN, State.ACCEPTED):
+            raise error(409, "Support request is no longer active.")
+        return ticket
+
+    def video_upload(self, session: Session, authorization: str | None, request_id: str) -> dict:
+        ticket = self._active_owned(session, authorization, request_id)
+        storage = get_storage()
+        if not isinstance(storage, SupabaseStorage):
+            return {"mode": "backend", "maxBytes": get_settings().support_video_max_bytes}
+        path = _video_path(ticket.id)
+        return {
+            "mode": "signed",
+            "bucket": storage.bucket,
+            "path": path,
+            "token": storage.signed_upload(path),
+            "maxBytes": get_settings().support_video_max_bytes,
+        }
+
+    def confirm_video(self, session: Session, authorization: str | None, request_id: str) -> dict:
+        ticket = self._active_owned(session, authorization, request_id)
+        storage = get_storage()
+        if not isinstance(storage, SupabaseStorage):
+            raise error(409, "Upload the video to this server instead.")
+        path = _video_path(ticket.id)
+        found = storage.info(path)
+        if found is None:
+            raise error(404, "Video not uploaded.")
+        size, kind = found[0], _media_type(found[1])
+        if kind not in VIDEO_TYPES or not 0 < size <= get_settings().support_video_max_bytes:
+            storage.delete([path])
+            raise error(400, "Video must be MP4, WebM or QuickTime and at most the size limit.")
+        return self._video_added(session, ticket, kind)
+
+    def add_video(
+        self, session: Session, authorization: str | None, request_id: str, content_type: str | None, data: bytes
+    ) -> dict:
+        ticket = self._active_owned(session, authorization, request_id)
+        kind = _media_type(content_type)
+        require(kind in VIDEO_TYPES, "Video must be MP4, WebM or QuickTime.")
+        require(0 < len(data) <= get_settings().support_video_max_bytes, "Video is empty or too large.")
+        get_storage().put(_video_path(ticket.id), data, kind)
+        return self._video_added(session, ticket, kind)
+
+    def _video_added(self, session: Session, ticket: SupportRequest, kind: str) -> dict:
+        ticket.video_type = kind
+        session.add(ticket)
+        session.commit()
+        self._media_changed(session, ticket)
+        return {"hasVideo": True}
+
+    def video_for(self, session: Session, responder_id: str, request_id: str) -> dict:
+        """A short-lived link to the video (Storage), or None: then fetch the bytes from `video_bytes`."""
+        self.purge(session)
+        ticket = self._find(session, request_id)
+        self._may_view_media(session, ticket, responder_id)
+        if ticket.video_type is None:
+            raise error(404, "Video not found.")
+        storage = get_storage()
+        if isinstance(storage, SupabaseStorage):
+            return {"url": storage.signed_url(_video_path(ticket.id), VIDEO_URL_SECONDS)}
+        return {"url": None}
+
+    def video_bytes(self, session: Session, responder_id: str, request_id: str) -> tuple[str, bytes]:
+        self.purge(session)
+        ticket = self._find(session, request_id)
+        self._may_view_media(session, ticket, responder_id)
+        if ticket.video_type is None:
+            raise error(404, "Video not found.")
+        return ticket.video_type, get_storage().get(_video_path(ticket.id))
 
 
 support = SupportService()

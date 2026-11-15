@@ -1,25 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { Bike, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, Phone, Power, Volume2, X } from "lucide-react";
+import { Bike, BookOpenCheck, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, Phone, Power, Volume2, X } from "lucide-react";
+import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
 import Navbar from "@/components/site/landing/Navbar";
 import { Page } from "@/components/site/primitives";
-import DemoPlacePicker from "@/components/site/support/demo-place-picker";
+import IncomingCallOverlay from "@/components/site/support/incoming-call-overlay";
+import { previewScenePhotos } from "@/components/site/support/incoming-call-preview-photos";
 import PointMap from "@/components/site/support/point-map";
 import { Button } from "@/components/ui/button";
-import { appNav, supportCopy } from "@/content/app";
+import { appNav, courseCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
-import { useLivePosition } from "@/hooks/useLivePosition";
+import { DEMO_LOCATION_ENABLED, useLivePosition } from "@/hooks/useLivePosition";
 import { useSupportChannel, type ChannelStatus } from "@/hooks/useSupportChannel";
+import type { CompletedCourse } from "@/lib/courses/types";
 import { formatDuration, useDirections, type Vehicle } from "@/lib/directions";
 import { notifyInBackground, ring, unlockAlarm } from "@/lib/support/alarm";
-import { photoUrl, type ResponderRequest } from "@/lib/support/protocol";
+import { DEMO_SUPPORTER_OFFSET_METERS, offsetNorth } from "@/lib/support/demo-offset";
+import { photoUrl, videoSource, type ResponderRequest } from "@/lib/support/protocol";
 import { cn } from "@/lib/utils";
 
-type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string; contactPhone?: string; available?: boolean };
+type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string; contactPhone?: string; available?: boolean; completedCourses?: CompletedCourse[] };
 
 const LOGIN_NEXT = "/dang-nhap?next=%2Fapp%2Fsan-sang-ho-tro";
 const KEEPALIVE_MS = 60_000; // presence lives 5 min on the server
@@ -28,8 +32,9 @@ const RING_EVERY_MS = 4000; // the bell repeats until the request is accepted, d
 
 const rounded = (value: number | undefined) => (value === undefined ? "" : value.toFixed(4));
 
-// Người hỗ trợ: đăng nhập, đăng ký (demo, tự khai), bật "Sẵn sàng". Yêu cầu trong bán kính 3 km tới qua Supabase Realtime
-// (chuông, rung, thông báo). Nhận yêu cầu thì thấy vị trí chính xác, số điện thoại, ảnh, dẫn đường; xong bấm Hoàn thành.
+// Người hỗ trợ (đã xác minh): bật "Sẵn sàng" mà không cần GPS. Yêu cầu tới qua Supabase Realtime như một cuộc gọi đến
+// (chuông, màn hình toàn trang với khu vực, mô tả, ảnh, video). GPS chỉ bắt đầu sau khi nhận yêu cầu; phiên hỗ trợ
+// hiển thị vị trí chính xác, số điện thoại, ảnh, video và dẫn đường; xong bấm Hoàn thành.
 export default function ResponderScreen() {
   const c = supportCopy.responder;
   const { user, status: sessionStatus } = useSession();
@@ -46,7 +51,26 @@ export default function ResponderScreen() {
   const [offers, setOffers] = useState<ResponderRequest[]>([]);
   const [active, setActive] = useState<ResponderRequest | null>(null);
   const [notice, setNotice] = useState("");
-  const { position, status: positionStatus, demoPlace, setDemoPlace } = useLivePosition(wantAvailable || active !== null);
+  // Waiting needs no GPS: the position is only read while helping (it moves us on the requester's map).
+  const { position: gpsPosition, status: positionStatus } = useLivePosition(active !== null, false);
+  // Demo (requester and supporter on one computer): stand 1 km north of the GPS reading, or of the requester when this
+  // browser has no fix, so the map always has a route to show.
+  const requesterLat = active?.latitude;
+  const requesterLng = active?.longitude;
+  const position = useMemo(() => {
+    if (!DEMO_LOCATION_ENABLED) return gpsPosition;
+    const requester = requesterLat != null && requesterLng != null ? { lat: requesterLat, lng: requesterLng } : null;
+    return offsetNorth(gpsPosition ?? requester, DEMO_SUPPORTER_OFFSET_METERS);
+  }, [gpsPosition, requesterLat, requesterLng]);
+
+  // Readiness survives a reload: start from what the server says.
+  const readinessLoaded = useRef(false);
+  useEffect(() => {
+    if (profile.data?.enrolled && !readinessLoaded.current) {
+      readinessLoaded.current = true;
+      if (profile.data.available) queueMicrotask(() => setWantAvailable(true));
+    }
+  }, [profile.data]);
 
   const removeOffer = (id: string) => setOffers((current) => current.filter((offer) => offer.id !== id));
   const showList = useCallback((requests: ResponderRequest[]) => {
@@ -62,7 +86,7 @@ export default function ResponderScreen() {
     const requests = (await response.json()) as ResponderRequest[];
     for (const request of requests) {
       if (request.status === "OPEN" && !seen.current.has(request.id)) {
-        notifyInBackground(c.alertTitle, `${request.situation ?? c.someone} · ${formatDistance(request.approximateDistanceMeters)}`);
+        notifyInBackground(c.alertTitle, `${request.situation ?? c.someone} · ${request.area ?? formatDistance(request.approximateDistanceMeters)}`);
       }
     }
     seen.current = new Set(requests.map((request) => request.id));
@@ -80,8 +104,8 @@ export default function ResponderScreen() {
     },
   });
 
-  // Tell the server where we are: `location` while helping (moves us on the requester's map), `available` while
-  // waiting for requests (also refreshes presence), `unavailable` when switched off. HTTP when the socket is down.
+  // Tell the server: `available` while waiting (no position; also refreshes presence), `location` while helping (moves
+  // us on the requester's map), `unavailable` when switched off.
   const lat = rounded(position?.lat);
   const lng = rounded(position?.lng);
   const activeId = active?.id;
@@ -98,17 +122,17 @@ export default function ResponderScreen() {
     const point = lat && lng ? { latitude: Number(lat), longitude: Number(lng) } : null;
     if (activeId && point) {
       void authFetch("/api/support/me/location", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(point) });
-    } else if (wantAvailable && point) {
+    } else if (wantAvailable) {
       void authFetch("/api/support/me/availability", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ available: true, consentToLocationUse: true, ...point }),
+        body: JSON.stringify({ available: true }),
       }).then((r) => r.ok && setAvailable(true));
-    } else if (!wantAvailable && lastSent.current === "available") {
+    } else if (lastSent.current === "available") {
       void authFetch("/api/support/me/availability", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ available: false }) });
       setAvailable(false);
     }
-    lastSent.current = activeId ? "location" : wantAvailable ? "available" : "off";
+    lastSent.current = wantAvailable ? "available" : activeId ? "location" : "off";
   }, [enrolled, wantAvailable, activeId, lat, lng, tick, authFetch]);
 
   const toggle = async () => {
@@ -155,6 +179,33 @@ export default function ResponderScreen() {
     setNotice(c.completed);
   };
 
+  // The ringing offer's video: a short-lived Storage link (or the backend stream in local dev).
+  const ringingOffer = ringing ? offers[0] : null;
+  const ringingVideo = useSWR(ringingOffer?.hasVideo ? ["support-video", ringingOffer.id] : null, () =>
+    videoSource(authFetch, ringingOffer!.id),
+  );
+
+  // Design preview of the incoming-call screen: /app/san-sang-ho-tro?preview=call (no real request is involved).
+  const [previewOffer, setPreviewOffer] = useState<ResponderRequest | null>(null);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("preview") !== "call") return;
+    queueMicrotask(() =>
+      setPreviewOffer({
+        id: "preview",
+        status: "OPEN",
+        situation: "Bất tỉnh",
+        description: "Người lớn tuổi ngã trước cửa hàng, không trả lời khi gọi, đang thở yếu. Cần người biết hồi sức tim phổi.",
+        expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
+        photoCount: 2,
+        area: "Quận 1",
+      }),
+    );
+  }, []);
+  const closePreview = () => {
+    setPreviewOffer(null);
+    setNotice(c.previewClosed);
+  };
+
   return (
     <Page>
       <Navbar appLinks={appNav} />
@@ -184,6 +235,12 @@ export default function ResponderScreen() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <ConnectionChip status={socketStatus} />
+                <Link
+                  href="/app/khoa-hoc"
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand hover:text-brand [&_svg]:size-3.5"
+                >
+                  <BookOpenCheck aria-hidden="true" /> {c.courseLink}
+                </Link>
                 <button
                   type="button"
                   onClick={() => { unlockAlarm(); ring(); }}
@@ -192,10 +249,9 @@ export default function ResponderScreen() {
                   <Volume2 aria-hidden="true" /> {c.testSound}
                 </button>
               </div>
-              {wantAvailable && !position && (
-                <p className="mt-2 text-sm text-brand">{positionStatus === "denied" ? c.locationDenied : c.locating}</p>
-              )}
-              <DemoPlacePicker value={demoPlace} onChange={setDemoPlace} />
+              <CompletedCourseChips courses={profile.data?.completedCourses ?? []} label={courseCopy.earned} className="mt-2.5" />
+              <p className="mt-3 text-sm leading-snug text-muted-foreground">{c.locationPrivacy}</p>
+              {active && positionStatus === "denied" && <p className="mt-2 text-sm text-brand">{c.locationDenied}</p>}
             </section>
 
             {notice && (
@@ -219,7 +275,7 @@ export default function ResponderScreen() {
                         <p className="text-xs font-bold tracking-wide text-brand uppercase">{c.alertTitle}</p>
                         <h3 className="mt-1 text-xl font-black text-ink">{offer.situation ?? c.someone}</h3>
                         <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                          <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" /> {c.away(formatDistance(offer.approximateDistanceMeters))}</span>
+                          <span className="inline-flex items-center gap-1"><MapPin className="size-3.5" /> {offer.area ? c.requestArea(offer.area) : c.away(formatDistance(offer.approximateDistanceMeters))}</span>
                           {offer.photoCount > 0 && <span className="inline-flex items-center gap-1"><ImageIcon className="size-3.5" /> {c.photoCount(offer.photoCount)}</span>}
                         </p>
                         {offer.description && <p className="mt-2 text-[15px] leading-snug text-ink">{offer.description}</p>}
@@ -236,6 +292,21 @@ export default function ResponderScreen() {
           </>
         )}
       </main>
+      {previewOffer ? (
+        <IncomingCallOverlay offer={previewOffer} photos={previewScenePhotos} onAccept={closePreview} onDecline={closePreview} />
+      ) : (
+        ringingOffer && (
+          <IncomingCallOverlay
+            offer={ringingOffer}
+            photos={Array.from({ length: ringingOffer.photoCount }, (_, index) => photoUrl(ringingOffer.id, index))}
+            video={ringingVideo.data ?? undefined}
+            others={offers.length - 1}
+            error={notice}
+            onAccept={() => void accept(ringingOffer)}
+            onDecline={() => decline(ringingOffer)}
+          />
+        )
+      )}
     </Page>
   );
 }
@@ -304,6 +375,11 @@ function ActiveRequest({ request, me, onComplete }: { request: ResponderRequest;
   const directions = useDirections(origin ?? me, target, vehicle);
   const routes = directions.data ?? [];
   const route = routes[Math.min(activeRoute, Math.max(0, routes.length - 1))];
+  const authFetch = useAuthFetch();
+  // Signed links last 5 minutes: fetch a fresh one when the video arrives, not on every refresh of the request.
+  const video = useSWR(request.hasVideo ? ["support-video", request.id] : null, () => videoSource(authFetch, request.id), {
+    revalidateOnFocus: false,
+  });
   return (
     <section className="mt-6 grid gap-4" aria-live="polite">
       <div className="rounded-2xl border-2 border-[#1a73e8] bg-white p-4.5">
@@ -327,6 +403,7 @@ function ActiveRequest({ request, me, onComplete }: { request: ResponderRequest;
             ))}
           </div>
         )}
+        {video.data && <video src={video.data} controls playsInline preload="metadata" className="mt-4 max-h-64 w-full rounded-xl bg-black/5" />}
       </div>
 
       <div className="rounded-2xl border border-[#d2e3fc] bg-[#f6f9fe] p-3">
