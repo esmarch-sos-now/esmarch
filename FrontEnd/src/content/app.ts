@@ -61,7 +61,7 @@ export const sosScreen = {
 export const supportCopy = {
   requester: {
     title: 'Tìm người hỗ trợ gần bạn',
-    subtitle: 'Gửi tín hiệu tới những người hỗ trợ đã xác minh đang sẵn sàng. Họ thấy khu vực, mô tả, ảnh và video; vị trí chính xác và số điện thoại chỉ được chia sẻ với người nhận trợ giúp.',
+    subtitle: 'Gửi tín hiệu tới những người hỗ trợ đã xác minh đang sẵn sàng. Họ thấy tình huống, mô tả, ảnh và video; vị trí chính xác và số điện thoại chỉ được chia sẻ với người nhận trợ giúp.',
     locating: 'Đang xác định vị trí của bạn…',
     located: 'Đã có vị trí của bạn.',
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí trong trình duyệt để gửi tín hiệu.',
@@ -129,7 +129,8 @@ export const supportCopy = {
     welcomeBody: 'Quản trị viên đã duyệt, bạn đã là người hỗ trợ của SOS NOW. Bấm "Bật sẵn sàng" khi bạn có thể nhận yêu cầu từ người cần giúp ở gần.',
     locating: 'Đang xác định vị trí của bạn…',
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí để chia sẻ trong phiên hỗ trợ.',
-    locationPrivacy: 'Khi chờ yêu cầu, trang không lấy GPS. Vị trí chỉ được hỏi sau khi bạn nhận một yêu cầu và chỉ dùng trong phiên hỗ trợ.',
+    locationPrivacy: 'Khi bật sẵn sàng, trang dùng vị trí của bạn để báo cho bạn những người cần giúp ở gần trước và cho bạn biết khoảng cách. Vị trí chỉ được lưu khi bạn đang sẵn sàng hoặc đang hỗ trợ, và bị xoá khi bạn tắt.',
+    locationDeniedWaiting: 'Chưa lấy được vị trí của bạn: bạn chỉ được báo khi không có người hỗ trợ nào ở gần, và sẽ không thấy khoảng cách. Hãy cho phép vị trí trong trình duyệt.',
     connection: {
       open: 'Kết nối trực tiếp',
       connecting: 'Đang kết nối…',
@@ -143,8 +144,8 @@ export const supportCopy = {
     offHint: 'Bật sẵn sàng để nhận yêu cầu.',
     alertTitle: 'Có người cần trợ giúp',
     someone: 'Người cần trợ giúp',
-    away: (d: string) => `Cách bạn khoảng ${d}`,
-    requestArea: (area: string) => `Khu vực: ${area}`,
+    // Before accepting, supporters share no GPS, so there is no distance to show (only radius requests have one)
+    placeAfterAccepting: 'Vị trí chính xác và đường đi hiện sau khi bạn nhận',
     previewClosed: 'Bản xem trước: chưa nhận yêu cầu thật nào.',
     photoCount: (n: number) => `${n} ảnh`,
     accept: 'Nhận',

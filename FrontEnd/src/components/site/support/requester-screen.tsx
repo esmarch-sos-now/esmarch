@@ -18,8 +18,8 @@ import { formatPhone as formatAccountPhone } from "@/lib/auth/phone";
 import { useLivePosition } from "@/hooks/useLivePosition";
 import { useSupportChannel } from "@/hooks/useSupportChannel";
 import type { Point } from "@/lib/api/hooks";
-import { nearestDistrict } from "@/lib/support/districts";
 import {
+  CITY_AREA,
   SITUATIONS,
   cancelSupportRequest,
   compressPhoto,
@@ -146,8 +146,8 @@ export default function RequesterScreen() {
       latitude: position.lat,
       longitude: position.lng,
       contactPhone: phone,
-      // Every ready supporter is invited; the district derived from GPS is what they see before accepting.
-      area: nearestDistrict(position),
+      // Every ready supporter is invited (see CITY_AREA); they get the exact place once they accept.
+      area: CITY_AREA,
       situation,
       description: report.text.trim() || undefined,
     }).catch(() => null);
