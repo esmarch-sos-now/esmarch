@@ -90,45 +90,59 @@ export const features = {
   ]
 }
 
-// Bảng giá: giá và quyền lợi là dữ liệu mẫu, nhóm sẽ chốt lại sau
+// Pricing: B2C Premium contracts (30 / 120 / 365 days) and a free B2B plan for organizations.
+// The Premium plans share one feature list and differ only in duration and contract price. The "/tháng" figure in a
+// note is the contract price divided by the number of months (120 days = 4 months, 365 days = 12 months).
+const premiumFeatures = [
+  'Hướng dẫn sơ cứu bằng giọng nói AI',
+  'Nút SOS và gọi nhanh 115',
+  'Toàn bộ khóa học online và quiz',
+  'Định vị, chia sẻ vị trí và chỉ đường đến cơ sở y tế',
+  'Ưu tiên kết nối người hỗ trợ ở gần',
+  'Ưu đãi đăng ký lớp sơ cứu trực tiếp'
+]
+
 export const pricing = {
   title: 'Bảng giá',
   cta: 'Bắt đầu ngay',
   plans: [
     {
-      id: 'free',
-      name: 'Free',
-      price: '0VND',
-      period: '/tháng',
-      features: [
-        'Hướng dẫn sơ cứu bằng giọng nói AI',
-        'Nút SOS và gọi nhanh 115',
-        'Bài học sơ cứu cơ bản'
-      ]
+      id: 'b2c-30',
+      name: 'B2C Premium · 30 ngày',
+      price: '39.000đ',
+      period: '',
+      note: 'Thanh toán một lần',
+      features: premiumFeatures
     },
     {
-      id: 'pro',
-      name: 'Pro',
-      price: '50VND',
-      period: '/tháng',
+      id: 'b2c-120',
+      name: 'B2C Premium · 120 ngày',
+      price: '99.000đ',
+      period: '',
+      note: 'Tương đương 24.750đ/tháng',
       featured: true,
       ribbon: 'Đề xuất cho bạn',
-      features: [
-        'Mọi tính năng của gói Free',
-        'Toàn bộ khóa học online và quiz',
-        'Định vị, chia sẻ vị trí cho người thân',
-        'Chỉ đường đến cơ sở y tế gần nhất'
-      ]
+      features: premiumFeatures
     },
     {
-      id: 'ultra',
-      name: 'Ultra',
-      price: '100VND',
-      period: '/tháng',
+      id: 'b2c-365',
+      name: 'B2C Premium · 365 ngày',
+      price: '349.000đ',
+      period: '',
+      note: 'Tương đương 29.083đ/tháng',
+      features: premiumFeatures
+    },
+    {
+      id: 'b2b',
+      name: 'B2B',
+      price: '0đ',
+      period: '',
+      note: 'Miễn phí cho tổ chức',
       features: [
-        'Mọi tính năng của gói Pro',
-        'Ưu tiên kết nối người hỗ trợ ở gần',
-        'Ưu đãi đăng ký lớp sơ cứu trực tiếp'
+        'Dành cho trường học, doanh nghiệp và đơn vị',
+        'Thành viên dùng nút SOS và gọi nhanh 115',
+        'Hướng dẫn sơ cứu bằng giọng nói AI',
+        'Triển khai không mất phí'
       ]
     }
   ]

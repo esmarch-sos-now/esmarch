@@ -1,6 +1,7 @@
 // "Tìm kiếm người hỗ trợ": request/response types and the HTTP calls. Live updates are Supabase Realtime signals
 // (see hooks/useSupportChannel.ts); the backend is BackEnd/app/modules/support/.
 import { API_BASE } from "@/lib/api/client";
+import type { CompletedCourse } from "@/lib/courses/types";
 
 export type ResponderRequest = {
   id: string;
@@ -30,6 +31,8 @@ export type RequesterState = {
     latitude?: number;
     longitude?: number;
     distanceMeters?: number;
+    /** First-aid courses the responder has finished (shown to build trust). */
+    completedCourses?: CompletedCourse[];
   };
 };
 

@@ -35,6 +35,13 @@ export const appPages: AppPageDef[] = [
     description: 'Nhận dấu hiệu FAST trước camera và ghi năm động tác theo video. Bài luyện không chẩn đoán đột quỵ.'
   },
   {
+    // Courses are open only to accounts registered as responders (see /app/san-sang-ho-tro)
+    path: '/app/khoa-hoc',
+    nav: 'Khóa học',
+    title: 'Khóa học sơ cứu cho người hỗ trợ',
+    description: 'Video sơ cứu ngắn và câu hỏi kiểm tra dành riêng cho người đã đăng ký hỗ trợ dự án.'
+  },
+  {
     // Tìm người hỗ trợ đã có (/app/nguoi-ho-tro); phần tìm AED làm sau
     path: '/app/nguoi-ho-tro',
     nav: 'Tìm kiếm AED và người hỗ trợ',
@@ -123,6 +130,7 @@ export const supportCopy = {
     off: 'Chưa sẵn sàng',
     turnOn: 'Bật sẵn sàng',
     turnOff: 'Tắt',
+    courseLink: 'Học khóa sơ cứu',
     locating: 'Đang xác định vị trí của bạn…',
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí để nhận yêu cầu gần bạn.',
     connection: {
@@ -153,6 +161,88 @@ export const supportCopy = {
     routesHint: 'bấm tuyến xám trên bản đồ để đổi tuyến',
     requesterPin: 'Người cần hỗ trợ'
   }
+}
+
+// First-aid courses: only accounts registered as responders can open the content
+export const courseCopy = {
+  eyebrow: 'Dành cho người hỗ trợ',
+  title: 'Khóa học sơ cứu',
+  subtitle:
+    'Hai khóa ngắn từ video của bác sĩ Bệnh viện Hoàn Mỹ Đà Nẵng. Xem video từng bài rồi làm câu hỏi kiểm tra; khóa đã hoàn thành được ghi nhận lên hồ sơ của bạn.',
+  signIn: 'Đăng nhập để học khóa sơ cứu dành cho người hỗ trợ.',
+  signInButton: 'Đăng nhập',
+  loading: 'Đang tải khóa học…',
+  lockedTitle: 'Khóa học dành riêng cho người hỗ trợ',
+  lockedBody:
+    'Chỉ tài khoản đã đăng ký làm người hỗ trợ của dự án mới học được khóa này. Đăng ký (demo) mất chưa đến một phút, sau đó quay lại đây để mở khóa toàn bộ bài học.',
+  lockedAction: 'Đăng ký làm người hỗ trợ',
+  enrolledAs: (name: string) => `Bạn đang học với tư cách người hỗ trợ: ${name}`,
+  progress: (done: number, total: number) => `${done}/${total} bài đã hoàn thành`,
+  completed: 'Đã hoàn thành khóa học',
+  next: 'Học bài tiếp theo',
+  lesson: (index: number) => `Bài ${index}`,
+  minutes: (minutes: number) => `${minutes} phút`,
+  done: 'Đã học',
+  quizTitle: 'Kiểm tra nhanh',
+  quizHint: 'Câu hỏi được tạo ngẫu nhiên từ tài liệu sơ cứu, mỗi lần làm là một bộ khác. Trả lời đúng tất cả để hoàn thành bài học.',
+  quizLoading: 'Đang tạo bộ câu hỏi…',
+  quizLoadFailed: 'Chưa tải được bài kiểm tra. Hãy thử lại.',
+  quizStale: 'Bộ câu hỏi vừa được cập nhật, đây là bộ câu hỏi mới.',
+  submit: 'Nộp bài',
+  submitting: 'Đang chấm…',
+  retry: 'Làm bộ câu hỏi khác',
+  passed: 'Chính xác! Bạn đã hoàn thành bài học này.',
+  lessonDone: 'Đã hoàn thành bài học',
+  failed: (correct: number, total: number) => `Đúng ${correct}/${total} câu. Xem giải thích rồi thử lại nhé.`,
+  correctAnswer: 'Đáp án đúng',
+  answerRequired: 'Hãy trả lời đủ các câu hỏi trước khi nộp.',
+  loadFailed: 'Chưa tải được khóa học. Hãy thử lại.',
+  lockedNotice: 'Tài khoản này chưa phải người hỗ trợ đã đăng ký nên nội dung khóa học được ẩn.',
+  retryLoad: 'Thử lại',
+  noCourses: 'Chưa có khóa học nào.',
+  lessons:'Nội dung khóa học',
+  // Course picker
+  pickCourse: 'Chọn khóa học',
+  lessonCount: (done: number, total: number) => `${done}/${total} bài`,
+  courseDone: 'Đã hoàn thành',
+  // Video and the notes under it
+  videoCredit: (title: string, source: string) => `Video: ${title} — ${source}`,
+  watchOnYouTube: 'Xem trên YouTube',
+  playVideo: (title: string) => `Phát video: ${title}`,
+  videoBlockedHint: 'Video không phát được trên trang (do trình duyệt hoặc tiện ích chặn quảng cáo)? Bấm "Xem trên YouTube".',
+  newTab: '(mở thẻ mới)',
+  keyPoints: 'Ghi nhớ',
+  // Watch the video first, then take the quiz
+  watchedButton: 'Tôi đã xem xong video — làm bài kiểm tra',
+  quizLocked: 'Xem hết video ở trên, sau đó bấm nút để mở bài kiểm tra.',
+  // Recorded on the profile when the course is finished
+  recorded: (badge: string) => `Đã ghi nhận lên hồ sơ: ${badge}`,
+  completedOn: (date: string) => `Hoàn thành ngày ${date}`,
+  viewProfile: 'Xem hồ sơ',
+  // Video source
+  sourceTitle: 'Nguồn video',
+  sourcePlaylist: 'Danh sách phát',
+  // "Khóa học sơ cứu" card on the account page
+  profile: {
+    title: 'Khóa học sơ cứu',
+    loading: 'Đang tải…',
+    loadFailed: 'Chưa tải được thông tin khóa học.',
+    none: 'Chưa hoàn thành khóa học nào.',
+    start: 'Vào học',
+    notEnrolled: 'Khóa học sơ cứu dành cho người hỗ trợ.',
+    enroll: 'Đăng ký làm người hỗ trợ',
+    completedOn: (date: string) => `Hoàn thành ${date}`,
+  },
+  // Chips on the responder / requester screens
+  earned: 'Khóa đã hoàn thành',
+  responderCompleted: 'Đã hoàn thành:',
+}
+
+/** Course completion date in Vietnamese format (dd/mm/yyyy); empty string when it cannot be parsed. */
+export function formatCourseDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('vi-VN')
 }
 
 // Menu trên các trang app; trang Cơ sở y tế được mở từ luồng SOS nên không nằm trong menu

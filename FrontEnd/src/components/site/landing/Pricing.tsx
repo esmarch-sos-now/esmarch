@@ -26,19 +26,20 @@ function PlanCard({ plan, index, inView }: { plan: Plan; index: number; inView: 
       )}
     >
       <div className="border-b border-black/8 px-[calc(42*var(--u))] pt-[calc(42*var(--u))] pb-[calc(52*var(--u))] max-lp:px-5.5 max-lp:pt-6.5 max-lp:pb-7.5">
-        <div className="flex min-h-[calc(30*var(--u))] items-center justify-between gap-[calc(10*var(--u))] max-lp:min-h-7">
-          <h3 id={`plan-${plan.id}`} className="text-[calc(19*var(--u))] leading-none font-normal text-[#444] max-lp:text-base">Gói {plan.name}</h3>
+        <div className="flex min-h-[calc(30*var(--u))] items-start justify-between gap-[calc(10*var(--u))] max-lp:min-h-7">
+          <h3 id={`plan-${plan.id}`} className="text-[calc(19*var(--u))] leading-[1.25] font-normal text-balance text-[#444] max-lp:text-base">Gói {plan.name}</h3>
           {plan.ribbon && (
-            <span className="inline-flex h-[calc(28*var(--u))] items-center rounded-full border border-[rgba(224,68,44,.4)] bg-[rgba(224,68,44,.08)] px-[calc(12*var(--u))] text-[calc(14*var(--u))] whitespace-nowrap text-[#e0442c] max-lp:h-6.5 max-lp:text-xs">
+            <span className="inline-flex h-[calc(28*var(--u))] shrink-0 items-center rounded-full border border-[rgba(224,68,44,.4)] bg-[rgba(224,68,44,.08)] px-[calc(12*var(--u))] text-[calc(14*var(--u))] whitespace-nowrap text-[#e0442c] max-lp:h-6.5 max-lp:text-xs">
               {plan.ribbon}
             </span>
           )}
         </div>
-        {/* Giá: chữ đen đậm bên trái, xám dần sang phải như mẫu */}
+        {/* Contract price: bold black on the left fading to grey on the right, as in the mockup */}
         <p className="mt-[calc(26*var(--u))] bg-[linear-gradient(90deg,#111_0%,#111_55%,#9a9a9a_100%)] bg-clip-text text-[calc(52*var(--u))] leading-none font-bold tracking-[-.02em] whitespace-nowrap text-transparent max-lp:mt-4 max-lp:text-[42px]">
           {plan.price}
-          <span className="text-[calc(26*var(--u))] font-medium tracking-normal max-lp:text-[22px]">{plan.period}</span>
+          {plan.period ? <span className="text-[calc(26*var(--u))] font-medium tracking-normal max-lp:text-[22px]">{plan.period}</span> : null}
         </p>
+        {plan.note ? <p className="mt-[calc(12*var(--u))] text-[calc(16*var(--u))] leading-none text-[#777] max-lp:mt-2.5 max-lp:text-sm">{plan.note}</p> : null}
       </div>
       <div className="flex flex-1 flex-col px-[calc(42*var(--u))] pt-[calc(40*var(--u))] pb-[calc(42*var(--u))] max-lp:px-5.5 max-lp:pt-6 max-lp:pb-6">
         <ul className="mb-[calc(56*var(--u))] flex flex-col gap-[calc(22*var(--u))] max-lp:mb-7 max-lp:gap-3.5">
@@ -65,7 +66,8 @@ function PlanCard({ plan, index, inView }: { plan: Plan; index: number; inView: 
   )
 }
 
-// Bảng giá kiểu liquid glass trên nền trắng: nhãn nhỏ "Bảng giá" rồi 3 thẻ kính sáng (mobile: xếp dọc).
+// Liquid-glass pricing on a white background: a small "Bảng giá" label, then 4 light glass cards (2 columns, stacked
+// on mobile).
 export default function Pricing({ id }: { id: string }) {
   const { title, plans } = pricing
   const [ref, inView] = useInView<HTMLDivElement>()
@@ -75,7 +77,7 @@ export default function Pricing({ id }: { id: string }) {
         <h2 id={`${id}-title`} className="flex font-normal">
           <FramePill className="ml-[calc(1*var(--u))] w-[calc(130*var(--u))] px-0 max-lp:w-28 max-lp:px-0">{title}</FramePill>
         </h2>
-        <div ref={ref} className="relative z-1 mt-[calc(48*var(--u))] grid grid-cols-3 gap-[calc(12*var(--u))] max-lp:mx-auto max-lp:mt-7 max-lp:max-w-115 max-lp:grid-cols-1 max-lp:gap-3.5">
+        <div ref={ref} className="relative z-1 mt-[calc(48*var(--u))] grid grid-cols-2 gap-[calc(12*var(--u))] max-lp:mx-auto max-lp:mt-7 max-lp:max-w-115 max-lp:grid-cols-1 max-lp:gap-3.5">
           {plans.map((plan, index) => <PlanCard key={plan.id} plan={plan} index={index} inView={inView} />)}
         </div>
       </div>
