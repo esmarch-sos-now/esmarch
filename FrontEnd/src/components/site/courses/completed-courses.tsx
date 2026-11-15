@@ -1,18 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import useSWR from "swr";
 import { ArrowRight, Award, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { courseCopy, formatCourseDate } from "@/content/app";
-import { useAuthFetch, useSession } from "@/hooks/use-auth";
+import { useSupporterProfile } from "@/hooks/use-supporter";
 import type { CompletedCourse } from "@/lib/courses/types";
 import { cn } from "@/lib/utils";
 
 const COURSE_PATH = "/app/khoa-hoc";
 const RESPONDER_PATH = "/app/san-sang-ho-tro";
-
-type SupportProfile = { enrolled: boolean; completedCourses?: CompletedCourse[] };
 
 /** Small green chips with the badges of finished first-aid courses (responder and requester screens). */
 export function CompletedCourseChips({ courses, label, className }: { courses: CompletedCourse[]; label?: string; className?: string }) {
@@ -38,14 +35,10 @@ export function CompletedCourseChips({ courses, label, className }: { courses: C
 /** "Khóa học sơ cứu" card on the account page: the courses recorded on the responder's profile. */
 export function CourseRecordCard() {
   const c = courseCopy.profile;
-  const { user } = useSession();
-  const authFetch = useAuthFetch();
-  const profile = useSWR<SupportProfile>(user ? "support-profile" : null, async () => {
-    const response = await authFetch("/api/support/me");
-    if (!response.ok) throw new Error(String(response.status));
-    return (await response.json()) as SupportProfile;
-  });
+  const profile = useSupporterProfile();
   const completed = profile.data?.completedCourses ?? [];
+  // Not a supporter yet (and not waiting for one): point to the way there
+  const invite = profile.data && ["none", "learning", "ready"].includes(profile.data.status);
 
   return (
     <Card className="w-full rounded-3xl [--card-spacing:--spacing(6)]">
@@ -58,14 +51,7 @@ export function CourseRecordCard() {
         {profile.isLoading && <p className="text-sm text-muted-foreground">{c.loading}</p>}
         {profile.error && <p className="text-sm text-muted-foreground">{c.loadFailed}</p>}
 
-        {profile.data && !profile.data.enrolled && (
-          <p className="text-[15px] text-muted-foreground">
-            {c.notEnrolled}{" "}
-            <Link href={RESPONDER_PATH} className="font-semibold text-brand hover:underline">{c.enroll}</Link>
-          </p>
-        )}
-
-        {profile.data?.enrolled && completed.length === 0 && (
+        {profile.data && completed.length === 0 && (
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-muted-foreground">
             {c.none}
             <Link href={COURSE_PATH} className="inline-flex items-center gap-1 font-semibold text-brand hover:underline">
@@ -74,7 +60,7 @@ export function CourseRecordCard() {
           </p>
         )}
 
-        {profile.data?.enrolled && completed.length > 0 && (
+        {profile.data && completed.length > 0 && (
           <ul className="grid gap-2">
             {completed.map((course) => {
               const date = formatCourseDate(course.completedAt);
@@ -89,6 +75,13 @@ export function CourseRecordCard() {
               );
             })}
           </ul>
+        )}
+
+        {invite && (
+          <p className="mt-3 text-sm text-muted-foreground">
+            {c.supporter}{" "}
+            <Link href={RESPONDER_PATH} className="font-semibold text-brand hover:underline">{c.becomeSupporter}</Link>
+          </p>
         )}
       </CardContent>
     </Card>

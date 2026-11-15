@@ -10,20 +10,19 @@ import { Page } from "@/components/site/primitives";
 import IncomingCallOverlay from "@/components/site/support/incoming-call-overlay";
 import { previewScenePhotos } from "@/components/site/support/incoming-call-preview-photos";
 import PointMap from "@/components/site/support/point-map";
+import SupporterOnboarding from "@/components/site/support/supporter-onboarding";
 import { Button } from "@/components/ui/button";
 import { appNav, courseCopy, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
+import { useSupporterProfile } from "@/hooks/use-supporter";
 import { DEMO_LOCATION_ENABLED, useLivePosition } from "@/hooks/useLivePosition";
 import { useSupportChannel, type ChannelStatus } from "@/hooks/useSupportChannel";
-import type { CompletedCourse } from "@/lib/courses/types";
 import { formatDuration, useDirections, type Vehicle } from "@/lib/directions";
 import { notifyInBackground, ring, unlockAlarm } from "@/lib/support/alarm";
 import { DEMO_SUPPORTER_OFFSET_METERS, offsetNorth } from "@/lib/support/demo-offset";
 import { photoUrl, videoSource, type ResponderRequest } from "@/lib/support/protocol";
 import { cn } from "@/lib/utils";
-
-type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string; contactPhone?: string; available?: boolean; completedCourses?: CompletedCourse[] };
 
 const LOGIN_NEXT = "/dang-nhap?next=%2Fapp%2Fsan-sang-ho-tro";
 const KEEPALIVE_MS = 60_000; // presence lives 5 min on the server
@@ -39,12 +38,9 @@ export default function ResponderScreen() {
   const c = supportCopy.responder;
   const { user, status: sessionStatus } = useSession();
   const authFetch = useAuthFetch();
-  const profile = useSWR<Profile>(user ? "support-profile" : null, async () => {
-    const response = await authFetch("/api/support/me");
-    if (!response.ok) throw new Error(String(response.status));
-    return (await response.json()) as Profile;
-  });
-  const enrolled = profile.data?.enrolled === true;
+  const profile = useSupporterProfile();
+  // Only a verified supporter gets the supporter mode; everyone else sees the way there (SupporterOnboarding).
+  const enrolled = profile.data?.status === "verified";
 
   const [wantAvailable, setWantAvailable] = useState(false);
   const [available, setAvailable] = useState(false);
@@ -66,7 +62,7 @@ export default function ResponderScreen() {
   // Readiness survives a reload: start from what the server says.
   const readinessLoaded = useRef(false);
   useEffect(() => {
-    if (profile.data?.enrolled && !readinessLoaded.current) {
+    if (profile.data?.status === "verified" && !readinessLoaded.current) {
       readinessLoaded.current = true;
       if (profile.data.available) queueMicrotask(() => setWantAvailable(true));
     }
@@ -221,7 +217,22 @@ export default function ResponderScreen() {
           </section>
         )}
 
-        {user && profile.data && !enrolled && <Enroll profile={profile.data} defaultName={user.displayName ?? ""} onDone={() => void profile.mutate()} />}
+        {user && profile.isLoading && <p className="mt-6 text-sm text-muted-foreground">{c.loading}</p>}
+
+        {user && profile.error && (
+          <section className="mt-6 rounded-2xl border border-line bg-white p-5">
+            <p className="text-[15px] text-ink">{c.loadFailed}</p>
+            <Button variant="outline" onClick={() => void profile.mutate()} className="mt-4 rounded-full">{c.retry}</Button>
+          </section>
+        )}
+
+        {user && profile.data && !enrolled && (
+          <SupporterOnboarding
+            profile={profile.data}
+            defaultName={user.displayName ?? ""}
+            onChanged={(next) => void profile.mutate(next, { revalidate: false })}
+          />
+        )}
 
         {enrolled && (
           <>
@@ -321,44 +332,6 @@ function ConnectionChip({ status }: { status: ChannelStatus }) {
     <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#f4f4f5] px-2.5 py-1 text-xs text-muted-foreground">
       <span className={cn("size-2 rounded-full", dot)} aria-hidden="true" /> {label}
     </p>
-  );
-}
-
-function Enroll({ profile, defaultName, onDone }: { profile: Profile; defaultName: string; onDone: () => void }) {
-  const c = supportCopy.responder;
-  const authFetch = useAuthFetch();
-  const [name, setName] = useState(defaultName);
-  const [phone, setPhone] = useState("");
-  const [error, setError] = useState("");
-  if (!profile.selfEnrollEnabled) {
-    return <p className="mt-6 rounded-2xl border border-line bg-white p-5 text-[15px] text-ink">{c.enrollDisabled}</p>;
-  }
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError("");
-    const response = await authFetch("/api/support/me", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ displayName: name.trim() || null, contactPhone: phone }),
-    });
-    if (response.ok) onDone();
-    else setError(response.status === 400 ? c.badPhone : c.enrollFailed);
-  };
-  return (
-    <form onSubmit={submit} className="mt-6 grid gap-4 rounded-2xl border border-line bg-white p-5" noValidate>
-      <h2 className="text-lg font-bold text-ink">{c.enrollTitle}</h2>
-      <p className="-mt-2 text-sm text-muted-foreground">{c.enrollHint}</p>
-      <label className="grid gap-1.5">
-        <span className="text-sm font-bold text-ink">{c.name}</span>
-        <input value={name} maxLength={100} onChange={(event) => setName(event.target.value)} className="h-11 rounded-xl border border-line px-3.5 text-base outline-none focus:border-brand" />
-      </label>
-      <label className="grid gap-1.5">
-        <span className="text-sm font-bold text-ink">{c.phone}</span>
-        <input type="tel" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="0901 234 567" className="h-11 rounded-xl border border-line px-3.5 text-base outline-none focus:border-brand" />
-      </label>
-      {error && <p className="text-sm font-semibold text-brand" role="alert">{error}</p>}
-      <Button type="submit" className="h-11 rounded-full font-bold">{c.enroll}</Button>
-    </form>
   );
 }
 

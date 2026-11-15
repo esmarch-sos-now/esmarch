@@ -5,9 +5,10 @@ private object storage, so any number of stateless instances can serve it. A req
 description and photos are wiped when it completes, is cancelled or expires; expired rows are purged on each call.
 
 Responders are reached two ways: the original bearer-token HTTP API (admin-enrolled, polling) and signed-in
-users (a profile whose id is the user id, see `self_enroll`) over `/api/support/me*`. A state change queues a "something
-changed" signal (`_signal`) that is sent through Supabase Realtime once the HTTP request is done (`app.core.db`).
-Signals carry no personal data: clients refetch over authenticated HTTP.
+users over `/api/support/me*`. A signed-in user becomes one by finishing the courses, applying (`apply`: a profile whose
+id is the user id) and being verified by an admin; `me` reports where they are (`ResponderStatus`). A state change
+queues a "something changed" signal (`_signal`) that is sent through Supabase Realtime once the HTTP request is done
+(`app.core.db`). Signals carry no personal data: clients refetch over authenticated HTTP.
 
 Dispatch: readiness needs no GPS. A request with an incident `area` (the district the requester's browser derived from
 GPS) invites every ready, verified responder with the right skills, wherever they are; a request without one (the
@@ -50,7 +51,7 @@ from app.modules.support.schemas import (
     CreateSupportRequest,
     Enrollment,
     NearbyResponder,
-    SelfEnrollment,
+    ResponderApplication,
 )
 
 log = logging.getLogger(__name__)
@@ -61,10 +62,31 @@ _PHONE = r"\+?[0-9]{8,15}"
 PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
 VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
 VIDEO_URL_SECONDS = 300  # signed video links handed to a responder
-DEMO_SOURCE = "Demo self-enrolment (SUPPORT_DEMO_SELF_ENROLL); qualification not verified"
-ADMIN_SOURCE = "Reinstated by an administrator on the admin page"
+APPLICATION_SOURCE = "Applied after completing the courses: {courses}"
 MAX_PRESENCE = 1000
 MAX_REQUESTS = 1000
+
+
+class ResponderStatus(StrEnum):
+    """Where a signed-in user stands on the way to supporter mode (`me`)."""
+
+    NONE = "none"  # no course lesson passed yet
+    LEARNING = "learning"  # some lessons passed
+    READY = "ready"  # every required course finished: may apply
+    PENDING = "pending"  # applied, waiting for an admin
+    VERIFIED = "verified"  # supporter mode
+    SUSPENDED = "suspended"  # taken off by an admin
+
+
+def _profile_status(profile: Responder, now: datetime) -> ResponderStatus | None:
+    """The status a profile alone decides, or None for a profile that never applied (a former demo enrolment)."""
+    if profile.suspended_at is not None:
+        return ResponderStatus.SUSPENDED
+    if reviewed(profile.verified_at, now):
+        return ResponderStatus.VERIFIED
+    if profile.applied_at is not None:
+        return ResponderStatus.PENDING
+    return None
 
 
 class State(StrEnum):
@@ -332,7 +354,9 @@ class SupportService:
         session.delete(profile)
         session.commit()
 
-    def _admin_view(self, profile: Responder, account: Account | None, online: bool) -> dict[str, Any]:
+    def _admin_view(
+        self, profile: Responder, account: Account | None, online: bool, completed: list[dict[str, Any]]
+    ) -> dict[str, Any]:
         return {
             "id": profile.id,
             "displayName": profile.display_name,
@@ -340,6 +364,9 @@ class SupportService:
             "skills": sorted(profile.skills),
             "verified": reviewed(profile.verified_at, clock.now()),
             "verifiedAt": profile.verified_at,
+            "status": _profile_status(profile, clock.now()),
+            "appliedAt": profile.applied_at,
+            "completedCourses": completed,
             "verificationSource": profile.verification_source,
             "online": online,
             # Self-enrolled responders share their id with the account; admin-enrolled ones have no account.
@@ -357,18 +384,26 @@ class SupportService:
         """Every responder profile for the admin page, with its linked account and whether it is on duty."""
         self._admin(None, user)
         self.purge(session)
-        profiles = session.exec(select(Responder).order_by(col(Responder.display_name))).all()
+        # A profile that never applied (a former demo enrolment) is not a responder yet: nothing to review.
+        profiles = [
+            p
+            for p in session.exec(select(Responder).order_by(col(Responder.display_name))).all()
+            if _profile_status(p, clock.now()) is not None
+        ]
         ids = [p.id for p in profiles]
         if not ids:
             return []
         accounts = {a.id: a for a in session.exec(select(Account).where(col(Account.id).in_(ids))).all()}
         online = set(session.exec(select(Presence.responder_id).where(col(Presence.responder_id).in_(ids))).all())
-        return [self._admin_view(p, accounts.get(p.id), p.id in online) for p in profiles]
+        return [
+            self._admin_view(p, accounts.get(p.id), p.id in online, _completed_courses(session, p.id)) for p in profiles
+        ]
 
     def admin_update(
         self, session: Session, user: AuthUser, rid: str, verified: bool | None, skills: list[Skill] | None
     ) -> dict[str, Any]:
-        """Suspends (verified=False) or reinstates a responder, or changes its skills."""
+        """Approves an application or reinstates a responder (verified=True), suspends one (verified=False), or
+        changes its skills. Rejecting an application is deleting the profile (`revoke`): the user may apply again."""
         self._admin(None, user)
         profile = session.get(Responder, rid)
         if profile is None:
@@ -377,13 +412,14 @@ class SupportService:
             profile.skills = sorted({s.value for s in need(skills or None, "Verified skills are required.")})
         if verified is False:
             profile.verified_at = None
+            profile.suspended_at = clock.now()
             self.withdraw(session, rid)
         elif verified and not reviewed(profile.verified_at, clock.now()):
             profile.verified_at = clock.now()
-            if profile.verification_source == DEMO_SOURCE:
-                profile.verification_source = ADMIN_SOURCE
+            profile.suspended_at = None
         session.commit()
-        return self._admin_view(profile, session.get(Account, rid), self._presence(session, rid) is not None)
+        online = self._presence(session, rid) is not None
+        return self._admin_view(profile, session.get(Account, rid), online, _completed_courses(session, rid))
 
     def rotate(self, session: Session, credential: str | None, rid: str) -> dict:
         self._admin(credential)
@@ -396,44 +432,76 @@ class SupportService:
         session.commit()
         return {"responderId": rid, "accessToken": token, "tokenType": "Bearer", "showTokenOnce": True}
 
-    # ---- signed-in users as responders (demo) --------------------------------------------------
-    def self_enroll(self, session: Session, user: AuthUser, body: SelfEnrollment) -> dict:
-        """Register (or update) the signed-in user as a responder without admin verification. Demo only."""
-        if not get_settings().support_demo_self_enroll:
-            raise error(403, "Self-enrolment is disabled.")
-        phone = _phone(body.contact_phone)
-        name = (body.display_name or user.display_name or "").strip() or "Người hỗ trợ"
-        name = text(name, 100, "display name")
+    # ---- signed-in users: courses -> application -> admin verification ----------------------------
+    def apply(self, session: Session, user: AuthUser, body: ResponderApplication) -> dict:
+        """Applies to become a responder once every required course is finished. The callback number is the account's
+        verified phone (sign-in is by phone number). The profile then waits for an admin (`admin_update`)."""
+        require(body.commitment, "Hãy xác nhận cam kết của người hỗ trợ.")
         profile = session.get(Responder, user.id)
+        status = None if profile is None else _profile_status(profile, clock.now())
+        if status is ResponderStatus.SUSPENDED:
+            raise error(403, "Tài khoản người hỗ trợ đang bị tạm khoá.")
+        if status is ResponderStatus.VERIFIED:
+            raise error(409, "Bạn đã là người hỗ trợ.")
+        if not course_service.requirement(session, user.id)["complete"]:
+            raise error(409, "Hãy hoàn thành các khoá học trước khi đăng ký.")
+        if not user.phone:
+            raise error(409, "Tài khoản chưa có số điện thoại đã xác minh.")
+        phone = _phone(user.phone)
+        name = text((body.display_name or user.display_name or "").strip() or "Người hỗ trợ", 100, "display name")
+        finished = ", ".join(
+            f"{c['id']} ({c['completedAt'].date().isoformat()})" for c in _completed_courses(session, user.id)
+        )
+        source = text(APPLICATION_SOURCE.format(courses=finished), 1000, "verification source")
         if profile is None:
+            if _count(session, Responder.id) >= 10_000:
+                raise error(503, "Responder catalog capacity reached.")
             profile = Responder(
                 id=user.id,
                 display_name=name,
                 contact_phone=phone,
                 skills=sorted([Skill.FIRST_AID.value, Skill.CPR.value]),
-                verified_at=clock.now(),
-                verification_source=DEMO_SOURCE,
+                verification_source=source,
                 token_hash=tokens.hash_token(tokens.issue()),  # unused: this profile signs in with the account
             )
             session.add(profile)
-        else:
-            profile.display_name, profile.contact_phone = name, phone
+        profile.display_name, profile.contact_phone, profile.verification_source = name, phone, source
+        if profile.applied_at is None:
+            profile.applied_at = clock.now()
         session.commit()
         return self.me(session, user)
 
     def me(self, session: Session, user: AuthUser) -> dict:
+        """The signed-in user's way to supporter mode: status, course progress and, once applied, the profile."""
         profile = session.get(Responder, user.id)
-        if profile is None:
-            return {"enrolled": False, "selfEnrollEnabled": get_settings().support_demo_self_enroll}
-        return {
-            "enrolled": True,
-            "selfEnrollEnabled": get_settings().support_demo_self_enroll,
-            "displayName": profile.display_name,
-            "contactPhone": profile.contact_phone,
-            "skills": sorted(profile.skills),
-            "available": self._presence(session, profile.id) is not None,
+        requirement = course_service.requirement(session, user.id)
+        status = None if profile is None else _profile_status(profile, clock.now())
+        if status is None:
+            if requirement["complete"]:
+                status = ResponderStatus.READY
+            elif requirement["done"] > 0:
+                status = ResponderStatus.LEARNING
+            else:
+                status = ResponderStatus.NONE
+        view: dict[str, Any] = {
+            "status": status,
+            "courseProgress": requirement,
             "completedCourses": _completed_courses(session, user.id),
+            "accountPhone": user.phone,
         }
+        if profile is not None and status in (
+            ResponderStatus.PENDING,
+            ResponderStatus.VERIFIED,
+            ResponderStatus.SUSPENDED,
+        ):
+            view |= {
+                "displayName": profile.display_name,
+                "contactPhone": profile.contact_phone,
+                "skills": sorted(profile.skills),
+                "appliedAt": profile.applied_at,
+                "available": self._presence(session, profile.id) is not None,
+            }
+        return view
 
     # ---- responders (shared core: by profile) --------------------------------------------------
     def go_available(

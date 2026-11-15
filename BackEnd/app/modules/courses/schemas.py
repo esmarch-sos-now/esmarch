@@ -72,7 +72,7 @@ class CompletedCourseView(CamelModel):
 
 
 class CourseOverview(CamelModel):
-    responder_name: str
+    responder_name: str | None  # set once the user is a verified responder
     responder_skills: list[str]
     courses: list[CourseView]
     completed_courses: list[CompletedCourseView]

@@ -31,10 +31,9 @@ class Settings(BaseSettings):
     # Signs lesson quiz tokens and seeds their questions. Empty = SUPABASE_SERVICE_KEY (also server-only).
     course_quiz_secret: str = ""
     support_admin_token: str = ""
-    # "Tìm kiếm người hỗ trợ": default search radius, demo self-enrolment of signed-in users as responders (no admin
-    # verification; never enable in production) and request photos (private object storage until it ends).
+    # "Tìm kiếm người hỗ trợ": default search radius and request photos (private object storage until it ends).
+    # Signed-in users become responders by finishing the courses, applying and being verified by an admin.
     support_radius_meters: int = Field(default=3000, ge=100, le=50_000)
-    support_demo_self_enroll: bool = False
     support_max_photos: int = Field(default=3, ge=0, le=10)
     support_photo_max_bytes: int = Field(default=4_000_000, ge=10_000)  # < 4.5 MB serverless body limit
     # One scene video per request. With Supabase Storage the browser uploads it directly (signed upload URL), so this
