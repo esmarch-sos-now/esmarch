@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { HandHeart, ImageIcon, MapPin, Siren, Video, X } from "lucide-react";
-import { formatDistance } from "@/content/facilities";
-import type { ResponderRequest } from "@/lib/support/protocol";
+import { supportCopy } from "@/content/app";
+import { distanceBeforeAccepting, type ResponderRequest } from "@/lib/support/protocol";
 
 const formatClock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
@@ -57,7 +57,7 @@ export default function IncomingCallOverlay({
     return () => window.removeEventListener("keydown", onKey);
   }, [enlarged]);
 
-  const where = offer.area ? `Khu vực ${offer.area}` : `Cách bạn khoảng ${formatDistance(offer.approximateDistanceMeters)}`;
+  const where = distanceBeforeAccepting(offer) ?? supportCopy.responder.placeAfterAccepting;
   const shown = photos.filter((url) => !failed.includes(url));
   const photosHidden = photos.length > 0 && shown.length === 0;
 

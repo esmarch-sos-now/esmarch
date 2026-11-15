@@ -182,7 +182,8 @@ def welcomed(user: CurrentUser, session: Db) -> Response:
 
 @me.put("/me/availability")
 def my_availability(body: Availability, user: CurrentUser, session: Db) -> dict:
-    """Readiness needs no GPS. Coordinates are only stored with explicit consent (radius requests use them)."""
+    """Ready / not ready. With consent, the position is stored while ready (each keep-alive refreshes it) so requests
+    reach the nearest responders first and show them the distance; it is wiped when they stop."""
     profile = support.profile_for_user(session, user.id)
     if not body.available:
         return support.go_unavailable(session, profile.id)

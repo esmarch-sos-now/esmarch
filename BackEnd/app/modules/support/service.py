@@ -10,15 +10,20 @@ id is the user id) and being verified by an admin; `me` reports where they are (
 queues a "something changed" signal (`_signal`) that is sent through Supabase Realtime once the HTTP request is done
 (`app.core.db`). Signals carry no personal data: clients refetch over authenticated HTTP.
 
-Dispatch: readiness needs no GPS. A request with an incident `area` (the district the requester's browser derived from
-GPS) invites every ready, verified responder with the right skills, wherever they are; a request without one (the
-legacy radius API) invites responders whose last known position is within the radius.
+Dispatch, nearest first: a responder who is ready shares their position (with consent; it is kept only while they are
+ready and wiped when they stop). A request from the app (`area` set) invites the ready, verified, qualified responders
+within 5 km of the requester; if there are none, within 10 km, then 20 km (`DISPATCH_RINGS`). Only when nobody with a
+known position is that close does it fall back to every ready responder, including those who share no position. The
+ring used is kept in `radius` (0 = the fallback). A request without `area` (the legacy radius API) invites responders
+whose last known position is within its radius.
 
-Privacy: before accepting, a responder sees the situation, a short description, the area (or a distance rounded to
-100 m) and the scene photos and video, as long as they were invited and have not declined. The exact location and the
-requester's phone number go to the accepting responder only, and once someone accepts, so do the photos and video.
-The responder's own position is shared only while helping and is wiped when the request ends. Once a responder
-accepts, the requester also sees the courses that responder has completed (`completedCourses`), the same record shown
+Privacy: before accepting, a responder sees the situation, a short description, the distance from their own shared
+position (rounded to 100 m; nothing when they share none) and the scene photos and video, as long as they were invited
+and have not declined. The exact location and the requester's phone number go to the accepting responder only, and
+once someone accepts, so do the photos and video. The responder's position is kept only while they are ready or
+helping: it goes with their presence when they stop, and the helping position is wiped when the request ends. Once a
+responder accepts, the requester also sees the courses that responder has completed (`completedCourses`), the same
+record shown
 on the responder's own profile.
 """
 
@@ -66,6 +71,8 @@ APPLICATION_SOURCE = "Applied after completing the courses: {courses}"
 _EMAIL = r"[^@\s]+@[^@\s]+\.[^@\s]+"
 MAX_PRESENCE = 1000
 MAX_REQUESTS = 1000
+DISPATCH_RINGS = (5_000, 10_000, 20_000)  # metres around the requester, tried in turn
+EVERYWHERE = 0  # `radius` of a request that fell back to every ready responder
 
 
 class ResponderStatus(StrEnum):
@@ -246,13 +253,22 @@ class SupportService:
             and (audience == Audience.ADULT or Skill.PEDIATRIC.value in profile.skills)
         )
 
-    def _ready_anywhere(self, session: Session, skill: Skill, audience: Audience) -> list[str]:
-        """Area dispatch: every available, verified, qualified responder, wherever they are (no GPS needed)."""
+    def _nearest_ready(
+        self, session: Session, lat: float, lng: float, skill: Skill, audience: Audience
+    ) -> tuple[list[str], int]:
+        """App requests: the ready, qualified responders within the smallest ring that has any (nearest first), and the
+        ring. With nobody close enough, every ready responder (including those sharing no position) and EVERYWHERE."""
         now = clock.now()
         rows = session.exec(
             select(Responder, Presence).join(Presence, col(Presence.responder_id) == col(Responder.id))
         ).all()
-        return sorted(p.id for p, live in rows if live.expires_at > now and self._ready(p, now, skill, audience))
+        ready = [(p, live) for p, live in rows if live.expires_at > now and self._ready(p, now, skill, audience)]
+        located = sorted((meters(lat, lng, *here), p.id) for p, live in ready if (here := _point(live)) is not None)
+        for ring in DISPATCH_RINGS:
+            within = [rid for d, rid in located if d <= ring]
+            if within:
+                return within, ring
+        return sorted(p.id for p, _ in ready), EVERYWHERE
 
     def _eligible(self, profile: Responder, ticket: SupportRequest) -> bool:
         return ticket.skill in profile.skills and (
@@ -274,8 +290,6 @@ class SupportService:
         if accepted:
             view["latitude"], view["longitude"] = t.latitude, t.longitude
             view["contactPhone"] = t.contact_phone
-        elif t.area is not None:
-            view["area"] = t.area
         elif (here := _point(live)) is not None and t.latitude is not None and t.longitude is not None:
             view["approximateDistanceMeters"] = _rounded(meters(*here, t.latitude, t.longitude))
         return view
@@ -570,7 +584,8 @@ class SupportService:
     def go_available(
         self, session: Session, profile: Responder, lat: float | None = None, lng: float | None = None
     ) -> dict:
-        """Ready for requests. No GPS needed; a position (legacy radius API) is only used for radius requests."""
+        """Ready for requests. The position (shared with consent, refreshed by the keep-alive) puts the responder in
+        the nearest-first dispatch and gives them distances; without one they are only called when nobody near is."""
         self.purge(session)
         if lat is not None and lng is not None:
             location(lat, lng)
@@ -593,19 +608,23 @@ class SupportService:
         return {"available": False}
 
     def _invite_to_open(self, session: Session, profile: Responder, live: Presence) -> None:
-        """A responder who becomes available also gets the open requests already waiting: every area request, and
-        radius requests within reach of their last known position."""
+        """A responder who becomes available (or moves) also gets the open requests already waiting near them: within
+        the request's ring (app requests reach out to the largest ring for late joiners), any request that fell back to
+        everyone, and legacy radius requests within their radius."""
         known = set(session.exec(select(SupportInvite.request_id).where(SupportInvite.responder_id == profile.id)))
         here = _point(live)
         for t in session.exec(select(SupportRequest).where(SupportRequest.state == State.OPEN)).all():
             if t.id in known or not self._eligible(profile, t):
                 continue
-            if t.area is None and (
-                here is None
-                or t.latitude is None
-                or t.longitude is None
-                or meters(*here, t.latitude, t.longitude) > t.radius
-            ):
+            everywhere = t.area is not None and t.radius == EVERYWHERE
+            reach = DISPATCH_RINGS[-1] if t.area is not None else t.radius
+            near = (
+                here is not None
+                and t.latitude is not None
+                and t.longitude is not None
+                and meters(*here, t.latitude, t.longitude) <= reach
+            )
+            if not (everywhere or near):
                 continue
             session.add(SupportInvite(request_id=t.id, responder_id=profile.id))
             _signal(session, "responder", profile.id, {"type": "request.new"})
@@ -771,7 +790,7 @@ class SupportService:
         require(r.area is None or area is not None, "Choose an incident area from /api/districts.")
         self.purge(session)
         if area is not None:
-            candidates = self._ready_anywhere(session, skill, audience)
+            candidates, radius = self._nearest_ready(session, lat, lng, skill, audience)
         else:
             candidates = [c.responder_id for c in self.nearby(session, lat, lng, radius, 5, skill, audience)]
         if not candidates:
