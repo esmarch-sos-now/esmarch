@@ -17,6 +17,8 @@ os.environ.update(
     SUPPORT_ADMIN_TOKEN=ADMIN,
     CORS_ORIGINS="https://esmarch.example,http://localhost:3000",
     PUBLIC_API_RATE_LIMIT_REQUESTS="100000",
+    OPENAI_API_KEY="",  # tests must not depend on the developer's .env
+    SUPABASE_URL="https://test-project.supabase.co",
 )
 
 
@@ -57,15 +59,17 @@ def reset_state(database):
     from app.core.db import get_engine
     from app.modules.facilities import catalog
     from app.modules.guides.service import catalog as guides
-    from app.modules.support.service import support
 
     clock.reset()
     with get_engine().begin() as c:
-        c.execute(text("TRUNCATE facility_phones, facilities, aeds, verified_responders, sos_alert CASCADE"))
+        c.execute(
+            text(
+                "TRUNCATE facility_phones, facilities, aeds, verified_responders, sos_alert, "
+                "support_presence, support_requests, voice_calls, accounts CASCADE"
+            )
+        )
     catalog.invalidate()
     guides._guides = {}
-    support.presence.clear()
-    support.requests.clear()
 
 
 @pytest.fixture(scope="session")
@@ -76,3 +80,17 @@ def client():
 
     with TestClient(create_app()) as c:
         yield c
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def supabase_keys(monkeypatch):
+    """Tests sign their own ES256 tokens; the backend checks them against this key instead of the project JWKS."""
+    from app.modules.auth import security
+    from tests.auth_tokens import PUBLIC_KEY
+
+    monkeypatch.setattr(security, "signing_key", lambda token: PUBLIC_KEY)

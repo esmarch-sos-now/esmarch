@@ -12,7 +12,7 @@ def test_contract_and_metric_distance(client, session):
     assert d["verifiedAt"] == "2026-01-01T00:00:00Z"
     assert "verificationSource" not in d
     far = client.get("/api/facilities/nearby", params={"lat": 10.81, "lng": 106.70}).json()[0]
-    assert far["distanceMeters"] >= 1100 and far["distanceMethod"] in ("ROAD", "STRAIGHT_LINE")
+    assert far["distanceMeters"] >= 1100 and far["distanceMethod"] == "STRAIGHT_LINE"
 
 
 def test_expands_radius_and_honors_limit(client, session):
@@ -95,18 +95,6 @@ def test_no_echo_or_logging_of_coordinates(client, session, caplog):
     assert "10.789123456" not in bad.text and "secret" not in bad.text
     assert "10.789123456" not in caplog.text
     assert client.get("/api/alerts").json() == []
-
-
-def test_road_distance_is_not_shorter_than_straight_line(client):
-    from app.common.checks import meters
-    from app.modules.facilities.road_distance import get_road_service
-
-    road = get_road_service()
-    assert road is not None
-    out = road.distances(10.78, 106.70, [(10.80, 106.72), (10.76, 106.68)])
-    assert out[0] is not None and out[1] is not None
-    assert out[0] >= meters(10.78, 106.70, 10.80, 106.72) - 1
-    assert road.distances(20.0, 100.0, [(10.8, 106.7)]) == [None]  # outside the graph bbox
 
 
 def test_cors(client):

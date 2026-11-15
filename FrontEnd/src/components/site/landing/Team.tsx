@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { FrameContainer, FramePill, Section, reveal } from '@/components/site/primitives'
 import useInView from '@/hooks/useInView'
+import { cn } from '@/lib/utils'
 import { team } from '@/content/landing'
+import { inter } from './inter'
 
 const myDung = '/site/team/my-dung.webp'
 const ngocHuu = '/site/team/ngoc-huu.webp'
@@ -54,23 +57,34 @@ export default function Team({ id }: { id: string }) {
   }
 
   return (
-    <section id={id} className="section team" aria-labelledby={`${id}-title`}>
-      <div className="container">
-        <span className="pill">{label}</span>
-        <div ref={ref} className={`team-head reveal ${inView ? 'in-view' : ''}`}>
+    // clip (không phải hidden) để cuộn tới #doi-ngu không làm lệch ngang băng chuyền
+    <Section id={id} className={cn(inter.className, 'overflow-clip [--card-w:230px] max-md:[--card-w:180px]')} aria-labelledby={`${id}-title`}>
+      <FrameContainer>
+        <FramePill>{label}</FramePill>
+        <div ref={ref} className={cn('mt-5 flex items-end justify-between gap-6 max-md:flex-col max-md:items-start', reveal(inView))}>
           <div>
-            <h2 id={`${id}-title`} className="team-title">{title[0]} <span>{title[1]}</span></h2>
-            <p className="team-subtitle">{subtitle}</p>
+            <h2 id={`${id}-title`} className="text-[min(3.011vw,43.4px)] leading-[1.1] font-bold tracking-[-.025em] text-[#111] max-lp:text-[clamp(28px,8vw,44px)] max-lp:leading-[1.12]">{title[0]} {title[1]}</h2>
+            <p className="mt-2.5 text-[17px] leading-normal text-[#6b6b6b] max-lp:text-[15px]">{subtitle}</p>
           </div>
-          <div className="team-arrows">
-            <button type="button" onClick={() => go(-1)} aria-label="Thành viên trước"><ChevronLeft /></button>
-            <button type="button" onClick={() => go(1)} aria-label="Thành viên tiếp theo"><ChevronRight /></button>
+          <div className="flex flex-none gap-3">
+            {[{ step: -1, label: 'Thành viên trước', Icon: ChevronLeft }, { step: 1, label: 'Thành viên tiếp theo', Icon: ChevronRight }].map(({ step, label: arrowLabel, Icon }) => (
+              <button
+                key={step}
+                type="button"
+                onClick={() => go(step)}
+                aria-label={arrowLabel}
+                className="grid size-11.5 cursor-pointer place-items-center rounded-full border border-[#dcdcdc] bg-white text-[#111] transition-colors duration-200 hover:border-[#111] hover:bg-[#111] hover:text-white [&_svg]:size-5.5"
+              >
+                <Icon />
+              </button>
+            ))}
           </div>
         </div>
-      </div>
+      </FrameContainer>
 
+      {/* Băng chuyền 3D: thẻ giữa nổi bật, các thẻ hai bên nghiêng và mờ dần */}
       <div
-        className="team-stage"
+        className="relative mt-8 h-[calc(var(--card-w)*1.417+40px)] touch-pan-y outline-none select-none perspective-[1400px] focus-visible:outline-3 focus-visible:-outline-offset-3 focus-visible:outline-brand-yellow"
         role="region"
         aria-roledescription="carousel"
         aria-label="Thành viên đội ngũ"
@@ -90,25 +104,43 @@ export default function Team({ id }: { id: string }) {
           return (
             <article
               key={member.id}
-              className={`team-card ${offset === 0 ? 'is-active' : ''}`}
-              style={{ '--shift': Math.sign(offset) * SHIFT[Math.min(distance, 2)], '--tilt': `${-Math.sign(offset) * 26}deg`, '--scale': 1 - distance * 0.12, '--fade': distance * 0.32, zIndex: 10 - distance, opacity: hidden ? 0 : 1, pointerEvents: hidden ? 'none' : undefined }}
+              className={cn(
+                'absolute top-5 left-1/2 ml-[calc(var(--card-w)/-2)] aspect-[360/510] w-(--card-w) cursor-pointer overflow-hidden rounded-[22px] shadow-[0_20px_40px_-16px_rgba(20,30,80,.35)] max-md:rounded-[18px]',
+                '[transform:translateX(calc(var(--card-w)*var(--shift)))_rotateY(var(--tilt))_scale(var(--scale))] transition-[transform,opacity] duration-600 ease-[cubic-bezier(.22,.8,.3,1)] motion-reduce:transition-none',
+                // Lớp phủ trắng mờ cho thẻ ở xa
+                "after:pointer-events-none after:absolute after:inset-0 after:bg-[rgba(240,242,250,var(--fade))] after:transition-[background] after:duration-600 after:content-[''] motion-reduce:after:transition-none",
+                offset === 0 && 'cursor-default',
+              )}
+              style={{ '--shift': Math.sign(offset) * SHIFT[Math.min(distance, 2)], '--tilt': `${-Math.sign(offset) * 26}deg`, '--scale': 1 - distance * 0.12, '--fade': distance * 0.32, zIndex: 10 - distance, opacity: hidden ? 0 : 1, pointerEvents: hidden ? 'none' : undefined } as React.CSSProperties}
               aria-hidden={offset !== 0}
               onClick={() => offset !== 0 && setActive(index)}
             >
-              <img src={photos[member.id]} alt={`${member.name}, ${member.role}`} width="360" height="510" draggable="false" />
-              <div className="team-card-panel">
-                <span><strong>SOS NOW</strong><small>{member.area}</small></span>
+              <img src={photos[member.id]} alt={`${member.name}, ${member.role}`} width="360" height="510" draggable="false" className="block size-full object-cover" />
+              {/* Ô kính mờ ở chân thẻ */}
+              <div className="absolute right-2.5 bottom-2.5 left-2.5 rounded-[14px] border border-white/35 bg-white/16 px-3 py-2 text-white backdrop-blur-[10px] max-md:right-2 max-md:bottom-2 max-md:left-2 max-md:rounded-xl max-md:px-2.5 max-md:py-1.5">
+                <span className="grid gap-0.5">
+                  <strong className="text-[13px] font-semibold max-md:text-xs">SOS NOW</strong>
+                  <small className="text-xs opacity-90 max-md:text-[11px]">{member.area}</small>
+                </span>
               </div>
             </article>
           )
         })}
       </div>
 
-      <div className="team-dots" role="tablist" aria-label="Chọn thành viên">
+      <div className="mt-7 flex justify-center gap-2" role="tablist" aria-label="Chọn thành viên">
         {members.map((member, index) => (
-          <button key={member.id} type="button" role="tab" aria-selected={index === active} aria-label={member.name} className={index === active ? 'active' : ''} onClick={() => setActive(index)} />
+          <button
+            key={member.id}
+            type="button"
+            role="tab"
+            aria-selected={index === active}
+            aria-label={member.name}
+            className={cn('h-2.5 cursor-pointer rounded-full transition-[width,background] duration-300', index === active ? 'w-7 bg-[#111]' : 'w-2.5 bg-[#d9d9d9]')}
+            onClick={() => setActive(index)}
+          />
         ))}
       </div>
-    </section>
+    </Section>
   )
 }

@@ -3,6 +3,7 @@ name: esmarch
 services:
   db:
     image: postgres:18
+    pull_policy: always
     environment:
       POSTGRES_USER: esmarch
       POSTGRES_PASSWORD: esmarch
@@ -18,11 +19,21 @@ services:
       retries: 20
 
   backend:
-    build: ./BackEnd
+    build:
+      context: ./BackEnd
+      pull: true
+    env_file:
+      - path: ./BackEnd/.env
+        required: false
     environment:
       DATABASE_URL: postgresql+psycopg://esmarch:esmarch@db:5432/esmarch
-      CORS_ORIGINS: http://localhost:3000
+      # Origins the backend accepts browser requests from (the voice endpoints check Origin against this list).
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+      # The Next proxy passes the caller's IP in this header (per-IP voice limits).
+      CLIENT_IP_HEADER: x-sosnow-client-ip
       SUPPORT_ADMIN_TOKEN: ${SUPPORT_ADMIN_TOKEN:-}
+      # Accounts: SUPABASE_URL comes from BackEnd/.env (see BackEnd/.env.example);
+      # listing them here would let an unset shell variable override the file.
       # Requests arrive via the Next proxy: trust its X-Forwarded-For so rate limits apply per real client.
       # Dev/compose only. In production restrict this to the proxy's address.
       FORWARDED_ALLOW_IPS: "*"
@@ -30,10 +41,15 @@ services:
     depends_on:
       db: { condition: service_healthy }
     volumes:
-      - ./BackEnd/app:/app/app
-      - ./BackEnd/data:/app/data
-      - ./BackEnd/tests:/app/tests
-      - ./BackEnd/migrations:/app/migrations
+      - ./BackEnd:/app
+    develop:
+      watch:
+        - action: rebuild
+          path: ./BackEnd/pyproject.toml
+        - action: rebuild
+          path: ./BackEnd/uv.lock
+        - action: restart
+          path: ./BackEnd/.env
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/api/health')"]
       interval: 5s
@@ -42,7 +58,9 @@ services:
       start_period: 20s
 
   frontend:
-    build: ./FrontEnd
+    build:
+      context: ./FrontEnd
+      pull: true
     env_file:
       - path: ./FrontEnd/.env
         required: false
@@ -57,6 +75,14 @@ services:
       - ./FrontEnd:/app
       - /app/node_modules
       - /app/.next
+    develop:
+      watch:
+        - action: rebuild
+          path: ./FrontEnd/package.json
+        - action: rebuild
+          path: ./FrontEnd/package-lock.json
+        - action: restart
+          path: ./FrontEnd/.env
 
 volumes:
   pgdata:

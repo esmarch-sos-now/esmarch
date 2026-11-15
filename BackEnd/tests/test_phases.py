@@ -8,7 +8,6 @@ from app.modules.aeds import service as aeds
 from app.modules.aeds.schemas import AedImport
 from app.modules.guides.schemas import Audience, Guide
 from app.modules.guides.service import catalog
-from app.modules.support.service import support
 from tests.conftest import ADMIN
 
 
@@ -260,7 +259,6 @@ def test_expiry_and_cancellation_remove_location(client):
     assert client.delete(f"/api/support-requests/{rid}", headers=owner).status_code == 204
     assert client.get("/api/responders/me/requests", headers=auth).json() == []
     clock.advance(11 * 60)
-    support.purge()
     assert client.get(f"/api/support-requests/{rid}", headers=owner).status_code == 404
     assert client.get("/api/responders/nearby", params={"lat": 10.8, "lng": 106.7, "skill": "CPR"}).json() == []
 

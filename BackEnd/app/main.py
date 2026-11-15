@@ -10,17 +10,19 @@ from app.core import errors, registry  # noqa: F401
 from app.core.config import get_settings
 from app.core.db import get_engine
 from app.core.middleware import PublicApiMiddleware
+from app.modules.admin import router as admin_router
 from app.modules.aeds import router as aeds_router
 from app.modules.alerts import router as alerts_router
+from app.modules.auth import router as auth_router
 from app.modules.capabilities import router as capabilities_router
 from app.modules.districts import router as districts_router
-from app.modules.facilities import catalog, road_distance
+from app.modules.facilities import catalog
 from app.modules.facilities import router as facilities_router
 from app.modules.guides import router as guides_router
 from app.modules.guides.service import catalog as guides_catalog
 from app.modules.health import router as health_router
 from app.modules.support import router as support_router
-from app.modules.support.service import support
+from app.voice import router as voice_router
 
 # Request URLs carry user coordinates; keep them out of logs.
 logging.getLogger("uvicorn.access").disabled = True
@@ -34,19 +36,10 @@ def _warm() -> None:
         catalog.all_facilities(session)  # warm public catalogue; no location-dependent work
 
 
-async def _purge_loop() -> None:
-    while True:
-        await asyncio.sleep(30)
-        support.purge()
-
-
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    road_distance.load_road_service()
     await asyncio.to_thread(_warm)
-    task = asyncio.create_task(_purge_loop())
     yield
-    task.cancel()
 
 
 def create_app() -> FastAPI:
@@ -64,22 +57,26 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=s.origins,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Accept", "Authorization", "X-Admin-Token"],
         expose_headers=["Retry-After"],
         max_age=3600,
     )
     for module in (
         health_router,
+        auth_router,
         facilities_router,
         districts_router,
         guides_router,
         aeds_router,
         support_router,
+        admin_router,
         capabilities_router,
         alerts_router,
+        voice_router,
     ):
         app.include_router(module.router)
+    app.include_router(support_router.me)  # /api/support/me*: signed-in responders
     return app
 
 

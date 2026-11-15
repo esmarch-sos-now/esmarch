@@ -1,25 +1,10 @@
-import { Check, Lock, Mic, Play, type LucideIcon } from 'lucide-react'
+import { Check, Lock, Play, type LucideIcon } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 // Khung minh họa giao diện app cho phần "Tính năng", dựng bằng HTML để luôn sắc nét
 
-export function VoiceMock() {
-  return (
-    <div className="mock mock-voice">
-      <p className="mock-caption">Hướng dẫn bằng giọng nói</p>
-      <p className="voice-prompt">Tôi đang lắng nghe. Hãy mô tả điều bạn thấy, tôi sẽ hướng dẫn bạn từng bước.</p>
-      <div className="voice-status">
-        <span className="voice-wave" aria-hidden="true">{[0, 1, 2, 3, 4].map((i) => <span key={i} style={{ '--i': i }} />)}</span>
-        <strong>Đang nghe<span className="voice-dots" aria-hidden="true">...</span></strong>
-        <small>Tiếng Việt</small>
-      </div>
-      <div className="voice-input">
-        <span className="voice-orb" aria-hidden="true" />
-        <span className="voice-placeholder">Trò chuyện với trợ lý</span>
-        <span className="voice-speak"><Mic aria-hidden="true" /> Nói</span>
-      </div>
-    </div>
-  )
-}
+const mock =
+  'flex size-full flex-col rounded-[28px] border border-[#d9dde8] bg-white px-7 py-6 text-[#222] shadow-[0_14px_30px_rgba(20,30,80,.1)] max-[899px]:h-auto max-[899px]:min-h-85 max-[899px]:rounded-3xl max-[899px]:p-5 max-xs:min-h-80 max-xs:px-4 max-xs:py-4.5'
 
 const lessons = [
   { title: 'Đánh giá hiện trường an toàn', meta: '5 phút', state: 'done' },
@@ -31,45 +16,42 @@ const lessonIcon: Record<string, LucideIcon> = { done: Check, current: Play, loc
 
 export function CourseMock() {
   return (
-    <div className="mock mock-course">
-      <div className="course-head">
-        <p className="mock-caption">Khóa học sơ cứu cơ bản</p>
-        <span className="course-badge">Online</span>
+    <div className={mock}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-base font-bold text-[#333]">Khóa học sơ cứu cơ bản</p>
+        <span className="rounded-full bg-[#fde08f] px-2.5 py-0.5 text-xs font-medium">Online</span>
       </div>
-      <div className="course-progress">
+      <div className="mt-4 mb-1.5 flex justify-between text-[13px] text-[#666]">
         <span>Tiến độ 2/4 bài</span>
-        <strong>50%</strong>
+        <strong className="text-brand">50%</strong>
       </div>
-      <span className="course-bar" aria-hidden="true"><span /></span>
-      <ul className="course-lessons">
+      {/* Thanh tiến độ chạy tới 50% khi hàng tính năng cuộn vào màn hình (group = FeatureRow) */}
+      <span className="block h-1.5 overflow-hidden rounded-[3px] bg-[#f0f1f5]" aria-hidden="true">
+        <span className="block h-full w-0 rounded-[inherit] bg-brand transition-[width] delay-300 duration-1200 ease-in-out group-data-[in-view=true]:w-1/2 motion-reduce:transition-none" />
+      </span>
+      <ul className="mt-3.5 grid gap-1.5">
         {lessons.map(({ title, meta, state }) => {
           const Icon = lessonIcon[state]
           return (
-            <li key={title} className={`lesson lesson-${state}`}>
-              <span className="lesson-icon"><Icon aria-hidden="true" /></span>
-              <span className="lesson-title">{title}</span>
-              <small>{meta}</small>
+            <li key={title} className={cn('flex items-center gap-2.5 rounded-xl px-2.5 py-1.75 text-sm', state === 'current' && 'bg-brand-soft font-medium', state === 'locked' && 'text-[#aaa]')}>
+              <span
+                className={cn(
+                  'grid size-6 flex-none place-items-center rounded-full bg-[#e6e9fb] text-[#4f5fd6] [&_svg]:size-3.25 [&_svg]:stroke-[2.5]',
+                  state === 'current' && 'bg-brand text-white',
+                  state === 'locked' && 'bg-[#f0f1f5] text-[#aaa]',
+                )}
+              >
+                <Icon aria-hidden="true" />
+              </span>
+              <span className="truncate">{title}</span>
+              <small className="ml-auto text-xs whitespace-nowrap text-[#999]">{meta}</small>
             </li>
           )
         })}
       </ul>
-      <div className="course-quiz">
-        <span><strong>Quiz nhanh</strong><small>5 câu · khoảng 3 phút</small></span>
-        <span className="course-quiz-button">Làm quiz</span>
-      </div>
-    </div>
-  )
-}
-
-export function SosMock() {
-  return (
-    <div className="mock mock-sos">
-      <p className="sos-question">Bạn đang gặp nguy hiểm?</p>
-      <p className="sos-hint">Nhấn nút bên dưới, trợ giúp sẽ sớm tìm đến bạn.</p>
-      <div className="sos-stage">
-        <span className="sos-ring" aria-hidden="true" />
-        <span className="sos-ring sos-ring-2" aria-hidden="true" />
-        <span className="sos-button">SOS</span>
+      <div className="mt-auto flex items-center justify-between gap-2 rounded-[14px] bg-[#f6f6f8] px-3 py-2.5 max-[899px]:mt-3.5">
+        <span className="grid text-sm"><strong>Quiz nhanh</strong><small className="text-xs text-[#888]">5 câu · khoảng 3 phút</small></span>
+        <span className="rounded-full bg-brand px-3.5 py-1.5 text-[13px] font-medium text-white">Làm quiz</span>
       </div>
     </div>
   )
