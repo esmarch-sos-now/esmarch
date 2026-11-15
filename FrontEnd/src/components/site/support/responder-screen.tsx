@@ -29,7 +29,7 @@ const KEEPALIVE_MS = 60_000; // presence lives 5 min on the server
 
 const RING_EVERY_MS = 4000; // the bell repeats until the request is accepted, declined or gone
 
-const rounded = (value: number | undefined) => (value === undefined ? "" : value.toFixed(4));
+const rounded = (value: number | undefined, digits: number) => (value === undefined ? "" : value.toFixed(digits));
 
 // Người hỗ trợ (đã xác minh): bật "Sẵn sàng" mà không cần GPS. Yêu cầu tới qua Supabase Realtime như một cuộc gọi đến
 // (chuông, màn hình toàn trang với khu vực, mô tả, ảnh, video). GPS chỉ bắt đầu sau khi nhận yêu cầu; phiên hỗ trợ
@@ -60,8 +60,9 @@ export default function ResponderScreen() {
     queueMicrotask(() => setWelcome(true));
     void authFetch("/api/support/me/welcome", { method: "POST" });
   }, [justVerified, authFetch]);
-  // Waiting needs no GPS: the position is only read while helping (it moves us on the requester's map).
-  const { position: gpsPosition, status: positionStatus } = useLivePosition(active !== null, false);
+  // GPS runs while ready (requests go to the nearest supporters first, and show them the distance) and while helping
+  // (it moves us on the requester's map). Switching "Sẵn sàng" on is the consent; off stops it and the server drops it.
+  const { position: gpsPosition, status: positionStatus } = useLivePosition(wantAvailable || active !== null, false);
   // Demo (requester and supporter on one computer): stand 1 km north of the GPS reading, or of the requester when this
   // browser has no fix, so the map always has a route to show.
   const requesterLat = active?.latitude;
@@ -114,11 +115,12 @@ export default function ResponderScreen() {
     },
   });
 
-  // Tell the server: `available` while waiting (no position; also refreshes presence), `location` while helping (moves
-  // us on the requester's map), `unavailable` when switched off.
-  const lat = rounded(position?.lat);
-  const lng = rounded(position?.lng);
+  // Tell the server: `available` while waiting (with the position when we have one; also refreshes presence),
+  // `location` while helping (moves us on the requester's map), `unavailable` when switched off. While waiting the
+  // position is rounded to ~100 m, so GPS jitter does not send an update every few seconds.
   const activeId = active?.id;
+  const lat = rounded(position?.lat, activeId ? 4 : 3);
+  const lng = rounded(position?.lng, activeId ? 4 : 3);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     if (!wantAvailable && !activeId) return;
@@ -136,7 +138,7 @@ export default function ResponderScreen() {
       void authFetch("/api/support/me/availability", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ available: true }),
+        body: JSON.stringify(point ? { available: true, ...point, consentToLocationUse: true } : { available: true }),
       }).then((r) => r.ok && setAvailable(true));
     } else if (lastSent.current === "available") {
       void authFetch("/api/support/me/availability", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ available: false }) });
@@ -209,7 +211,7 @@ export default function ResponderScreen() {
         description: "Người lớn tuổi ngã trước cửa hàng, không trả lời khi gọi, đang thở yếu. Cần người biết hồi sức tim phổi.",
         expiresAt: new Date(Date.now() + 2 * 60_000).toISOString(),
         photoCount: 2,
-        area: "Quận 1",
+        approximateDistanceMeters: 1200,
       }),
     );
   }, []);
@@ -287,6 +289,7 @@ export default function ResponderScreen() {
               <CompletedCourseChips courses={profile.data?.completedCourses ?? []} label={courseCopy.earned} className="mt-2.5" />
               <p className="mt-3 text-sm leading-snug text-muted-foreground">{c.locationPrivacy}</p>
               {active && positionStatus === "denied" && <p className="mt-2 text-sm text-brand">{c.locationDenied}</p>}
+              {!active && wantAvailable && positionStatus === "denied" && <p className="mt-2 text-sm text-brand">{c.locationDeniedWaiting}</p>}
             </section>
 
             {/* The courses are reviewed here (there is no public course page) */}

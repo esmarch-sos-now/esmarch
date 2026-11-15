@@ -129,7 +129,8 @@ export const supportCopy = {
     welcomeBody: 'Quản trị viên đã duyệt, bạn đã là người hỗ trợ của SOS NOW. Bấm "Bật sẵn sàng" khi bạn có thể nhận yêu cầu từ người cần giúp ở gần.',
     locating: 'Đang xác định vị trí của bạn…',
     locationDenied: 'Chưa được phép lấy vị trí. Hãy cho phép vị trí để chia sẻ trong phiên hỗ trợ.',
-    locationPrivacy: 'Khi chờ yêu cầu, trang không lấy GPS. Vị trí chỉ được hỏi sau khi bạn nhận một yêu cầu và chỉ dùng trong phiên hỗ trợ.',
+    locationPrivacy: 'Khi bật sẵn sàng, trang dùng vị trí của bạn để báo cho bạn những người cần giúp ở gần trước và cho bạn biết khoảng cách. Vị trí chỉ được lưu khi bạn đang sẵn sàng hoặc đang hỗ trợ, và bị xoá khi bạn tắt.',
+    locationDeniedWaiting: 'Chưa lấy được vị trí của bạn: bạn chỉ được báo khi không có người hỗ trợ nào ở gần, và sẽ không thấy khoảng cách. Hãy cho phép vị trí trong trình duyệt.',
     connection: {
       open: 'Kết nối trực tiếp',
       connecting: 'Đang kết nối…',
