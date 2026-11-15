@@ -1,14 +1,16 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Response, UploadFile
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from sqlmodel import Session
 
 from app.common.params import Lat, Limit, Lng, Radius
 from app.core.config import get_settings
 from app.core.db import get_session
+from app.core.ratelimit import client_ip
 from app.modules.auth.deps import AdminUser, CurrentUser, OptionalUser, require_auth_configured
 from app.modules.guides.schemas import Audience
+from app.modules.support import transcribe as speech
 from app.modules.support.models import Skill
 from app.modules.support.schemas import (
     Availability,
@@ -132,6 +134,26 @@ async def upload_video(request_id: str, file: UploadFile, session: Db, authoriza
     """Backend upload of the video, when Supabase Storage is not configured (local dev)."""
     data = await file.read(get_settings().support_video_max_bytes + 1)
     return await run_in_threadpool(support.add_video, session, authorization, request_id, file.content_type, data)
+
+
+# ---- voice description -> text ----------------------------------------------------------------
+@router.get("/support/transcribe")
+def transcribe_status() -> dict:
+    """Whether the requester form should offer voice input: the backend decides (OPENAI_API_KEY is set)."""
+    return {"enabled": bool(get_settings().openai_api_key)}
+
+
+@router.post("/support/transcribe")
+async def transcribe(request: Request, file: UploadFile) -> dict:
+    """The requester's recorded description as text (OpenAI speech-to-text). Nothing is stored. 503 without
+    OPENAI_API_KEY; the form then moves the cursor to the description box for typed text."""
+    s = get_settings()
+    origin = request.headers.get("origin")
+    if origin is not None and origin not in s.origins:
+        raise HTTPException(403, "Origin not allowed.")
+    data = await file.read(s.support_transcribe_max_bytes + 1)
+    extension = speech.check(s, client_ip(request, s.client_ip_header), file.content_type, data)
+    return {"text": await speech.transcribe(s, extension, file.content_type, data)}
 
 
 # ---- signed-in users as responders ("Sẵn sàng hỗ trợ") -----------------------------------------

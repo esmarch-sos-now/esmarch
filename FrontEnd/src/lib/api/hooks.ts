@@ -24,3 +24,9 @@ export function useDistricts() {
 export function useSupportAreas() {
   return useSWR<string[], ApiError>("/api/support-areas");
 }
+
+/** Whether the requester form offers voice input: the backend says so (it has an OpenAI key). Off until it answers. */
+export function useVoiceInputEnabled(): boolean {
+  const { data } = useSWR<{ enabled: boolean }, ApiError>("/api/support/transcribe");
+  return data?.enabled === true;
+}
