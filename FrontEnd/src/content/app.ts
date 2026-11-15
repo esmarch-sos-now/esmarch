@@ -50,7 +50,7 @@ export const appPages: AppPageDef[] = [
 // Màn hình Nút SOS: nhấn nút mở màn Cơ sở y tế gần nhất kèm hộp xác nhận gọi 115
 export const sosScreen = {
   question: 'Bạn đang gặp nguy hiểm?',
-  hint: 'Nhấn nút bên dưới để gọi 115 và xem cơ sở y tế gần bạn nhất. Hãy bình tĩnh, trợ giúp sẽ sớm đến với bạn.',
+  hint: 'Nhấn nút bên dưới để gọi 115 và xem cơ sở y tế gần bạn nhất.',
   button: 'SOS',
   buttonLabel: 'Gọi 115 ngay',
   note: 'Cuộc gọi đến 115 hoàn toàn miễn phí.',

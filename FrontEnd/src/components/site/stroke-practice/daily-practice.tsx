@@ -88,15 +88,15 @@ export default function DailyPractice({ drill }: { drill: SavedDrill | null }) {
   const todayDrill = log[today]?.drill
 
   return (
-    <section className="mt-10 rounded-2xl border border-line bg-paper p-4.5 sm:p-5" aria-labelledby="practice-daily">
-      <h2 id="practice-daily" className="text-[clamp(22px,3vw,28px)] leading-tight font-extrabold text-ink">{daily.title}</h2>
-      <p className="mt-2 text-base leading-[1.6] text-muted-foreground">{daily.intro}</p>
-      <p className="mt-3.5 rounded-xl bg-[#fff8e8] px-3.5 py-3 text-sm leading-normal font-semibold text-[#6d4a00]">{daily.caution}</p>
+    // Không hiện tiêu đề mục; tên mục chỉ dành cho trình đọc màn hình
+    <section className="mt-6" aria-label={daily.title}>
+      <p className="text-base leading-[1.6] text-muted-foreground">{daily.intro}</p>
+      <p className="mt-2 text-sm leading-normal font-semibold text-[#6d4a00]">{daily.caution}</p>
       <p className="mt-4 text-sm font-bold text-ink">{daily.progress(moves.length, daily.moves.length)}</p>
-      <ul className="mt-3 grid list-none gap-2.5 p-0">
+      <ul className="mt-2 grid list-none gap-1 p-0">
         {daily.moves.map((move) => (
           <li key={move.id}>
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-line p-3.5 hover:border-brand">
+            <label className="flex cursor-pointer items-start gap-2.5 py-2.5">
               <input className="mt-0.5 size-4.5 accent-brand" type="checkbox" checked={moves.includes(move.id)} onChange={() => toggle(move.id)} />
               <span>
                 <strong className="block text-[15px] leading-snug font-extrabold text-ink">{move.title}</strong>
