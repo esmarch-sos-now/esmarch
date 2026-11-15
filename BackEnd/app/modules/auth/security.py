@@ -1,90 +1,85 @@
-"""Password hashing, JWT access tokens and one-time codes.
+"""Validates Supabase Auth access tokens (https://supabase.com/docs/guides/auth/jwts).
 
-Follows https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/: PyJWT (HS256) and pwdlib's recommended Argon2
-hasher, with a dummy-hash check for unknown accounts so response time does not reveal which emails exist.
+Supabase signs access tokens with the project's asymmetric signing key (ES256 by default, RS256 possible). The
+public keys are published at `<SUPABASE_URL>/auth/v1/.well-known/jwks.json`; the token header's `kid` picks one.
+Symmetric (HS256) tokens are never accepted, so the legacy shared JWT secret is not needed here.
 """
 
-import hashlib
-import hmac
-import secrets
-from datetime import timedelta
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import Any
 
 import jwt
-from email_validator import EmailNotValidError, validate_email
-from jwt.exceptions import InvalidTokenError
-from pwdlib import PasswordHash
+from jwt import PyJWKClient
+from jwt.exceptions import PyJWKClientConnectionError, PyJWTError
 
-from app.core import clock
 from app.core.config import get_settings
+from app.core.errors import error
 
-ALGORITHM = "HS256"
-ISSUER = "esmarch"
-AUDIENCE = "esmarch-api"
-
-password_hash = PasswordHash.recommended()
-DUMMY_HASH = password_hash.hash("dummypassword")
-
-
-def hash_password(password: str) -> str:
-    return password_hash.hash(password)
+ALGORITHMS = ["ES256", "RS256"]
+AUDIENCE = "authenticated"  # signed-in users; anonymous and service tokens carry other audiences or roles
+# Supabase's own caches hold the key set for up to 20 minutes; the docs ask clients not to cache longer.
+JWKS_CACHE_SECONDS = 600
+LEEWAY_SECONDS = 10  # clock skew between Supabase and this server
 
 
-def verify_password(password: str, hashed: str | None) -> tuple[bool, str | None]:
-    """Returns (valid, new hash when the stored one uses outdated parameters)."""
-    if hashed is None:
-        password_hash.verify(password, DUMMY_HASH)
-        return False, None
-    return password_hash.verify_and_update(password, hashed)
+@dataclass(frozen=True)
+class AuthUser:
+    """The signed-in Supabase user, built from the verified access token's claims."""
+
+    id: str  # Supabase `auth.users.id` (a UUID), the `sub` claim
+    phone: str | None  # E.164 with "+", e.g. +84912345678; accounts sign in with phone number + password
+    email: str | None
+    display_name: str | None
 
 
-def normalize_email(value: str) -> str | None:
-    try:
-        return validate_email(value.strip(), check_deliverability=False).normalized.lower()
-    except EmailNotValidError:
+@lru_cache
+def _jwks(url: str) -> PyJWKClient:
+    return PyJWKClient(url, cache_jwk_set=True, lifespan=JWKS_CACHE_SECONDS, timeout=5)
+
+
+def signing_key(token: str) -> Any:
+    """Public key for the token's `kid`. PyJWKClient refetches the key set once when the `kid` is unknown."""
+    return _jwks(get_settings().supabase_jwks_url).get_signing_key_from_jwt(token).key
+
+
+def _display_name(metadata: object) -> str | None:
+    if not isinstance(metadata, dict):
         return None
+    for key in ("display_name", "full_name", "name"):
+        value = metadata.get(key)
+        if isinstance(value, str) and value.strip():
+            return " ".join(value.split())[:100]
+    return None
 
 
-def create_access_token(user_id: str) -> tuple[str, int]:
-    s = get_settings()
-    now = clock.now()
-    ttl = s.access_token_ttl_seconds
-    claims = {
-        "sub": user_id,
-        "iss": ISSUER,
-        "aud": AUDIENCE,
-        "iat": now,
-        "exp": now + timedelta(seconds=ttl),
-        "jti": secrets.token_urlsafe(8),
-    }
-    return jwt.encode(claims, s.auth_secret_key, algorithm=ALGORITHM), ttl
+def verify_access_token(token: str) -> AuthUser | None:
+    """Returns the user for a valid access token of this project, or None for any invalid, expired or foreign one.
 
-
-def decode_access_token(token: str) -> str | None:
-    """Returns the user id, or None for any invalid, expired or foreign token.
-
-    Expiry is checked against app.core.clock (not PyJWT's wall clock) so tests can move time.
+    Raises 503 when the key set cannot be fetched, so an outage is not reported as "signed out".
     """
+    s = get_settings()
     try:
-        payload = jwt.decode(
+        claims = jwt.decode(
             token,
-            get_settings().auth_secret_key,
-            algorithms=[ALGORITHM],
+            signing_key(token),
+            algorithms=ALGORITHMS,
             audience=AUDIENCE,
-            issuer=ISSUER,
-            options={"require": ["sub", "exp", "iat"], "verify_exp": False, "verify_iat": False},
+            issuer=s.supabase_issuer,
+            leeway=LEEWAY_SECONDS,
+            options={"require": ["exp", "iat", "iss", "aud", "sub", "role"]},
         )
-    except InvalidTokenError:
+    except PyJWKClientConnectionError:
+        raise error(503, "Authentication service is unavailable.") from None
+    except PyJWTError:
         return None
-    exp, sub = payload.get("exp"), payload.get("sub")
-    if not isinstance(exp, int | float) or exp <= clock.now().timestamp() or not isinstance(sub, str):
+    sub = claims.get("sub")
+    if claims.get("role") != "authenticated" or claims.get("is_anonymous") is True or not isinstance(sub, str):
         return None
-    return sub
-
-
-def new_code() -> str:
-    return f"{secrets.randbelow(1_000_000):06d}"
-
-
-def code_digest(user_id: str, purpose: str, code: str) -> str:
-    key = get_settings().auth_secret_key.encode()
-    return hmac.new(key, f"{purpose}:{user_id}:{code}".encode(), hashlib.sha256).hexdigest()
+    email, phone = claims.get("email"), claims.get("phone")
+    return AuthUser(
+        id=sub,
+        phone=f"+{phone.lstrip('+')}" if isinstance(phone, str) and phone else None,  # Supabase omits the "+"
+        email=email if isinstance(email, str) and email else None,
+        display_name=_display_name(claims.get("user_metadata")),
+    )

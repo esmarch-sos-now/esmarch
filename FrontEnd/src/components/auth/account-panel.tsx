@@ -15,6 +15,7 @@ import { useChangePassword, useLogout, useSession, useUpdateProfile } from "@/ho
 import { authCopy } from "@/content/auth";
 import type { User } from "@/lib/auth/client";
 import { LOGIN_PATH } from "@/lib/auth/paths";
+import { formatPhone } from "@/lib/auth/phone";
 import { changePasswordSchema, profileSchema } from "@/lib/auth/schemas";
 import { FormAlert, reportError } from "./form-fields";
 
@@ -88,7 +89,7 @@ function PasswordCard() {
       form.reset();
       setChanged(true);
     } catch (error) {
-      reportError(form.setError, error, { "Current password is incorrect.": "currentPassword" });
+      reportError(form.setError, error, { wrong_current_password: "currentPassword", same_password: "password", weak_password: "password" });
     }
   }
 
@@ -117,7 +118,7 @@ function PasswordCard() {
               render={({ field, fieldState }) => (
                 <Field data-invalid={fieldState.invalid}>
                   <FieldLabel htmlFor="form-password-new">{fields.newPassword}</FieldLabel>
-                  <Input {...field} id="form-password-new" type="password" autoComplete="new-password" maxLength={128} aria-invalid={fieldState.invalid} />
+                  <Input {...field} id="form-password-new" type="password" autoComplete="new-password" maxLength={72} aria-invalid={fieldState.invalid} />
                   <FieldDescription>{authCopy.hints.password}</FieldDescription>
                   {fieldState.invalid && <FieldError errors={[fieldState.error]} />}
                 </Field>
@@ -185,7 +186,7 @@ function SessionsCard() {
 export default function AccountPanel() {
   const { user } = useSession();
   if (!user) return null;
-  const since = new Date(user.createdAt).toLocaleDateString("vi-VN");
+  const since = user.createdAt ? new Date(user.createdAt).toLocaleDateString("vi-VN") : null;
 
   return (
     <>
@@ -193,7 +194,7 @@ export default function AccountPanel() {
         <CardHeader>
           <CardTitle className="text-3xl font-black text-ink">{copy.title}</CardTitle>
           <CardDescription className="text-base">
-            {copy.signedInAs} <strong className="text-ink" data-testid="account-email">{user.email}</strong> · {copy.memberSince} {since}
+            {copy.signedInAs} <strong className="text-ink" data-testid="account-phone">{user.phone ? formatPhone(user.phone) : "—"}</strong>{since && ` · ${copy.memberSince} ${since}`}
           </CardDescription>
         </CardHeader>
       </Card>

@@ -1,82 +1,53 @@
-"""'Tìm kiếm người hỗ trợ': signed-in responders (demo self-enrolment) and the /api/support/ws live channel."""
+"""Support requests: signed-in responders (demo self-enrolment), state in Postgres, photos in object storage and
+Supabase Realtime "changed" signals. Every action is plain HTTP."""
 
-from contextlib import ExitStack
-from datetime import UTC, datetime
+import uuid
 
 import pytest
-from starlette.websockets import WebSocketDisconnect
 
+from app.core import clock, supabase
 from app.core.config import get_settings
-from app.modules.auth.models import User
-from app.modules.auth.security import create_access_token
+from tests.auth_tokens import bearer
 
-ORIGIN = {"origin": "http://localhost:3000"}
 HERE = (10.8, 106.7)
 NEAR = (10.81, 106.7)  # ~1.1 km
 FAR = (10.84, 106.7)  # ~4.4 km: outside the default 3 km radius
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
 
 
-_sockets = ExitStack()
-
-
 @pytest.fixture(autouse=True)
 def demo_enrolment(monkeypatch):
     monkeypatch.setattr(get_settings(), "support_demo_self_enroll", True)
-    monkeypatch.setattr(get_settings(), "support_offline_grace_seconds", 0)
-    yield
-    _sockets.close()  # every socket opened by connect()/requester_socket() is closed cleanly after the test
-    _early.clear()
+    supabase._memory.objects.clear()
 
 
-def user(session, email: str, name: str) -> dict:
-    u = User(
-        email=email,
-        password_hash="x",
-        display_name=name,
-        email_verified_at=datetime(2026, 1, 1, tzinfo=UTC),
-        created_at=datetime(2026, 1, 1, tzinfo=UTC),
-    )
-    session.add(u)
-    session.commit()
-    return {"Authorization": f"Bearer {create_access_token(u.id)[0]}"}
+@pytest.fixture
+def signals(monkeypatch):
+    """Realtime signals the backend sends (topic, payload) once each request is done."""
+    sent: list[tuple[str, dict]] = []
+    monkeypatch.setattr(supabase, "broadcast", lambda topics: sent.extend(topics))
+    return sent
 
 
-def responder(client, session, email="hai@example.com", name="Hải"):
-    auth = user(session, email, name)
+def user_id(email: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, email))
+
+
+def user(email: str, name: str) -> dict:
+    """A signed-in Supabase user (accounts live in Supabase, so nothing is stored here)."""
+    return bearer(user_id=user_id(email), email=email, name=name)
+
+
+def responder(client, email="hai@example.com", name="Hải"):
+    auth = user(email, name)
     r = client.post("/api/support/me", headers=auth, json={"contactPhone": "0903 000 111"})
     assert r.status_code == 200 and r.json()["enrolled"] is True, r.text
     return auth
 
 
-def connect(client, auth):
-    ticket = client.post("/api/support/ws-ticket", headers=auth).json()["ticket"]
-    ws = _sockets.enter_context(client.websocket_connect("/api/support/ws", headers=ORIGIN))
-    ws.send_json({"type": "hello", "role": "responder", "ticket": ticket})
-    assert ws.receive_json()["type"] == "ready"
-    return ws
-
-
-def go_available(ws, where=HERE):
-    ws.send_json({"type": "available", "latitude": where[0], "longitude": where[1]})
-    assert expect(ws, "availability")["available"] is True
-
-
-_early: dict[int, list[dict]] = {}
-
-
-def expect(ws, kind: str, limit: int = 10) -> dict:
-    """Next message of `kind`; messages of other kinds are kept for later calls (pushes may arrive before replies)."""
-    held = _early.setdefault(id(ws), [])
-    for i, message in enumerate(held):
-        if message["type"] == kind:
-            return held.pop(i)
-    for _ in range(limit):
-        message = ws.receive_json()
-        if message["type"] == kind:
-            return message
-        held.append(message)
-    raise AssertionError(f"no {kind} message")
+def go_available(client, auth, where=HERE):
+    body = {"available": True, "latitude": where[0], "longitude": where[1], "consentToLocationUse": True}
+    assert client.put("/api/support/me/availability", headers=auth, json=body).json()["available"] is True
 
 
 def ask_for_help(client, where=HERE, radius=0):
@@ -94,129 +65,143 @@ def ask_for_help(client, where=HERE, radius=0):
     )
 
 
-def requester_socket(client, created: dict):
-    ws = _sockets.enter_context(client.websocket_connect("/api/support/ws", headers=ORIGIN))
-    ws.send_json({"type": "hello", "role": "requester", "requestId": created["id"], "token": created["requesterToken"]})
-    assert expect(ws, "request.state")["request"]["status"] == "OPEN"
-    return ws
+def owner(created: dict) -> dict:
+    return {"Authorization": f"Bearer {created['requesterToken']}"}
 
 
-def test_self_enrolment_needs_the_flag_and_a_phone(client, session, monkeypatch):
-    auth = user(session, "an@example.com", "An")
+def invited_count(client, created: dict) -> int:
+    return client.get(f"/api/support-requests/{created['id']}", headers=owner(created)).json()["invitedCount"]
+
+
+def test_self_enrolment_needs_the_flag_and_a_phone(client, monkeypatch):
+    auth = user("an@example.com", "An")
     assert client.get("/api/support/me", headers=auth).json()["enrolled"] is False
     assert client.post("/api/support/me", headers=auth, json={"contactPhone": "abc"}).status_code == 400
     monkeypatch.setattr(get_settings(), "support_demo_self_enroll", False)
     assert client.post("/api/support/me", headers=auth, json={"contactPhone": "0903000111"}).status_code == 403
-    assert client.post("/api/support/ws-ticket", headers=auth).status_code == 404  # not a responder
-    assert client.post("/api/support/ws-ticket").status_code == 401
+    assert client.get("/api/support/me/requests", headers=auth).status_code == 404  # not a responder
+    assert client.get("/api/support/me/requests").status_code == 401
 
 
-def test_socket_needs_origin_and_a_one_time_ticket(client, session):
-    auth = responder(client, session)
-    with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect("/api/support/ws", headers={"origin": "https://evil.example"}) as ws:
-            ws.receive_json()
-    ticket = client.post("/api/support/ws-ticket", headers=auth).json()["ticket"]
-    with client.websocket_connect("/api/support/ws", headers=ORIGIN) as ws:
-        ws.send_json({"type": "hello", "role": "responder", "ticket": ticket})
-        assert ws.receive_json()["type"] == "ready"
-    with pytest.raises(WebSocketDisconnect):  # reused ticket
-        with client.websocket_connect("/api/support/ws", headers=ORIGIN) as ws:
-            ws.send_json({"type": "hello", "role": "responder", "ticket": ticket})
-            ws.receive_json()
-
-
-def test_live_flow_keeps_details_private_until_accepted(client, session):
-    auth = responder(client, session)
-    hai = connect(client, auth)
-    go_available(hai, NEAR)
+def test_live_flow_keeps_details_private_until_accepted(client, signals):
+    auth = responder(client)
+    go_available(client, auth, NEAR)
 
     created = ask_for_help(client).json()
-    offer = expect(hai, "request.new")["request"]
+    [offer] = client.get("/api/support/me/requests", headers=auth).json()
     assert offer["situation"] == "Bất tỉnh" and offer["approximateDistanceMeters"] == 1100
     assert "latitude" not in offer and "contactPhone" not in offer
+    assert (f"support:responder:{user_id('hai@example.com')}", {"type": "request.new"}) in signals
 
-    asker = requester_socket(client, created)
-    owner = {"Authorization": f"Bearer {created['requesterToken']}"}
-    files = {"file": ("a.png", PNG, "image/png")}
-    assert client.post(f"/api/support-requests/{created['id']}/photos", headers=owner, files=files).status_code == 201
-    bad = {"file": ("a.gif", b"GIF89a", "image/gif")}
-    assert client.post(f"/api/support-requests/{created['id']}/photos", headers=owner, files=bad).status_code == 400
+    url = f"/api/support-requests/{created['id']}/photos"
+    png = {"file": ("a.png", PNG, "image/png")}
+    assert client.post(url, headers=owner(created), files=png).status_code == 201
+    gif = {"file": ("a.gif", b"GIF89a", "image/gif")}
+    assert client.post(url, headers=owner(created), files=gif).status_code == 400
     photo = f"/api/support/me/requests/{created['id']}/photos/0"
     assert client.get(photo, headers=auth).status_code == 403  # not accepted yet
 
-    hai.send_json({"type": "accept", "requestId": created["id"]})
-    detail = expect(hai, "request.detail")["request"]
+    detail = client.post(f"/api/support/me/requests/{created['id']}/accept", headers=auth).json()
     assert detail["contactPhone"] == "0912345678" and detail["latitude"] == HERE[0] and detail["photoCount"] == 1
-    accepted = expect(asker, "request.accepted")["request"]
-    assert accepted["status"] == "ACCEPTED" and accepted["responder"]["displayName"] == "Hải"
+    assert (f"support:request:{created['id']}", {"type": "request.accepted"}) in signals
+    state = client.get(f"/api/support-requests/{created['id']}", headers=owner(created)).json()
+    assert state["status"] == "ACCEPTED" and state["responder"]["displayName"] == "Hải"
 
     got = client.get(photo, headers=auth)
     assert got.status_code == 200 and got.content == PNG
-    other = user(session, "khac@example.com", "Khác")
+    other = user("khac@example.com", "Khác")
     client.post("/api/support/me", headers=other, json={"contactPhone": "0903000222"})
     assert client.get(photo, headers=other).status_code == 403
 
-    hai.send_json({"type": "location", "latitude": 10.805, "longitude": 106.7})
-    moved = expect(asker, "responder.location")
-    assert moved["latitude"] == 10.805 and 500 < moved["distanceMeters"] < 600
+    moved = {"latitude": 10.805, "longitude": 106.7}
+    assert client.post("/api/support/me/location", headers=auth, json=moved).status_code == 204
+    assert (f"support:request:{created['id']}", {"type": "responder.location"}) in signals
+    state = client.get(f"/api/support-requests/{created['id']}", headers=owner(created)).json()
+    assert state["responder"]["latitude"] == 10.805 and 500 < state["responder"]["distanceMeters"] < 600
 
-    hai.send_json({"type": "complete", "requestId": created["id"]})
-    assert expect(asker, "request.completed")["requestId"] == created["id"]
+    assert client.post(f"/api/support/me/requests/{created['id']}/complete", headers=auth).status_code == 204
+    assert (f"support:request:{created['id']}", {"type": "request.completed"}) in signals
     assert client.get(photo, headers=auth).status_code == 403  # dropped with the request
+    assert supabase._memory.objects == {}  # and removed from storage
 
 
-def test_first_accept_wins_and_others_are_told(client, session):
-    a = connect(client, responder(client, session, "a@example.com", "A"))
-    b = connect(client, responder(client, session, "b@example.com", "B"))
-    go_available(a)
-    go_available(b, NEAR)
+def test_signals_carry_no_personal_data(client, signals):
+    go_available(client, responder(client), NEAR)
+    ask_for_help(client)
+    assert signals
+    for topic, payload in signals:
+        assert topic.startswith("support:") and set(payload) <= {"type", "requestId"}
+        assert "0912" not in str(payload) and "10.8" not in str(payload)
+
+
+def test_first_accept_wins_and_others_are_told(client, signals):
+    a, b = responder(client, "a@example.com", "A"), responder(client, "b@example.com", "B")
+    go_available(client, a)
+    go_available(client, b, NEAR)
     created = ask_for_help(client).json()
-    assert created["invitedCount"] == 2 and created["delivery"] == "RESPONDER_PUSH"
-    expect(a, "request.new")
-    expect(b, "request.new")
-    a.send_json({"type": "accept", "requestId": created["id"]})
-    expect(a, "request.detail")
-    assert expect(b, "request.taken")["requestId"] == created["id"]
-    b.send_json({"type": "accept", "requestId": created["id"]})
-    assert expect(b, "error")["message"] == "Support request is no longer open."
+    assert created["invitedCount"] == 2 and created["delivery"] in ("RESPONDER_PUSH", "RESPONDER_POLLING")
+    assert client.post(f"/api/support/me/requests/{created['id']}/accept", headers=a).status_code == 200
+    assert (f"support:responder:{user_id('b@example.com')}", {"type": "request.taken"}) in signals
+    late = client.post(f"/api/support/me/requests/{created['id']}/accept", headers=b)
+    assert late.status_code == 409 and late.json()["detail"] == "Support request is no longer open."
 
 
-def test_late_responder_gets_the_open_request_and_decline_updates_the_count(client, session):
-    a = connect(client, responder(client, session, "a@example.com", "A"))
-    go_available(a)
+def test_late_responder_gets_the_open_request_and_decline_updates_the_count(client, signals):
+    a = responder(client, "a@example.com", "A")
+    go_available(client, a)
     created = ask_for_help(client).json()
-    asker = requester_socket(client, created)
+    assert invited_count(client, created) == 1
 
-    b = connect(client, responder(client, session, "b@example.com", "B"))
-    go_available(b, NEAR)
-    assert expect(b, "request.new")["request"]["id"] == created["id"]
-    assert expect(asker, "request.invited")["invitedCount"] == 2
+    b = responder(client, "b@example.com", "B")
+    go_available(client, b, NEAR)
+    assert [r["id"] for r in client.get("/api/support/me/requests", headers=b).json()] == [created["id"]]
+    assert invited_count(client, created) == 2
 
-    b.send_json({"type": "decline", "requestId": created["id"]})
-    assert expect(asker, "request.invited")["invitedCount"] == 1
-    asker.send_json({"type": "cancel"})
-    assert expect(a, "request.cancelled")["requestId"] == created["id"]
+    assert client.post(f"/api/support/me/requests/{created['id']}/decline", headers=b).status_code == 204
+    assert invited_count(client, created) == 1 and client.get("/api/support/me/requests", headers=b).json() == []
+    assert client.delete(f"/api/support-requests/{created['id']}", headers=owner(created)).status_code == 204
+    assert (f"support:responder:{user_id('a@example.com')}", {"type": "request.cancelled"}) in signals
 
 
-def test_default_radius_is_three_kilometres(client, session):
-    ws = connect(client, responder(client, session))
-    go_available(ws, FAR)
+def test_default_radius_is_three_kilometres(client):
+    auth = responder(client)
+    go_available(client, auth, FAR)
     assert ask_for_help(client).status_code == 409
-    go_available(ws, NEAR)
+    go_available(client, auth, NEAR)
     assert ask_for_help(client).status_code == 201
 
 
-def test_http_fallback_for_signed_in_responders(client, session):
-    auth = responder(client, session)
-    body = {"available": True, "latitude": NEAR[0], "longitude": NEAR[1], "consentToLocationUse": True}
-    assert client.put("/api/support/me/availability", headers=auth, json=body).json()["available"] is True
+def test_http_flow_for_signed_in_responders(client):
+    auth = responder(client)
+    go_available(client, auth, NEAR)
     created = ask_for_help(client).json()
     inbox = client.get("/api/support/me/requests", headers=auth).json()
     assert [r["id"] for r in inbox] == [created["id"]] and "contactPhone" not in inbox[0]
     accepted = client.post(f"/api/support/me/requests/{created['id']}/accept", headers=auth).json()
     assert accepted["contactPhone"] == "0912345678"
-    owner = {"Authorization": f"Bearer {created['requesterToken']}"}
-    state = client.get(f"/api/support-requests/{created['id']}", headers=owner).json()
+    state = client.get(f"/api/support-requests/{created['id']}", headers=owner(created)).json()
     assert state["responder"]["displayName"] == "Hải" and state["responder"]["distanceMeters"] > 1000
     assert client.post(f"/api/support/me/requests/{created['id']}/complete", headers=auth).status_code == 204
+
+
+def test_expiry_wipes_presence_requests_and_photos(client):
+    auth = responder(client)
+    go_available(client, auth, NEAR)
+    created = ask_for_help(client).json()
+    files = {"file": ("a.png", PNG, "image/png")}
+    client.post(f"/api/support-requests/{created['id']}/photos", headers=owner(created), files=files)
+    assert len(supabase._memory.objects) == 1
+    clock.advance(11 * 60)
+    assert client.get(f"/api/support-requests/{created['id']}", headers=owner(created)).status_code == 404
+    assert supabase._memory.objects == {}
+    assert client.get("/api/support/me", headers=auth).json()["available"] is False  # presence expired too
+
+
+def test_state_is_in_the_database_not_in_the_process(client, session):
+    from sqlalchemy import text
+
+    go_available(client, responder(client), NEAR)
+    created = ask_for_help(client).json()
+    rows = session.execute(text("SELECT count(*) FROM support_requests WHERE id = :i"), {"i": created["id"]}).scalar()
+    presence = session.execute(text("SELECT count(*) FROM support_presence")).scalar()
+    assert rows == 1 and presence == 1

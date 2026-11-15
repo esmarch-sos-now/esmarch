@@ -1,132 +1,160 @@
-"""`/api/voice/ws`: the browser's realtime voice channel (see `app.voice.call` for the message protocol).
+"""`/api/voice/*`: the voice call over plain HTTP (see `app.voice.service` for the flow).
 
-Guards, because every call holds a paid upstream connection and is reachable from the public internet: an exact
-`Origin` match against the configured frontends, a per-IP connect rate limit, a cap on concurrent calls, an
-explicit consent message before any audio is accepted, and a hard time limit per call.
-
-A call survives a dropped WebSocket for a grace period: the browser reconnects here and opens with `resume` (instead of
-`start`) and the `callId` it was given (`app.voice.resume`). That is the same call, so it is not counted again.
+Every call has its own credential (`token`, returned once by `POST /calls`, stored only as a hash); every per-call
+endpoint needs it as `Authorization: Bearer <token>`. Browsers from other websites are turned away by the `Origin`
+check (and by the frontend proxy); the per-IP rate limit, the cap on concurrent calls and the reaper bound the cost
+whoever calls.
 """
 
-import asyncio
-import logging
-import secrets
-from functools import lru_cache
-from typing import Any
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict, Field
+from sqlmodel import Session
 
-from app.core.config import get_settings
-from app.core.ratelimit import IpRateLimiter
-from app.voice.call import build_model, live_settings, parse_text, run_call
-from app.voice.resume import ResumableTransport, registry
+from app.core.config import Settings, get_settings
+from app.core.db import get_session
+from app.voice import service
+from app.voice.models import VoiceCall
 
-log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
-START_TIMEOUT_SECONDS = 10.0
-_active_calls = 0
+MAX_SDP = 20_000
 
 
-@lru_cache
-def _limiter() -> IpRateLimiter:
-    s = get_settings()
-    return IpRateLimiter(s.voice_connects_per_window, s.public_api_rate_limit_window_seconds, s.public_api_max_clients)
+class _Body(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-class _SocketTransport:
-    def __init__(self, ws: WebSocket) -> None:
-        self._ws = ws
-
-    async def send_json(self, data: dict[str, Any]) -> None:
-        await self._ws.send_json(data)
-
-    async def receive(self) -> dict[str, Any] | None:
-        while True:
-            try:
-                message = await self._ws.receive()
-            except WebSocketDisconnect, RuntimeError:
-                return None
-            if message["type"] == "websocket.disconnect":
-                return None
-            if (data := parse_text(message.get("text") or "")) is not None:
-                return data
-
-    async def close(self, code: int = 1000, reason: str = "") -> None:
-        try:
-            await self._ws.close(code=code, reason=reason)
-        except RuntimeError, WebSocketDisconnect:
-            pass  # already closed
+class StartCall(_Body):
+    consent: Literal[True]
+    sdp: Annotated[str, Field(min_length=10, max_length=MAX_SDP)]
 
 
-async def _reject(ws: WebSocket, code: int, reason: str) -> None:
-    await ws.close(code=code, reason=reason)
+class RelayedCall(_Body):
+    call_id: Annotated[str, Field(alias="callId", min_length=1, max_length=100)]
+    name: Annotated[str, Field(min_length=1, max_length=64)]
+    arguments: Annotated[str, Field(max_length=8000)] = "{}"
 
 
-async def _first_message(transport: _SocketTransport) -> dict[str, Any] | None:
-    try:
-        return await asyncio.wait_for(transport.receive(), START_TIMEOUT_SECONDS)
-    except TimeoutError:
-        return None
+class ToolBatch(_Body):
+    calls: Annotated[list[RelayedCall], Field(min_length=1, max_length=8)]
 
 
-@router.websocket("/ws")
-async def voice(ws: WebSocket) -> None:
-    global _active_calls
+class Nudge(_Body):
+    kind: Literal["greeting", "checkin", "ending_soon"]
+
+
+class StepMoved(_Body):
+    guide_id: Annotated[str, Field(alias="guideId", max_length=64)]
+    step_index: Annotated[int, Field(alias="stepIndex", ge=0, le=100)]
+
+
+class EndCall(_Body):
+    reason: Literal["stopped", "completed", "time_limit", "disconnected", "error"] = "stopped"
+
+
+def _configured() -> Settings:
     s = get_settings()
     if not s.voice_configured:
-        return await _reject(ws, status.WS_1013_TRY_AGAIN_LATER, "voice unavailable")
-    # Rate limit first: `Origin` is trivially forged outside a browser, so the per-IP budget (and the call cap below)
-    # is the real protection and must also count probes that fail the origin check.
-    ip = ws.client.host if ws.client else "unknown"
-    if not _limiter().allow(ip):
-        return await _reject(ws, status.WS_1013_TRY_AGAIN_LATER, "too many requests")
-    # Browsers always send Origin on a WebSocket handshake; this stops other websites' pages from using ours.
-    if ws.headers.get("origin") not in s.origins:
-        return await _reject(ws, status.WS_1008_POLICY_VIOLATION, "origin not allowed")
-    # A full house still lets a resume in (it is an existing call), but only when some call is waiting for one.
-    if _active_calls >= s.voice_max_sessions and not registry.any_detached():
-        return await _reject(ws, status.WS_1013_TRY_AGAIN_LATER, "busy")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Voice is not available.")
+    return s
 
-    await ws.accept()
-    socket = _SocketTransport(ws)
-    first = await _first_message(socket)
-    if isinstance(first, dict) and first.get("type") == "resume":
-        return await _resume(ws, socket, first.get("callId"))
-    if _active_calls >= s.voice_max_sessions:
-        return await _reject(ws, status.WS_1013_TRY_AGAIN_LATER, "busy")
-    if not isinstance(first, dict) or first.get("type") != "start" or first.get("consent") is not True:
-        return await _reject(ws, status.WS_1008_POLICY_VIOLATION, "consent required")
 
-    _active_calls += 1
-    call_id = secrets.token_urlsafe(32)  # the resume credential: never logged
-    transport = ResumableTransport(socket, grace_seconds=s.voice_resume_grace_seconds)
-    registry.add(call_id, transport)  # per-process: a resume must reach the worker that holds the call
-    reason = "error"
+def _same_site(request: Request, s: Settings = Depends(_configured)) -> Settings:
+    origin = request.headers.get("origin")
+    if origin is not None and origin not in s.origins:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Origin not allowed.")
+    return s
+
+
+def _client_ip(request: Request, s: Settings) -> str:
+    if s.client_ip_header and (value := request.headers.get(s.client_ip_header)):
+        return value.split(",")[0].strip()[:64]
+    return request.client.host if request.client else "unknown"
+
+
+def _call(
+    call_id: str,
+    authorization: Annotated[str, Header()] = "",
+    session: Session = Depends(get_session),
+    _: Settings = Depends(_same_site),
+) -> VoiceCall:
+    scheme, _sep, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token or len(call_id) > 32:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing call credential.")
     try:
-        reason = await run_call(
-            transport,
-            build_model(s),
-            duration_seconds=s.voice_session_seconds,
-            settings=live_settings(s),
-            checkin_seconds=s.voice_checkin_seconds,
-            checkin_max=s.voice_checkin_max,
-            end_warning_seconds=s.voice_end_warning_seconds,
-            call_id=call_id,
-        )
-    except Exception:
-        log.exception("voice call failed")
-    finally:
-        # Free the slot before the await below: a cancellation there must not leak it.
-        _active_calls -= 1
-        registry.remove(call_id)
-        await transport.finish(reason)
+        return service.authorize(session, call_id, token)
+    except service.VoiceError as e:
+        raise _fail(e) from e
 
 
-async def _resume(ws: WebSocket, socket: _SocketTransport, call_id: object) -> None:
-    """Hand this socket to the call it names, then wait until it is no longer the call's socket."""
-    transport = registry.get(call_id)
-    released = await transport.attach(socket) if transport is not None else None
-    if released is None:
-        return await _reject(ws, 4404, "unknown call")
-    await released.wait()
+Configured = Annotated[Settings, Depends(_same_site)]
+DB = Annotated[Session, Depends(get_session)]
+Call = Annotated[VoiceCall, Depends(_call)]
+
+
+def _fail(e: service.VoiceError) -> HTTPException:
+    return HTTPException(e.status, e.detail)
+
+
+@router.post("/calls", status_code=status.HTTP_201_CREATED)
+async def start(body: StartCall, request: Request, session: DB, s: Configured) -> dict:
+    try:
+        return await service.create_call(session, s, ip=_client_ip(request, s), sdp=body.sdp)
+    except service.VoiceError as e:
+        raise _fail(e) from e
+
+
+async def _live(session: Session, s: Settings, row: VoiceCall) -> None:
+    try:
+        await service.ensure_live(session, s, row)
+    except service.VoiceError as e:
+        raise _fail(e) from e
+
+
+@router.post("/calls/{call_id}/tools")
+async def relay_tools(body: ToolBatch, row: Call, session: DB, s: Configured) -> dict:
+    await _live(session, s, row)
+    calls = [{"callId": c.call_id, "name": c.name, "arguments": c.arguments} for c in body.calls]
+    try:
+        return await service.run_tools(session, s, row, calls)
+    except service.VoiceError as e:
+        raise _fail(e) from e
+
+
+@router.post("/calls/{call_id}/nudge")
+async def nudge(body: Nudge, row: Call, session: DB, s: Configured) -> dict:
+    await _live(session, s, row)
+    try:
+        return await service.nudge(session, s, row, body.kind)
+    except service.VoiceError as e:
+        raise _fail(e) from e
+
+
+@router.post("/calls/{call_id}/step")
+async def step(body: StepMoved, row: Call, session: DB, s: Configured) -> dict:
+    await _live(session, s, row)
+    return service.follow_step(session, row, body.guide_id, body.step_index)
+
+
+@router.post("/calls/{call_id}/heartbeat")
+async def heartbeat(row: Call, session: DB, s: Configured) -> dict:
+    await _live(session, s, row)
+    return service.heartbeat(session, row)
+
+
+@router.post("/calls/{call_id}/end", status_code=status.HTTP_204_NO_CONTENT)
+async def end(row: Call, session: DB, s: Configured, body: EndCall | None = None) -> None:
+    await service.end(session, s, row, (body or EndCall()).reason)
+
+
+@router.api_route("/reap", methods=["GET", "POST"])
+async def reap(session: DB, authorization: Annotated[str, Header()] = "") -> JSONResponse:
+    """For a scheduler (Vercel Cron sends `Authorization: Bearer $CRON_SECRET`; Supabase pg_cron can do the same)."""
+    s = get_settings()
+    if len(s.cron_secret) < 16 or not service.hmac.compare_digest(authorization, f"Bearer {s.cron_secret}"):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Unauthorized.")
+    ended = await service.reap(session, s) if s.voice_configured else 0
+    return JSONResponse({"ended": ended}, headers={"Cache-Control": "no-store"})

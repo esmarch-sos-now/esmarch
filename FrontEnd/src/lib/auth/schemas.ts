@@ -1,32 +1,36 @@
-// Form schemas (zod) for react-hook-form. Limits mirror the FastAPI models in app/modules/auth/schemas.py.
+// Form schemas (zod) for react-hook-form. Supabase Auth enforces its own password policy on top of these.
 import * as z from "zod";
 import { authCopy } from "@/content/auth";
+import { normalizePhone } from "@/lib/auth/phone";
 
 const { errors } = authCopy;
 
-const email = z.string().trim().min(1, errors.emailRequired).max(254, errors.invalidEmail).pipe(z.email(errors.invalidEmail));
-const newPassword = z.string().min(8, errors.passwordShort).max(128, errors.passwordLong);
+const phone = z
+  .string()
+  .trim()
+  .min(1, errors.phoneRequired)
+  .refine((value) => normalizePhone(value) !== null, errors.invalidPhone);
+const newPassword = z.string().min(8, errors.passwordShort).max(72, errors.passwordLong); // bcrypt limit in Supabase
 const displayName = z.string().trim().max(100, errors.nameLong);
 const code = z.string().regex(/^\d{6}$/, errors.codeFormat);
 
 const matching = <T extends { password: string; confirm: string }>(value: T) => value.password === value.confirm;
 const mismatch = { message: errors.passwordMismatch, path: ["confirm"] };
 
-export const loginSchema = z.object({ email, password: z.string().min(1, errors.passwordRequired).max(128) });
+export const loginSchema = z.object({ phone, password: z.string().min(1, errors.passwordRequired).max(72) });
 
 export const registerSchema = z
-  .object({ displayName, email, password: newPassword, confirm: z.string() })
+  .object({ displayName, phone, password: newPassword, confirm: z.string() })
   .refine(matching, mismatch);
 
-export const verifySchema = z.object({ code });
+export const codeSchema = z.object({ code });
 
-export const forgotSchema = z.object({ email });
+export const forgotSchema = z.object({ phone });
 
-export const resetSchema = z.object({ code, password: newPassword, confirm: z.string() }).refine(matching, mismatch);
+export const newPasswordSchema = z.object({ password: newPassword, confirm: z.string() }).refine(matching, mismatch);
 
 export const profileSchema = z.object({ displayName });
 
 export const changePasswordSchema = z
-  .object({ currentPassword: z.string().min(1, errors.passwordRequired).max(128), password: newPassword, confirm: z.string() })
+  .object({ currentPassword: z.string().min(1, errors.passwordRequired).max(72), password: newPassword, confirm: z.string() })
   .refine(matching, mismatch);
-

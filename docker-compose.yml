@@ -27,10 +27,12 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql+psycopg://esmarch:esmarch@db:5432/esmarch
-      # The browser opens the voice WebSocket straight to the backend, which checks Origin against this list.
+      # Origins the backend accepts browser requests from (the voice endpoints check Origin against this list).
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:3001}
+      # The Next proxy passes the caller's IP in this header (per-IP voice limits).
+      CLIENT_IP_HEADER: x-sosnow-client-ip
       SUPPORT_ADMIN_TOKEN: ${SUPPORT_ADMIN_TOKEN:-}
-      # Accounts: AUTH_SECRET_KEY, RESEND_API_KEY, RESEND_FROM come from BackEnd/.env (see BackEnd/.env.example);
+      # Accounts: SUPABASE_URL comes from BackEnd/.env (see BackEnd/.env.example);
       # listing them here would let an unset shell variable override the file.
       # Requests arrive via the Next proxy: trust its X-Forwarded-For so rate limits apply per real client.
       # Dev/compose only. In production restrict this to the proxy's address.
@@ -66,9 +68,6 @@ services:
       # Server-side calls inside the compose network; the browser only talks to the Next origin.
       BACKEND_URL: http://backend:8000
       WATCHPACK_POLLING: "true"
-      # Set (with CORS_ORIGINS above) when exposing the app through tunnels: the voice WebSocket goes to the backend directly.
-      NEXT_PUBLIC_VOICE_WS_URL: ${NEXT_PUBLIC_VOICE_WS_URL:-}
-      NEXT_PUBLIC_SUPPORT_WS_URL: ${NEXT_PUBLIC_SUPPORT_WS_URL:-}
     ports: ["${FRONTEND_PORT:-3001}:3000"] # 3000 is often taken by other local Next apps
     depends_on:
       backend: { condition: service_healthy }

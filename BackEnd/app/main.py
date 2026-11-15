@@ -20,9 +20,7 @@ from app.modules.facilities import router as facilities_router
 from app.modules.guides import router as guides_router
 from app.modules.guides.service import catalog as guides_catalog
 from app.modules.health import router as health_router
-from app.modules.support import realtime as support_realtime
 from app.modules.support import router as support_router
-from app.modules.support.service import support
 from app.voice import router as voice_router
 
 # Request URLs carry user coordinates; keep them out of logs.
@@ -37,18 +35,10 @@ def _warm() -> None:
         catalog.all_facilities(session)  # warm public catalogue; no location-dependent work
 
 
-async def _purge_loop() -> None:
-    while True:
-        await asyncio.sleep(30)
-        support.purge()
-
-
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await asyncio.to_thread(_warm)
-    task = asyncio.create_task(_purge_loop())
     yield
-    task.cancel()
 
 
 def create_app() -> FastAPI:
@@ -84,8 +74,7 @@ def create_app() -> FastAPI:
         voice_router,
     ):
         app.include_router(module.router)
-    app.include_router(support_router.me)  # /api/support/me*, ws-ticket: signed-in responders
-    app.include_router(support_realtime.router)  # /api/support/ws
+    app.include_router(support_router.me)  # /api/support/me*: signed-in responders
     return app
 
 

@@ -1,19 +1,17 @@
+"""Request dependencies: the Supabase access token arrives as `Authorization: Bearer <token>`."""
+
 from typing import Annotated
 
 from fastapi import Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer
-from sqlmodel import Session
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import get_settings
-from app.core.db import get_session
 from app.core.errors import error
-from app.modules.auth.models import User
-from app.modules.auth.security import decode_access_token
+from app.modules.auth.security import AuthUser, verify_access_token
 
 # auto_error=False: missing credentials go through the same 401 (with WWW-Authenticate) as invalid ones.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
-Token = Annotated[str | None, Depends(oauth2_scheme)]
-Db = Annotated[Session, Depends(get_session)]
+bearer_scheme = HTTPBearer(auto_error=False, description="Supabase Auth access token")
+Credentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)]
 
 
 def require_auth_configured() -> None:
@@ -21,25 +19,17 @@ def require_auth_configured() -> None:
         raise error(503, "Accounts are not configured.")
 
 
-def _unauthorized() -> HTTPException:
-    return HTTPException(401, "Could not validate credentials.", {"WWW-Authenticate": "Bearer"})
-
-
-def get_optional_user(session: Db, token: Token) -> User | None:
-    if token is None or not get_settings().auth_configured:
+def get_optional_user(credentials: Credentials) -> AuthUser | None:
+    if credentials is None or not get_settings().auth_configured:
         return None
-    user_id = decode_access_token(token)
-    user = session.get(User, user_id) if user_id else None
-    if user is None or not user.is_active or user.email_verified_at is None:
-        return None
-    return user
+    return verify_access_token(credentials.credentials)
 
 
-def get_current_user(user: Annotated[User | None, Depends(get_optional_user)]) -> User:
+def get_current_user(user: Annotated[AuthUser | None, Depends(get_optional_user)]) -> AuthUser:
     if user is None:
-        raise _unauthorized()
+        raise HTTPException(401, "Could not validate credentials.", {"WWW-Authenticate": "Bearer"})
     return user
 
 
-OptionalUser = Annotated[User | None, Depends(get_optional_user)]
-CurrentUser = Annotated[User, Depends(get_current_user)]
+OptionalUser = Annotated[AuthUser | None, Depends(get_optional_user)]
+CurrentUser = Annotated[AuthUser, Depends(get_current_user)]

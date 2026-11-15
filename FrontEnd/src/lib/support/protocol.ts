@@ -1,5 +1,5 @@
-// "Tìm kiếm người hỗ trợ": message types of the /api/support/ws channel and the HTTP calls around it.
-// The backend protocol is documented in BackEnd/app/modules/support/realtime.py.
+// "Tìm kiếm người hỗ trợ": request/response types and the HTTP calls. Live updates are Supabase Realtime signals
+// (see hooks/useSupportChannel.ts); the backend is BackEnd/app/modules/support/.
 import { API_BASE } from "@/lib/api/client";
 
 export type ResponderRequest = {
@@ -32,31 +32,6 @@ export type RequesterState = {
     distanceMeters?: number;
   };
 };
-
-export type ResponderMessage =
-  | { type: "pong" }
-  | { type: "ready"; available: boolean; requests: ResponderRequest[] }
-  | { type: "availability"; available: boolean }
-  | { type: "request.new" | "request.detail"; request: ResponderRequest }
-  | { type: "request.taken" | "request.cancelled" | "request.expired" | "request.completed"; requestId: string }
-  | { type: "error"; message: string; requestId?: string | null };
-
-export type RequesterMessage =
-  | { type: "pong" }
-  | { type: "request.state" | "request.accepted"; request: RequesterState }
-  | { type: "request.invited"; invitedCount: number }
-  | { type: "responder.location"; latitude: number; longitude: number; distanceMeters?: number }
-  | { type: "request.completed" | "request.expired" | "request.cancelled"; requestId: string }
-  | { type: "error"; message: string };
-
-// Dev default: the FastAPI backend on the same host, like the voice assistant. Production / tunnels set
-// NEXT_PUBLIC_SUPPORT_WS_URL (wss://…/api/support/ws); the page origin must be in the backend's CORS_ORIGINS.
-export function supportSocketUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_SUPPORT_WS_URL;
-  if (configured) return configured;
-  const secure = window.location.protocol === "https:";
-  return `${secure ? "wss" : "ws"}://${window.location.hostname}:8000/api/support/ws`;
-}
 
 export const SITUATIONS = ["Bất tỉnh", "Khó thở", "Chảy máu", "Ngã, chấn thương", "Co giật", "Khác"] as const;
 
@@ -94,7 +69,7 @@ export async function uploadSupportPhoto(request: CreatedRequest, photo: Blob): 
   return response.ok;
 }
 
-/** HTTP fallback while the socket is down: the requester's current view of the request (404 = gone). */
+/** The requester's current view of the request (404 = gone). */
 export async function fetchRequesterState(request: CreatedRequest): Promise<RequesterState | null> {
   const response = await fetch(`${API_BASE}/api/support-requests/${request.id}`, {
     credentials: "omit",
@@ -115,7 +90,7 @@ export async function cancelSupportRequest(request: CreatedRequest): Promise<voi
 /** Photos are only served to the accepting responder; the proxy signs the request with the account. */
 export const photoUrl = (requestId: string, index: number) => `${API_BASE}/api/support/me/requests/${requestId}/photos/${index}`;
 
-/** Shrink a camera photo before upload (longest side 1280 px, JPEG): faster on mobile data, well under the 5 MB cap. */
+/** Shrink a camera photo before upload (longest side 1280 px, JPEG): faster on mobile data, well under the 4 MB cap. */
 export async function compressPhoto(file: File, maxSide = 1280): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
   const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));

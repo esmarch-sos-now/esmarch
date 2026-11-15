@@ -5,16 +5,18 @@ requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.20.1",
     "fastapi[standard]>=0.162.2",
+    "httpx>=0.28.1",
+    "openai>=3.46.0",
     "psycopg[binary]>=3.3.8",
     "pydantic-ai-slim[openai-realtime]==2.66.0",
     "pydantic-settings>=2.16.2",
     "pyjwt[crypto]>=2.15.1",
     "sqlmodel>=0.0.48",
+    "websockets>=17.4",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "pyrefly>=1.4.1",
     "pytest>=9.2.0",
     "ruff>=0.17.4",

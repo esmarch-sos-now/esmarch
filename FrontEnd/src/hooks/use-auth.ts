@@ -1,22 +1,29 @@
 "use client";
 
-// Client-side auth wrapper built on SWR. The session lives in the SWR cache under SESSION_KEY; every action is a
-// useSWRMutation, and the ones that sign in or out write the resulting user straight into that cache
-// (populateCache), so the navbar and every other useSession() update without another request.
-import { useCallback } from "react";
+// Client-side auth wrapper built on SWR over Supabase Auth. The session user lives in the SWR cache under SESSION_KEY;
+// Supabase's onAuthStateChange keeps it current (sign-in, sign-out, token refresh, other tabs), and actions that
+// sign in or out also write their result straight into that cache. Phone arguments are E.164 (+84…).
+import { useCallback, useEffect } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import useSWRMutation from "swr/mutation";
-import { authApi, authFetch, type User } from "@/lib/auth/client";
+import { authApi, authFetch, toUser, type User } from "@/lib/auth/client";
+import { createClient } from "@/lib/supabase/client";
 
-export const SESSION_KEY = "/api/auth/session";
+export const SESSION_KEY = "supabase:session";
 
 export type SessionStatus = "loading" | "authenticated" | "unauthenticated";
 
 export function useSession() {
   const { data, isLoading, mutate } = useSWR<User | null>(SESSION_KEY, authApi.session, {
-    revalidateOnFocus: true, // notice a sign-out in another tab
+    revalidateOnFocus: true,
     shouldRetryOnError: false,
   });
+  useEffect(() => {
+    const { data: listener } = createClient().auth.onAuthStateChange((_event, session) => {
+      void mutate(toUser(session?.user), { revalidate: false });
+    });
+    return () => listener.subscription.unsubscribe();
+  }, [mutate]);
   const user = data ?? null;
   const status: SessionStatus = data === undefined && isLoading ? "loading" : user ? "authenticated" : "unauthenticated";
   return { user, status, mutate };
@@ -36,10 +43,20 @@ function useAction<Arg, Data = void>(key: string, run: (arg: Arg) => Promise<Dat
 }
 
 export const useLogin = () =>
-  useSessionMutation((arg: { email: string; password: string }) => authApi.login(arg.email, arg.password));
+  useSessionMutation((arg: { phone: string; password: string }) => authApi.login(arg.phone, arg.password));
 
-export const useVerifyEmail = () =>
-  useSessionMutation((arg: { email: string; code: string }) => authApi.verifyEmail(arg.email, arg.code));
+/** Signs up and texts a code; the result is the user only when the project skips phone confirmation, otherwise null. */
+export const useRegister = () =>
+  useSessionMutation((arg: { phone: string; password: string; displayName?: string }) =>
+    authApi.register(arg.phone, arg.password, arg.displayName ?? null),
+  );
+
+/** Verifies a texted code (sign-up confirmation or password reset); Supabase signs the user in. */
+export const useVerifyPhone = () =>
+  useSessionMutation((arg: { phone: string; code: string }) => authApi.verifyPhone(arg.phone, arg.code));
+
+export const useSetNewPassword = () =>
+  useSessionMutation((arg: { newPassword: string }) => authApi.setNewPassword(arg.newPassword).then(() => null));
 
 export const useChangePassword = () =>
   useSessionMutation((arg: { currentPassword: string; newPassword: string }) =>
@@ -50,27 +67,15 @@ export const useUpdateProfile = () =>
   useSessionMutation((arg: { displayName: string | null }) => authApi.updateProfile(arg.displayName));
 
 export const useLogout = () =>
-  useSessionMutation((arg: { everywhere: boolean }) =>
-    (arg.everywhere ? authApi.logoutAll() : authApi.logout()).then(() => null),
-  );
+  useSessionMutation((arg: { everywhere: boolean }) => authApi.logout(arg.everywhere).then(() => null));
 
-export const useRegister = () =>
-  useAction("/api/auth/register", (arg: { email: string; password: string; displayName?: string }) =>
-    authApi.register(arg.email, arg.password, arg.displayName),
-  );
+export const useResendSignupCode = () =>
+  useAction("auth:resend-signup-code", (arg: { phone: string }) => authApi.resendSignupCode(arg.phone));
 
-export const useResendVerification = () =>
-  useAction("/api/auth/resend-verification", (arg: { email: string }) => authApi.resendVerification(arg.email));
+export const useSendResetCode = () =>
+  useAction("auth:send-reset-code", (arg: { phone: string }) => authApi.sendResetCode(arg.phone));
 
-export const useForgotPassword = () =>
-  useAction("/api/auth/forgot-password", (arg: { email: string }) => authApi.forgotPassword(arg.email));
-
-export const useResetPassword = () =>
-  useAction("/api/auth/reset-password", (arg: { email: string; code: string; newPassword: string }) =>
-    authApi.resetPassword(arg.email, arg.code, arg.newPassword),
-  );
-
-/** fetch() to /backend with the session (the proxy adds the bearer token); refreshes once on 401. */
+/** fetch() to /backend with `Authorization: Bearer <access token>`; refreshes once on 401. */
 export function useAuthFetch() {
   const { mutate } = useSWRConfig();
   return useCallback(

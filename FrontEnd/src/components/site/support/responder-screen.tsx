@@ -13,10 +13,10 @@ import { appNav, supportCopy } from "@/content/app";
 import { formatDistance, formatPhone } from "@/content/facilities";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
 import { useLivePosition } from "@/hooks/useLivePosition";
-import { useSupportSocket, type SocketStatus } from "@/hooks/useSupportSocket";
+import { useSupportChannel, type ChannelStatus } from "@/hooks/useSupportChannel";
 import { formatDuration, useDirections, type Vehicle } from "@/lib/directions";
 import { notifyInBackground, ring, unlockAlarm } from "@/lib/support/alarm";
-import { photoUrl, type ResponderMessage, type ResponderRequest } from "@/lib/support/protocol";
+import { photoUrl, type ResponderRequest } from "@/lib/support/protocol";
 import { cn } from "@/lib/utils";
 
 type Profile = { enrolled: boolean; selfEnrollEnabled: boolean; displayName?: string; contactPhone?: string; available?: boolean };
@@ -28,7 +28,7 @@ const RING_EVERY_MS = 4000; // the bell repeats until the request is accepted, d
 
 const rounded = (value: number | undefined) => (value === undefined ? "" : value.toFixed(4));
 
-// Người hỗ trợ: đăng nhập, đăng ký (demo, tự khai), bật "Sẵn sàng". Yêu cầu trong bán kính 3 km tới qua WebSocket
+// Người hỗ trợ: đăng nhập, đăng ký (demo, tự khai), bật "Sẵn sàng". Yêu cầu trong bán kính 3 km tới qua Supabase Realtime
 // (chuông, rung, thông báo). Nhận yêu cầu thì thấy vị trí chính xác, số điện thoại, ảnh, dẫn đường; xong bấm Hoàn thành.
 export default function ResponderScreen() {
   const c = supportCopy.responder;
@@ -54,45 +54,29 @@ export default function ResponderScreen() {
     setOffers(requests.filter((r) => r.status === "OPEN"));
   }, []);
 
-  const { status: socketStatus, send } = useSupportSocket<ResponderMessage>({
-    enabled: enrolled,
-    hello: async () => {
-      const response = await authFetch("/api/support/ws-ticket", { method: "POST" });
-      if (!response.ok) return null;
-      const { ticket } = (await response.json()) as { ticket: string };
-      return { type: "hello", role: "responder", ticket };
-    },
-    onMessage: (message) => {
-      switch (message.type) {
-        case "ready":
-          setAvailable(message.available);
-          return showList(message.requests);
-        case "availability":
-          return setAvailable(message.available);
-        case "request.new":
-          setOffers((current) => [message.request, ...current.filter((offer) => offer.id !== message.request.id)]);
-          return notifyInBackground(c.alertTitle, `${message.request.situation ?? c.someone} · ${formatDistance(message.request.approximateDistanceMeters)}`);
-        case "request.detail":
-          removeOffer(message.request.id);
-          return setActive(message.request);
-        case "request.taken":
-          removeOffer(message.requestId);
-          return setNotice(c.taken);
-        case "request.cancelled":
-        case "request.expired":
-          removeOffer(message.requestId);
-          setActive((current) => (current?.id === message.requestId ? null : current));
-          return setNotice(message.type === "request.cancelled" ? c.cancelled : c.expired);
-        case "request.completed":
-          setActive((current) => (current?.id === message.requestId ? null : current));
-          return setNotice(c.completed);
-        case "error":
-          return setNotice(message.message);
+  // Requests come over HTTP; a Supabase Realtime signal (or a timer) only says "fetch again".
+  const seen = useRef(new Set<string>());
+  const refresh = useCallback(async () => {
+    const response = await authFetch("/api/support/me/requests");
+    if (!response.ok) return;
+    const requests = (await response.json()) as ResponderRequest[];
+    for (const request of requests) {
+      if (request.status === "OPEN" && !seen.current.has(request.id)) {
+        notifyInBackground(c.alertTitle, `${request.situation ?? c.someone} · ${formatDistance(request.approximateDistanceMeters)}`);
       }
-    },
-    poll: async () => {
-      const response = await authFetch("/api/support/me/requests");
-      if (response.ok) showList((await response.json()) as ResponderRequest[]);
+    }
+    seen.current = new Set(requests.map((request) => request.id));
+    showList(requests);
+  }, [authFetch, showList, c.alertTitle, c.someone]);
+
+  const { status: socketStatus } = useSupportChannel({
+    enabled: enrolled,
+    topic: user ? `support:responder:${user.id}` : null,
+    refresh,
+    onSignal: (type) => {
+      if (type === "request.taken") setNotice(c.taken);
+      else if (type === "request.cancelled") setNotice(c.cancelled);
+      else if (type === "request.expired") setNotice(c.expired);
     },
   });
 
@@ -113,23 +97,19 @@ export default function ResponderScreen() {
     if (!enrolled) return;
     const point = lat && lng ? { latitude: Number(lat), longitude: Number(lng) } : null;
     if (activeId && point) {
-      if (!send({ type: "location", ...point })) void authFetch("/api/support/me/location", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(point) });
+      void authFetch("/api/support/me/location", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(point) });
     } else if (wantAvailable && point) {
-      if (!send({ type: "available", ...point })) {
-        void authFetch("/api/support/me/availability", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ available: true, consentToLocationUse: true, ...point }),
-        }).then((r) => r.ok && setAvailable(true));
-      }
+      void authFetch("/api/support/me/availability", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ available: true, consentToLocationUse: true, ...point }),
+      }).then((r) => r.ok && setAvailable(true));
     } else if (!wantAvailable && lastSent.current === "available") {
-      if (!send({ type: "unavailable" })) {
-        void authFetch("/api/support/me/availability", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ available: false }) });
-      }
+      void authFetch("/api/support/me/availability", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ available: false }) });
       setAvailable(false);
     }
     lastSent.current = activeId ? "location" : wantAvailable ? "available" : "off";
-  }, [enrolled, wantAvailable, activeId, lat, lng, tick, socketStatus, send, authFetch]);
+  }, [enrolled, wantAvailable, activeId, lat, lng, tick, authFetch]);
 
   const toggle = async () => {
     // Must run synchronously inside the tap: phones only let a page play sound after a user gesture
@@ -153,7 +133,6 @@ export default function ResponderScreen() {
 
   const accept = async (offer: ResponderRequest) => {
     setNotice("");
-    if (send({ type: "accept", requestId: offer.id })) return;
     const response = await authFetch(`/api/support/me/requests/${offer.id}/accept`, { method: "POST" });
     if (response.ok) {
       removeOffer(offer.id);
@@ -166,12 +145,12 @@ export default function ResponderScreen() {
 
   const decline = (offer: ResponderRequest) => {
     removeOffer(offer.id);
-    if (!send({ type: "decline", requestId: offer.id })) void authFetch(`/api/support/me/requests/${offer.id}/decline`, { method: "POST" });
+    void authFetch(`/api/support/me/requests/${offer.id}/decline`, { method: "POST" });
   };
 
   const complete = async () => {
     if (!active) return;
-    if (!send({ type: "complete", requestId: active.id })) await authFetch(`/api/support/me/requests/${active.id}/complete`, { method: "POST" });
+    await authFetch(`/api/support/me/requests/${active.id}/complete`, { method: "POST" });
     setActive(null);
     setNotice(c.completed);
   };
@@ -261,10 +240,10 @@ export default function ResponderScreen() {
   );
 }
 
-function ConnectionChip({ status }: { status: SocketStatus }) {
+function ConnectionChip({ status }: { status: ChannelStatus }) {
   const c = supportCopy.responder.connection;
   const [label, dot] =
-    status === "open" ? [c.open, "bg-[#1e9e4a]"] : status === "polling" ? [c.polling, "bg-[#9aa0a6]"] : status === "closed" ? [c.closed, "bg-brand"] : [c.connecting, "bg-[#e3a008]"];
+    status === "open" ? [c.open, "bg-[#1e9e4a]"] : status === "polling" ? [c.polling, "bg-[#9aa0a6]"] : [c.connecting, "bg-[#e3a008]"];
   return (
     <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#f4f4f5] px-2.5 py-1 text-xs text-muted-foreground">
       <span className={cn("size-2 rounded-full", dot)} aria-hidden="true" /> {label}
