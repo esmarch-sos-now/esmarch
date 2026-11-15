@@ -5,6 +5,7 @@ import { FacilityMap } from "@/components/site/facilities/facility-map-loader";
 import type { Point } from "@/lib/api/hooks";
 import type { Facility } from "@/lib/api/types";
 import type { Route } from "@/lib/directions";
+import { cn } from "@/lib/utils";
 
 // The facilities map reused for "Tìm kiếm người hỗ trợ": one red pin (the other person) and the blue "you" pin,
 // optionally with routes drawn between them.
@@ -15,6 +16,7 @@ export default function PointMap({
   routes,
   activeRoute,
   onSelectRoute,
+  className,
 }: {
   me: Point | null;
   other: Point | null;
@@ -22,6 +24,8 @@ export default function PointMap({
   routes?: Route[];
   activeRoute?: number;
   onSelectRoute?: (index: number) => void;
+  /** Overrides the default height/sizing. */
+  className?: string;
 }) {
   // Stable array: the map re-creates its pins (and re-fits) whenever this changes
   const lat = other?.lat;
@@ -47,7 +51,7 @@ export default function PointMap({
     [lat, lng, label],
   );
   return (
-    <div className="flex h-[clamp(280px,48svh,440px)] overflow-hidden rounded-2xl border border-line bg-[#eef1ee]">
+    <div className={cn("flex h-[clamp(280px,48svh,440px)] overflow-hidden rounded-2xl border border-line bg-[#eef1ee]", className)}>
       <FacilityMap
         facilities={place}
         location={me}

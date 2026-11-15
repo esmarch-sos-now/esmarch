@@ -8,8 +8,11 @@ export const ADMIN_PATH = "/admin";
 /** Where login/register land without an explicit ?next=: the SOS screen, same as the landing "Bắt đầu ngay" button. */
 export const AFTER_LOGIN_PATH = appStart;
 
+/** The supporter mode: signed-out visitors are sent to the login page instead of seeing it. */
+export const SUPPORTER_PATH = "/app/san-sang-ho-tro";
+
 /** Pages that need a signed-in user; the proxy redirects to the login page without a session. */
-export const PROTECTED_PREFIXES = [ACCOUNT_PATH, ADMIN_PATH];
+export const PROTECTED_PREFIXES = [ACCOUNT_PATH, ADMIN_PATH, SUPPORTER_PATH];
 
 export function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

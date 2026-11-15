@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     support_demo_self_enroll: bool = False
     support_max_photos: int = Field(default=3, ge=0, le=10)
     support_photo_max_bytes: int = Field(default=4_000_000, ge=10_000)  # < 4.5 MB serverless body limit
+    # One scene video per request. With Supabase Storage the browser uploads it directly (signed upload URL), so this
+    # can exceed the serverless body limit; the backend-upload fallback (local dev) is capped by the proxy instead.
+    support_video_max_bytes: int = Field(default=25 * 1024 * 1024, ge=10_000)
 
     public_api_rate_limit_requests: int = 60
     public_api_rate_limit_window_seconds: float = 60
