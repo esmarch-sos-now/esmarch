@@ -3,20 +3,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { ArrowRight, Award, BookOpenCheck, CheckCircle2, ExternalLink, Lightbulb, LockKeyhole, PlayCircle, RotateCcw, ShieldCheck } from "lucide-react";
+import { ArrowRight, Award, BookOpenCheck, CheckCircle2, ExternalLink, Lightbulb, LockKeyhole, PlayCircle, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { courseCopy, formatCourseDate } from "@/content/app";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
 import { useSupporterProfile } from "@/hooks/use-supporter";
 import { ACCOUNT_PATH } from "@/lib/auth/paths";
-import type { Course, CourseLesson, CourseOverview, CourseVideo, LessonQuiz, QuizResult } from "@/lib/courses/types";
+import type { Course, CourseLesson, CourseOverview, LessonQuiz, QuizResult } from "@/lib/courses/types";
+import { formatClock, loadYouTubeApi, PlayerState, type YouTubePlayer } from "@/lib/courses/youtube";
 import { cn } from "@/lib/utils";
 
 const watchKey = (courseId: string, lessonId: string) => `${courseId}:${lessonId}`;
 
 // The first-aid courses, shown only inside the way to supporter mode (/app/san-sang-ho-tro): step 1 of the sign-up
 // ("Bắt đầu học"), and "Xem lại khóa học" for supporters. There is no public course page; the API needs a signed-in user.
-// Each lesson: watch the video (YouTube, Bệnh viện Hoàn Mỹ Đà Nẵng) first, then the quiz unlocks.
+// Each lesson: watch the video (YouTube, Bệnh viện Hoàn Mỹ Đà Nẵng) on the page first; the player reports how far it
+// got, and the server opens the quiz once 90% of it has played (see BackEnd courses/service.py). The key points under
+// the video come with it.
 export default function CourseLearning() {
   const c = courseCopy;
   const { user } = useSession();
@@ -36,8 +39,6 @@ export default function CourseLearning() {
   const courses = overview.data?.courses ?? [];
   const [courseId, setCourseId] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
-  // Lessons marked as "video watched" in this session (completed lessons do not need it)
-  const [watched, setWatched] = useState<ReadonlySet<string>>(() => new Set());
   // Nothing selected: the first unfinished course, or the first course when all are done
   const course = courses.find((item) => item.id === courseId) ?? courses.find((item) => !item.completed) ?? courses[0];
 
@@ -55,6 +56,20 @@ export default function CourseLearning() {
     );
     // A passed lesson moves the sign-up steps (progress, then learning -> ready)
     void supporter.mutate();
+  };
+
+  // A watch report returns the lesson (how far the video got, whether the quiz is open): patch it into the cache.
+  const applyLesson = (courseId: string, lesson: CourseLesson) => {
+    void overview.mutate(
+      (current) =>
+        current && {
+          ...current,
+          courses: current.courses.map((item) =>
+            item.id === courseId ? { ...item, lessons: item.lessons.map((l) => (l.id === lesson.id ? lesson : l)) } : item,
+          ),
+        },
+      { revalidate: false },
+    );
   };
 
   return (
@@ -81,8 +96,8 @@ export default function CourseLearning() {
           responderName={overview.data?.responderName ?? ""}
           activeId={activeId}
           onSelect={setActiveId}
-          watched={watched}
-          onWatched={(lessonId) => setWatched((current) => new Set(current).add(watchKey(course.id, lessonId)))}
+          onLessonUpdated={(lesson) => applyLesson(course.id, lesson)}
+          onStale={() => void overview.mutate()}
           onCourseUpdated={applyCourse}
           onPassed={(lessonId) => {
             // Keep the current course and lesson on screen: nextLessonId (and the default course) change once a
@@ -147,8 +162,8 @@ function CourseBody({
   responderName,
   activeId,
   onSelect,
-  watched,
-  onWatched,
+  onLessonUpdated,
+  onStale,
   onCourseUpdated,
   onPassed,
 }: {
@@ -156,8 +171,8 @@ function CourseBody({
   responderName: string;
   activeId: string | null;
   onSelect: (id: string) => void;
-  watched: ReadonlySet<string>;
-  onWatched: (lessonId: string) => void;
+  onLessonUpdated: (lesson: CourseLesson) => void;
+  onStale: () => void;
   onCourseUpdated: (course: Course) => void;
   onPassed: (lessonId: string) => void;
 }) {
@@ -166,8 +181,18 @@ function CourseBody({
   const active = lessons.find((lesson) => lesson.id === activeId) ?? lessons.find((lesson) => lesson.id === course.nextLessonId) ?? lessons[0];
   const index = lessons.findIndex((lesson) => lesson.id === active?.id);
   const next = lessons[index + 1];
-  const quizOpen = active !== undefined && (active.completed || watched.has(watchKey(course.id, active.id)));
+  // Set by the server: the video was watched, or the lesson was already passed
+  const quizOpen = active !== undefined && active.watched;
+  // Too many failed quizzes reset the video: say why the quiz closed (the player follows the server back to 0)
+  const [resetFor, setResetFor] = useState<string | null>(null);
+  const videoRef = useRef<HTMLDivElement>(null);
   const completedOn = formatCourseDate(course.completedAt);
+
+  const rewatch = (lessonId: string, updated: Course) => {
+    setResetFor(lessonId);
+    onCourseUpdated(updated);
+    videoRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   return (
     <>
@@ -246,19 +271,24 @@ function CourseBody({
           <h2 id="active-lesson" className="mt-1 text-2xl font-black text-ink">{active.title}</h2>
           <p className="mt-1.5 text-[15px] leading-[1.6] text-muted-foreground">{active.summary}</p>
 
-          <VideoPlayer key={`${course.id}:${active.id}`} video={active.video} />
+          <div ref={videoRef}>
+            <VideoPlayer key={`${course.id}:${active.id}`} courseId={course.id} lesson={active} onLesson={onLessonUpdated} />
+          </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <p className="min-w-0 flex-1 text-xs leading-[1.55] text-muted-foreground">
               {c.videoCredit(active.video.title, course.source.name)}
             </p>
-            <Button asChild variant="outline" className="h-9 shrink-0 rounded-full font-semibold">
-              <a href={active.video.url} target="_blank" rel="noopener noreferrer">
-                <PlayCircle aria-hidden="true" /> {c.watchOnYouTube} <ExternalLink aria-hidden="true" />
-                <span className="sr-only">{c.newTab}</span>
-              </a>
-            </Button>
+            {/* Watching on YouTube cannot be tracked: the link is only there to review a passed lesson */}
+            {active.completed && (
+              <Button asChild variant="outline" className="h-9 shrink-0 rounded-full font-semibold">
+                <a href={active.video.url} target="_blank" rel="noopener noreferrer">
+                  <PlayCircle aria-hidden="true" /> {c.watchOnYouTube} <ExternalLink aria-hidden="true" />
+                  <span className="sr-only">{c.newTab}</span>
+                </a>
+              </Button>
+            )}
           </div>
-          <p className="mt-1.5 text-xs leading-[1.55] text-muted-foreground">{c.videoBlockedHint}</p>
+          {!active.completed && <p className="mt-1.5 text-xs leading-[1.55] text-muted-foreground">{c.videoBlockedHint}</p>}
 
           {active.sections.length > 0 && (
             <div className="mt-5 rounded-xl bg-[#fafafa] p-4">
@@ -292,6 +322,8 @@ function CourseBody({
           lesson={active}
           onCourseUpdated={onCourseUpdated}
           onPassed={() => onPassed(active.id)}
+          onRewatch={(updated) => rewatch(active.id, updated)}
+          onStale={onStale}
           nextLesson={next}
           onNext={next ? () => onSelect(next.id) : undefined}
           recordedBadge={course.completed ? course.badge : undefined}
@@ -303,10 +335,10 @@ function CourseBody({
           <h2 id="course-quiz-locked" className="flex items-center gap-2 text-lg font-bold text-ink">
             <LockKeyhole aria-hidden="true" className="size-5 text-muted-foreground" /> {c.quizTitle}
           </h2>
+          {resetFor === active.id && (
+            <p className="mt-2 rounded-lg bg-[#fdf0ed] px-3 py-2 text-sm font-semibold text-[#8a2412]" role="status">{c.mustRewatch}</p>
+          )}
           <p className="mt-1 text-sm text-muted-foreground">{c.quizLocked}</p>
-          <Button type="button" onClick={() => onWatched(active.id)} className="mt-4 h-auto min-h-11 rounded-full py-2 font-bold whitespace-normal">
-            <CheckCircle2 aria-hidden="true" /> {c.watchedButton}
-          </Button>
         </section>
       )}
 
@@ -329,26 +361,169 @@ function CourseBody({
   );
 }
 
-// Thumbnail with a play button; the YouTube iframe only loads once the learner presses play. The frame is never an
-// empty black box: if a browser or extension blocks the iframe, the thumbnail and the "Xem trên YouTube" button remain.
-function VideoPlayer({ video }: { video: CourseVideo }) {
+const TICK_MS = 500; // how often the player position is checked
+const REPORT_MS = 5000; // how often progress is reported while playing (the server credits at most ~15 s per report)
+const SEEK_TOLERANCE_SECONDS = 1.5;
+const RESYNC_SECONDS = 10; // the server's point lags further behind than this: go back to it
+
+// Thumbnail with a play button; the YouTube player (IFrame API) only loads once the learner presses play. Until the
+// quiz is open, the player keeps track of the furthest point reached by playing, sends it to the server, does not let
+// the learner skip ahead of it (going back is fine), keeps the speed at 1x and pauses when the tab is hidden. Once the
+// quiz is open (`lesson.watched`), the video is free to seek.
+function VideoPlayer({ courseId, lesson, onLesson }: { courseId: string; lesson: CourseLesson; onLesson: (lesson: CourseLesson) => void }) {
   const c = courseCopy;
+  const video = lesson.video;
+  const authFetch = useAuthFetch();
+  const watchUrl = `/api/courses/${courseId}/lessons/${lesson.id}/watch`;
   const [playing, setPlaying] = useState(false);
-  const separator = video.embedUrl.includes("?") ? "&" : "?";
+  const [blocked, setBlocked] = useState(false);
+  const [seekBlocked, setSeekBlocked] = useState(false);
+  const [furthest, setFurthest] = useState(lesson.watchedSeconds);
+  const hostRef = useRef<HTMLDivElement>(null);
+  // Read inside the player's callbacks without recreating the player
+  const trackedRef = useRef(!lesson.watched);
+  const onLessonRef = useRef(onLesson);
+  // Furthest point reached by playing; outlives the player, so a new player resumes from it
+  const markRef = useRef(lesson.watched ? 0 : lesson.watchedSeconds);
+  useEffect(() => {
+    trackedRef.current = !lesson.watched;
+    onLessonRef.current = onLesson;
+    // The server is the source of truth: after too many failed quizzes it resets the video to 0
+    if (!lesson.watched && markRef.current > lesson.watchedSeconds + RESYNC_SECONDS) markRef.current = lesson.watchedSeconds;
+  });
+  // Same for the bar shown (adjusted during render, as React recommends over an effect)
+  const [shownWatched, setShownWatched] = useState(lesson.watched);
+  if (shownWatched !== lesson.watched) {
+    setShownWatched(lesson.watched);
+    if (!lesson.watched) setFurthest(lesson.watchedSeconds);
+  }
+
+  useEffect(() => {
+    if (!seekBlocked) return;
+    const timer = window.setTimeout(() => setSeekBlocked(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [seekBlocked]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!playing || !host) return;
+    let cancelled = false;
+    let player: YouTubePlayer | null = null;
+    let ready = false;
+    let inFlight = false;
+    const start = markRef.current >= video.seconds - 3 ? 0 : Math.floor(markRef.current);
+    let lastTick = performance.now();
+    const timers: number[] = [];
+
+    const report = async () => {
+      if (!trackedRef.current || inFlight) return;
+      inFlight = true;
+      try {
+        const response = await authFetch(watchUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ seconds: Math.round(markRef.current * 10) / 10 }),
+        });
+        if (response.ok && !cancelled) {
+          const updated = (await response.json()) as CourseLesson;
+          // The server only credits real playing time; if it is well behind, continue from its point
+          if (!updated.watched && updated.watchedSeconds + RESYNC_SECONDS < markRef.current) {
+            markRef.current = updated.watchedSeconds;
+            setFurthest(markRef.current);
+          }
+          onLessonRef.current(updated);
+        }
+      } catch {
+        // Offline for a moment: the next report carries the same point
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const tick = () => {
+      if (!player || !ready) return;
+      const now = performance.now();
+      const elapsed = (now - lastTick) / 1000;
+      lastTick = now;
+      const time = player.getCurrentTime();
+      const isPlaying = player.getPlayerState() === PlayerState.PLAYING;
+      const mark = markRef.current;
+      if (trackedRef.current && time > mark + (isPlaying ? elapsed : 0) + SEEK_TOLERANCE_SECONDS) {
+        player.seekTo(mark, true);
+        setSeekBlocked(true);
+        return;
+      }
+      if (time > mark) {
+        markRef.current = Math.min(time, video.seconds);
+        setFurthest(markRef.current);
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.hidden && trackedRef.current && ready) player?.pauseVideo();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
+    loadYouTubeApi()
+      .then((api) => {
+        if (cancelled) return;
+        const target = document.createElement("div"); // replaced by the iframe; React does not own it
+        host.replaceChildren(target);
+        player = new api.Player(target, {
+          videoId: video.youtubeId,
+          host: "https://www.youtube-nocookie.com",
+          width: "100%",
+          height: "100%",
+          playerVars: { autoplay: 1, rel: 0, playsinline: 1, start, origin: window.location.origin },
+          events: {
+            onReady: () => {
+              ready = true;
+              lastTick = performance.now();
+            },
+            onStateChange: ({ data }) => {
+              if (data === PlayerState.PLAYING) lastTick = performance.now();
+              if (data === PlayerState.PLAYING || data === PlayerState.PAUSED || data === PlayerState.ENDED) void report();
+            },
+            onPlaybackRateChange: ({ target: changed, data }) => {
+              if (trackedRef.current && data > 1) changed.setPlaybackRate(1);
+            },
+            onError: () => setBlocked(true),
+          },
+        });
+        timers.push(window.setInterval(tick, TICK_MS));
+        timers.push(
+          window.setInterval(() => {
+            if (ready && player?.getPlayerState() === PlayerState.PLAYING) void report();
+          }, REPORT_MS),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setBlocked(true);
+      });
+
+    return () => {
+      cancelled = true;
+      timers.forEach((timer) => window.clearInterval(timer));
+      document.removeEventListener("visibilitychange", onVisibility);
+      player?.destroy();
+      host.replaceChildren();
+    };
+  }, [playing, authFetch, watchUrl, video.youtubeId, video.seconds]);
+
+  const tracked = !lesson.watched;
+  const percent = Math.min(100, (furthest / Math.max(1, lesson.requiredSeconds)) * 100);
 
   return (
-    <div className="relative mt-4 aspect-video w-full overflow-hidden rounded-xl bg-[#111]">
-      {playing ? (
-        <iframe
-          src={`${video.embedUrl}${separator}autoplay=1`}
-          title={video.title}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          referrerPolicy="strict-origin-when-cross-origin"
-          className="absolute inset-0 size-full border-0"
-        />
-      ) : (
-        <button
+    <>
+      <div className="relative mt-4 aspect-video w-full overflow-hidden rounded-xl bg-[#111]">
+        {playing && <div ref={hostRef} className="absolute inset-0 [&_iframe]:size-full [&_iframe]:border-0" />}
+        {playing && blocked && (
+          <p className="absolute inset-0 grid place-items-center bg-[#111] p-6 text-center text-sm leading-[1.6] text-white" role="alert">
+            {c.playerBlocked}
+          </p>
+        )}
+        {!playing && (
+          <button
           type="button"
           onClick={() => setPlaying(true)}
           aria-label={c.playVideo(video.title)}
@@ -367,8 +542,34 @@ function VideoPlayer({ video }: { video: CourseVideo }) {
             <span className="ml-1 size-0 border-y-[11px] border-l-[18px] border-y-transparent border-l-white" />
           </span>
         </button>
+        )}
+      </div>
+
+      {tracked && (
+        <div className="mt-3">
+          <div
+            className="h-1.5 overflow-hidden rounded-full bg-[#f1f1f1]"
+            role="progressbar"
+            aria-valuenow={Math.round(percent)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={c.watchProgress(formatClock(furthest), formatClock(video.seconds))}
+          >
+            <span className="block h-full rounded-full bg-brand transition-[width] duration-500" style={{ width: `${percent}%` }} />
+          </div>
+          <p className="mt-1.5 flex flex-wrap justify-between gap-x-3 text-xs text-muted-foreground">
+            <span className="font-semibold text-ink">{c.watchProgress(formatClock(furthest), formatClock(video.seconds))}</span>
+            <span>{c.watchNeed(formatClock(lesson.requiredSeconds))}</span>
+          </p>
+          {seekBlocked && <p className="mt-1 text-xs font-semibold text-brand" role="status">{c.seekBlocked}</p>}
+        </div>
       )}
-    </div>
+      {!tracked && !lesson.completed && (
+        <p className="mt-3 flex items-center gap-1.5 text-sm font-semibold text-[#1e7d3a]" role="status">
+          <CheckCircle2 aria-hidden="true" className="size-4" /> {c.watchDone}
+        </p>
+      )}
+    </>
   );
 }
 
@@ -381,6 +582,8 @@ function QuizPanel({
   lesson,
   onCourseUpdated,
   onPassed,
+  onRewatch,
+  onStale,
   nextLesson,
   onNext,
   recordedBadge,
@@ -389,6 +592,10 @@ function QuizPanel({
   lesson: CourseLesson;
   onCourseUpdated: (course: Course) => void;
   onPassed: () => void;
+  /** Too many failed quizzes: the server reset the video, `course` shows it */
+  onRewatch: (course: Course) => void;
+  /** The server says the quiz is closed (the video was reset elsewhere): reload the course */
+  onStale: () => void;
   nextLesson: CourseLesson | undefined;
   onNext?: () => void;
   recordedBadge?: string;
@@ -406,6 +613,10 @@ function QuizPanel({
   // Bumped on every load and on unmount; responses from an older request (or a lesson no longer shown) are ignored
   const requestRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const onStaleRef = useRef(onStale);
+  useEffect(() => {
+    onStaleRef.current = onStale;
+  });
   const current = loaded?.lessonId === lessonId ? loaded : null;
   const quiz = current?.quiz ?? null;
 
@@ -428,6 +639,7 @@ function QuizPanel({
       next = { lessonId, quiz: null, status: 0 };
     }
     if (request !== requestRef.current) return;
+    if (next.status === 403) onStaleRef.current();
     setLoaded(next);
     setAnswers(next.quiz ? next.quiz.questions.map(() => null) : []);
     setResult(null);
@@ -489,6 +701,7 @@ function QuizPanel({
     // 409: the question bank changed since this quiz was issued; 400 with every question answered means the token was
     // rejected. Either way the learner needs a fresh set.
     if (status === 409 || status === 400) reload(c.quizStale);
+    else if (status === 403) onStale();
     else setError(c.loadFailed);
   };
 
@@ -508,7 +721,7 @@ function QuizPanel({
 
       {current && !quiz && (
         <div className="mt-4">
-          <p className="text-[15px] text-ink" role="alert">{c.quizLoadFailed}</p>
+          <p className="text-[15px] text-ink" role="alert">{current.status === 403 ? c.quizNeedsVideo : c.quizLoadFailed}</p>
           <Button type="button" variant="outline" onClick={() => reload()} className="mt-3 rounded-full">{c.retryLoad}</Button>
         </div>
       )}
@@ -525,8 +738,10 @@ function QuizPanel({
                 </legend>
                 <div className="mt-2 grid gap-2">
                   {question.options.map((option, optionIndex) => {
-                    const correct = graded !== undefined && optionIndex === graded.correctIndex;
-                    const wrong = graded !== undefined && selected === optionIndex && !correct;
+                    // A failed quiz only marks the learner's own answers; the right ones come with a pass
+                    const picked = graded !== undefined && selected === optionIndex;
+                    const correct = graded !== undefined && (optionIndex === graded.correctIndex || (picked && graded.correct));
+                    const wrong = picked && !graded.correct;
                     return (
                       <label
                         key={option}
@@ -549,13 +764,14 @@ function QuizPanel({
                         />
                         <span className="flex-1">{option}</span>
                         {correct && <CheckCircle2 aria-label={c.correctAnswer} className="mt-0.5 size-4.5 shrink-0 text-[#1e7d3a]" />}
+                        {wrong && <XCircle aria-label={c.wrongAnswer} className="mt-0.5 size-4.5 shrink-0 text-brand" />}
                       </label>
                     );
                   })}
                 </div>
-                {graded && (
+                {graded && (graded.explanation || !graded.correct) && (
                   <p className={cn("mt-2 rounded-lg px-3 py-2 text-sm leading-[1.55]", graded.correct ? "bg-[#eef8f1] text-[#145c2a]" : "bg-[#fdf0ed] text-[#8a2412]")}>
-                    {graded.explanation}
+                    {graded.explanation ?? c.wrongHint}
                   </p>
                 )}
               </fieldset>
@@ -567,6 +783,11 @@ function QuizPanel({
           {result && (
             <p className={cn("rounded-xl px-4 py-3 text-[15px] font-semibold leading-[1.5]", result.passed ? "bg-[#eef8f1] text-[#145c2a]" : "bg-[#fdf0ed] text-[#8a2412]")} role="status">
               {result.passed ? c.passed : c.failed(result.correctCount, result.total)}
+              {!result.passed && result.attemptsLeft !== null && (
+                <span className="mt-1 block text-sm font-normal">
+                  {result.attemptsLeft > 0 ? c.attemptsLeft(result.attemptsLeft) : c.mustRewatch}
+                </span>
+              )}
             </p>
           )}
 
@@ -591,7 +812,12 @@ function QuizPanel({
                 {c.viewProfile} <ArrowRight aria-hidden="true" className="size-4" />
               </Link>
             )}
-            {result && !result.passed && (
+            {result && !result.passed && result.attemptsLeft === 0 && (
+              <Button type="button" onClick={() => onRewatch(result.course)} className="h-11 rounded-full font-bold">
+                <PlayCircle aria-hidden="true" /> {c.rewatch}
+              </Button>
+            )}
+            {result && !result.passed && result.attemptsLeft !== 0 && (
               <Button type="button" variant="outline" onClick={() => reload()} className="h-11 rounded-full font-semibold">
                 <RotateCcw aria-hidden="true" /> {c.retry}
               </Button>

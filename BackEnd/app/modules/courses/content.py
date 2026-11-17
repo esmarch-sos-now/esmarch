@@ -23,6 +23,7 @@ class Section:
 class Video:
     youtube_id: str
     title: str  # exact title on YouTube
+    seconds: int  # length on YouTube: the quiz opens once most of it has been watched (service.WATCH_REQUIRED)
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,7 @@ COURSES: tuple[Course, ...] = (
                 minutes=5,
                 video=Video(
                     youtube_id="EY1HGIfAgBs",
+                    seconds=77,
                     title=(
                         "[Hướng dẫn sơ cấp cứu] Xử trí dị vật đường thở cho nạn nhân tỉnh táo"
                         " - Bệnh viện Hoàn Mỹ Đà Nẵng"
@@ -124,6 +126,7 @@ COURSES: tuple[Course, ...] = (
                 minutes=4,
                 video=Video(
                     youtube_id="oVyBVKdlYNU",
+                    seconds=70,
                     title=(
                         "[Hướng dẫn sơ cấp cứu] Tự Xử Trí Dị Vật Đường Thở Cho Bản Thân | Bệnh viện Hoàn Mỹ Đà Nẵng"
                     ),
@@ -155,6 +158,7 @@ COURSES: tuple[Course, ...] = (
                 minutes=5,
                 video=Video(
                     youtube_id="_ArYhTpP32s",
+                    seconds=66,
                     title="[Hướng dẫn sơ cấp cứu] Xử Trí Sặc Sữa Ở Trẻ Nhỏ - Bệnh viện Hoàn Mỹ Đà Nẵng",
                 ),
                 sections=(
@@ -204,6 +208,7 @@ COURSES: tuple[Course, ...] = (
                 minutes=6,
                 video=Video(
                     youtube_id="Ei1UsHqtUvo",
+                    seconds=148,
                     title="[Hướng dẫn sơ cấp cứu] Hô Hấp Nhân Tạo Cho Người Lớn - Bệnh viện Hoàn Mỹ Đà Nẵng",
                 ),
                 sections=(
@@ -239,6 +244,7 @@ COURSES: tuple[Course, ...] = (
                 minutes=5,
                 video=Video(
                     youtube_id="6a3ge4UD4Lc",
+                    seconds=102,
                     title="[Hướng dẫn sơ cấp cứu] Sơ Cứu Vết Thương Chảy Máu - Bệnh viện Hoàn Mỹ Đà Nẵng",
                 ),
                 sections=(
@@ -276,6 +282,7 @@ COURSES: tuple[Course, ...] = (
                 minutes=4,
                 video=Video(
                     youtube_id="jNi1nCk_sNc",
+                    seconds=83,
                     title="[Hướng dẫn sơ cấp cứu] Sơ Cứu Choáng Ngất - Bệnh viện Hoàn Mỹ Đà Nẵng",
                 ),
                 sections=(
