@@ -1,14 +1,22 @@
 """'Khóa học sơ cứu': every signed-in account can read the courses and record progress, the first step to
 becoming a responder."""
 
+import math
 import uuid
 
 import pytest
 
+from app.core import clock
 from app.core.config import get_settings
 from app.modules.courses.content import COURSES, SOURCE_NAME, SOURCE_PLAYLIST_URL
 from app.modules.courses.quiz import QUIZ_SIZE
-from app.modules.courses.service import _bank, _read_token, course_service
+from app.modules.courses.service import (
+    MAX_FAILED_QUIZZES,
+    WATCH_MAX_GAP_SECONDS,
+    _bank,
+    _read_token,
+    course_service,
+)
 from tests.auth_tokens import bearer
 from tests.helpers import become_responder
 
@@ -36,6 +44,25 @@ def url(course_id: str, lesson_id: str) -> str:
     return f"/api/courses/{course_id}/lessons/{lesson_id}/quiz"
 
 
+def report(client, auth: dict, course_id: str, lesson_id: str, seconds: float):
+    return client.post(f"/api/courses/{course_id}/lessons/{lesson_id}/watch", headers=auth, json={"seconds": seconds})
+
+
+def watch_video(client, auth: dict, course_id: str, lesson_id: str) -> dict:
+    """Play the whole video as the player would: a report at the start, then one every 5 seconds of real time."""
+    lesson = next(lesson for course in COURSES for lesson in course.lessons if lesson.id == lesson_id)
+    body = report(client, auth, course_id, lesson_id, 0).json()
+    position = 0
+    while position < lesson.video.seconds:
+        clock.advance(5)
+        position += 5
+        r = report(client, auth, course_id, lesson_id, position)
+        assert r.status_code == 200, r.text
+        body = r.json()
+    assert body["watched"] is True, body
+    return body
+
+
 def new_quiz(client, auth: dict, course_id: str, lesson_id: str) -> dict:
     r = client.get(url(course_id, lesson_id), headers=auth)
     assert r.status_code == 200, r.text
@@ -55,11 +82,25 @@ def submit(client, auth: dict, course_id: str, lesson_id: str, token: str, answe
 
 
 def pass_lesson(client, auth: dict, course_id: str, lesson_id: str, email: str = "hai@example.com") -> dict:
+    if not lesson_done(client, auth, course_id, lesson_id):
+        watch_video(client, auth, course_id, lesson_id)
     quiz = new_quiz(client, auth, course_id, lesson_id)
     key = answer_key(email, course_id, lesson_id, quiz["token"])
     body = submit(client, auth, course_id, lesson_id, quiz["token"], key).json()
     assert body["passed"] is True, body
     return body
+
+
+def lesson_done(client, auth: dict, course_id: str, lesson_id: str) -> bool:
+    course = next(c for c in client.get("/api/courses", headers=auth).json()["courses"] if c["id"] == course_id)
+    return next(lesson for lesson in course["lessons"] if lesson["id"] == lesson_id)["completed"]
+
+
+def fail_quiz(client, auth: dict, course_id: str, lesson_id: str, email: str = "hai@example.com") -> dict:
+    quiz = new_quiz(client, auth, course_id, lesson_id)
+    key = answer_key(email, course_id, lesson_id, quiz["token"])
+    wrong = [(answer + 1) % len(q["options"]) for answer, q in zip(key, quiz["questions"], strict=True)]
+    return submit(client, auth, course_id, lesson_id, quiz["token"], wrong).json()
 
 
 def test_course_needs_sign_in_only(client):
@@ -76,8 +117,11 @@ def test_any_signed_in_user_sees_the_course_and_a_quiz_without_answers(client):
     assert course["lessonCount"] == 3 and course["progressPercent"] == 0 and course["completed"] is False
     assert course["completedAt"] is None and course["disclaimer"]
     first = course["lessons"][0]
-    assert first["completed"] is False and first["sections"]
+    assert first["completed"] is False and first["watched"] is False and first["watchedSeconds"] == 0
+    assert first["sections"] == []  # the key points come after the video
+    assert first["requiredSeconds"] == math.ceil(first["video"]["seconds"] * 0.9)
 
+    assert watch_video(client, auth, COURSES[0].id, first["id"])["sections"]
     quiz = new_quiz(client, auth, COURSES[0].id, first["id"])
     assert quiz["token"] and len(quiz["questions"]) == QUIZ_SIZE
     for question in quiz["questions"]:
@@ -89,23 +133,83 @@ def test_a_verified_responder_is_named_on_the_course_page(client):
     assert client.get("/api/courses", headers=auth).json()["responderName"] == "Hải"
 
 
-def test_wrong_answers_reveal_explanations_without_completing_the_lesson(client):
+def test_the_quiz_opens_only_after_the_video_is_watched(client):
     auth = learner(client)
     course, lesson = COURSES[0], COURSES[0].lessons[0]
-    quiz = new_quiz(client, auth, course.id, lesson.id)
-    key = answer_key("hai@example.com", course.id, lesson.id, quiz["token"])
-    wrong = [(answer + 1) % len(q["options"]) for answer, q in zip(key, quiz["questions"], strict=True)]
-    result = submit(client, auth, course.id, lesson.id, quiz["token"], wrong).json()
+    assert client.get(url(course.id, lesson.id), headers=auth).status_code == 403
+
+    # A report cannot jump ahead of real playback: it moves by the real time since the previous one, so a burst of
+    # reports adds nothing.
+    # (The test clock also runs in real time: allow for the second or so the requests themselves take.)
+    for _ in range(50):
+        body = report(client, auth, course.id, lesson.id, 9999).json()
+    assert body["watchedSeconds"] < 2 and body["watched"] is False
+    clock.advance(5)
+    after_five = report(client, auth, course.id, lesson.id, 9999).json()["watchedSeconds"]
+    assert 5 <= after_five < 7
+    # A long pause does not bank time either, and the point never goes back.
+    clock.advance(3600)
+    after_pause = report(client, auth, course.id, lesson.id, 9999).json()["watchedSeconds"]
+    assert after_five + WATCH_MAX_GAP_SECONDS <= after_pause < after_five + WATCH_MAX_GAP_SECONDS + 1
+    assert report(client, auth, course.id, lesson.id, 0).json()["watchedSeconds"] >= after_pause
+    assert client.get(url(course.id, lesson.id), headers=auth).status_code == 403
+
+    watch_video(client, auth, course.id, lesson.id)
+    assert client.get(url(course.id, lesson.id), headers=auth).status_code == 200
+    # The next lesson is still closed, and the watch report is checked.
+    assert client.get(url(course.id, course.lessons[1].id), headers=auth).status_code == 403
+    assert report(client, auth, course.id, lesson.id, -1).status_code == 400
+    assert report(client, auth, course.id, "unknown", 1).status_code == 404
+
+
+def test_wrong_answers_are_marked_without_revealing_the_right_ones(client):
+    auth = learner(client)
+    course, lesson = COURSES[0], COURSES[0].lessons[0]
+    watch_video(client, auth, course.id, lesson.id)
+    result = fail_quiz(client, auth, course.id, lesson.id)
     assert result["passed"] is False and result["correctCount"] == 0
-    assert [item["correctIndex"] for item in result["results"]] == key
-    assert all(item["explanation"] for item in result["results"])
-    assert result["course"]["progressPercent"] == 0
+    assert all(item["correct"] is False for item in result["results"])
+    assert all(item["correctIndex"] is None and item["explanation"] is None for item in result["results"])
+    assert result["attemptsLeft"] == MAX_FAILED_QUIZZES - 1
+    assert result["course"]["progressPercent"] == 0 and result["course"]["lessons"][0]["watched"] is True
+
+
+def test_failing_too_often_means_watching_the_video_again(client):
+    auth = learner(client)
+    course, lesson = COURSES[0], COURSES[0].lessons[0]
+    watch_video(client, auth, course.id, lesson.id)
+    lefts = [fail_quiz(client, auth, course.id, lesson.id) for _ in range(MAX_FAILED_QUIZZES)]
+    assert [result["attemptsLeft"] for result in lefts] == list(range(MAX_FAILED_QUIZZES - 1, -1, -1))
+    view = lefts[-1]["course"]["lessons"][0]
+    assert view["watched"] is False and view["watchedSeconds"] == 0 and view["sections"] == []
+    assert client.get(url(course.id, lesson.id), headers=auth).status_code == 403
+
+    # A quiz issued before the reset cannot be graded either.
+    watch_video(client, auth, course.id, lesson.id)
+    quiz = new_quiz(client, auth, course.id, lesson.id)
+    for _ in range(MAX_FAILED_QUIZZES):
+        fail_quiz(client, auth, course.id, lesson.id)
+    key = answer_key("hai@example.com", course.id, lesson.id, quiz["token"])
+    assert submit(client, auth, course.id, lesson.id, quiz["token"], key).status_code == 403
+
+
+def test_a_passed_lesson_stays_open_for_review(client):
+    auth = learner(client)
+    course, lesson = COURSES[0], COURSES[0].lessons[0]
+    result = pass_lesson(client, auth, course.id, lesson.id)
+    assert result["attemptsLeft"] is None
+    assert all(item["correctIndex"] is not None and item["explanation"] for item in result["results"])
+    for _ in range(MAX_FAILED_QUIZZES + 1):
+        assert fail_quiz(client, auth, course.id, lesson.id)["attemptsLeft"] is None
+    view = client.get("/api/courses", headers=auth).json()["courses"][0]["lessons"][0]
+    assert view["completed"] is True and view["watched"] is True and view["sections"]
 
 
 def test_a_quiz_token_is_graded_once_and_bound_to_its_user_and_lesson(client):
     auth = learner(client)
     other = learner(client, "khac@example.com", "Khác")
     course, lesson = COURSES[0], COURSES[0].lessons[0]
+    watch_video(client, auth, course.id, lesson.id)
     quiz = new_quiz(client, auth, course.id, lesson.id)
     key = answer_key("hai@example.com", course.id, lesson.id, quiz["token"])
 
@@ -145,6 +249,7 @@ def test_progress_is_private_and_input_is_validated(client):
     auth = learner(client)
     other = learner(client, "khac@example.com", "Khác")
     course, lesson = COURSES[0], COURSES[0].lessons[0]
+    watch_video(client, auth, course.id, lesson.id)
     quiz = new_quiz(client, auth, course.id, lesson.id)
 
     assert submit(client, auth, course.id, lesson.id, quiz["token"], []).status_code == 400
@@ -174,7 +279,8 @@ def test_two_video_courses_credit_the_source(client):
             assert video["embedUrl"] == f"https://www.youtube-nocookie.com/embed/{video['youtubeId']}?rel=0"
             assert video["url"] == f"https://www.youtube.com/watch?v={video['youtubeId']}"
             assert "Bệnh viện Hoàn Mỹ Đà Nẵng" in video["title"]
-            assert lesson["sections"]
+            assert 30 <= video["seconds"] <= 600
+    assert all(lesson.sections for course in COURSES for lesson in course.lessons)
 
 
 def test_finished_course_is_recorded_on_the_profile(client):

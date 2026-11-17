@@ -22,6 +22,7 @@ class VideoView(CamelModel):
     title: str
     url: str
     embed_url: str
+    seconds: int  # length of the video
 
 
 class SourceView(CamelModel):
@@ -40,9 +41,12 @@ class LessonView(CamelModel):
     summary: str
     minutes: int
     video: VideoView
-    sections: list[SectionView]
+    sections: list[SectionView]  # empty until the video has been watched (or the lesson passed)
     completed: bool
     quiz_score: int | None = None
+    watched_seconds: float  # furthest point of the video reached by playing it
+    required_seconds: int  # what must be watched before the quiz opens
+    watched: bool  # the quiz is open: the video was watched, or the lesson was already passed
 
 
 class CourseView(CamelModel):
@@ -90,11 +94,18 @@ class QuizSubmission(CamelModel):
     answers: list[int] = Field(max_length=50)  # bounded before grading; the exact count is checked there
 
 
+class WatchReport(CamelModel):
+    seconds: float = Field(ge=0, le=24 * 3600)  # furthest point of the video the player reached
+
+
 class QuizAnswerResult(CamelModel):
+    """`correct_index` and `explanation` are only sent once the quiz is passed: a failed quiz tells which answers were
+    wrong, not what the right ones are."""
+
     question_id: str
     correct: bool
-    correct_index: int
-    explanation: str
+    correct_index: int | None
+    explanation: str | None
 
 
 class QuizResult(CamelModel):
@@ -102,4 +113,7 @@ class QuizResult(CamelModel):
     correct_count: int
     total: int
     results: list[QuizAnswerResult]
+    # Failed quizzes left before the video has to be watched again; None when the lesson is already passed (reviews
+    # are not limited). 0 means this failure reset the video: `course` shows the lesson as not watched.
+    attempts_left: int | None
     course: CourseView
