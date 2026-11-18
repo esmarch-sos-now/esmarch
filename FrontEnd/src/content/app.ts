@@ -189,8 +189,6 @@ export const onboardingCopy = {
   start: 'Bắt đầu học',
   continue: 'Học tiếp',
   coursesHint: 'Mỗi bài có video và bài kiểm tra 5 câu; trả lời đúng hết để hoàn thành bài.',
-  coursesTitle: 'Khóa học sơ cứu',
-  hideCourses: 'Thu gọn',
   readyTitle: 'Bạn đã hoàn thành khóa học. Gửi đăng ký để được xác minh.',
   name: 'Tên hiển thị (người cần giúp sẽ thấy)',
   email: 'Email nhận kết quả xét duyệt',
@@ -220,6 +218,17 @@ export const courseCopy = {
   subtitle:
     'Hai khóa ngắn từ video của bác sĩ Bệnh viện Hoàn Mỹ Đà Nẵng. Xem video từng bài rồi làm câu hỏi kiểm tra; khóa đã hoàn thành được ghi nhận lên hồ sơ của bạn.',
   signIn: 'Đăng nhập để học khóa sơ cứu dành cho người hỗ trợ.',
+  backToSignup: 'Quay lại trang đăng ký',
+  backToSupport: 'Quay lại trang Sẵn sàng hỗ trợ',
+  // Shown when a passed quiz finishes a course
+  congrats: {
+    courseTitle: 'Chúc mừng bạn!',
+    courseBody: (title: string, remaining: number) =>
+      `Bạn đã hoàn thành khóa “${title}”. Còn ${remaining} khóa nữa để hoàn thành bước học.`,
+    allTitle: 'Chúc mừng! Bạn đã hoàn thành tất cả khóa sơ cứu',
+    allBody: 'Các khóa học đã được ghi nhận lên hồ sơ của bạn. Quay lại trang đăng ký để gửi đăng ký làm người hỗ trợ.',
+    nextCourse: 'Học khóa tiếp theo',
+  },
   signInButton: 'Đăng nhập',
   loading: 'Đang tải khóa học…',
   enrolledAs: (name: string) => `Bạn đang học với tư cách người hỗ trợ: ${name}`,

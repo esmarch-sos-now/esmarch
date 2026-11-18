@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import useSWR from "swr";
 import { Bike, BookOpenCheck, Car, CheckCircle2, HandHeart, ImageIcon, MapPin, PartyPopper, Phone, Power, Volume2, X } from "lucide-react";
-import CourseLearning from "@/components/site/courses/course-learning";
 import { CompletedCourseChips } from "@/components/site/courses/completed-courses";
 import Navbar from "@/components/site/landing/Navbar";
 import { Page } from "@/components/site/primitives";
@@ -22,6 +22,7 @@ import { formatDuration, useDirections, type Vehicle } from "@/lib/directions";
 import { notifyInBackground, ring, unlockAlarm } from "@/lib/support/alarm";
 import { DEMO_SUPPORTER_OFFSET_METERS, offsetNorth } from "@/lib/support/demo-offset";
 import { distanceBeforeAccepting, photoUrl, videoSource, type ResponderRequest } from "@/lib/support/protocol";
+import { COURSES_PATH } from "@/lib/auth/paths";
 import { cn } from "@/lib/utils";
 
 const LOGIN_NEXT = "/dang-nhap?next=%2Fapp%2Fsan-sang-ho-tro";
@@ -47,7 +48,6 @@ export default function ResponderScreen() {
   const [offers, setOffers] = useState<ResponderRequest[]>([]);
   const [active, setActive] = useState<ResponderRequest | null>(null);
   const [notice, setNotice] = useState("");
-  const [reviewing, setReviewing] = useState(false);
 
   // Approved since the last visit: say "Đăng ký thành công" for this visit, and tell the server it was seen so it is
   // not said again (on any device).
@@ -270,14 +270,12 @@ export default function ResponderScreen() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <ConnectionChip status={socketStatus} />
-                <button
-                  type="button"
-                  onClick={() => setReviewing((current) => !current)}
-                  aria-expanded={reviewing}
-                  className="mt-3 inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand hover:text-brand [&_svg]:size-3.5"
+                <Link
+                  href={COURSES_PATH}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-2.5 py-1 text-xs font-semibold text-ink hover:border-brand hover:text-brand [&_svg]:size-3.5"
                 >
                   <BookOpenCheck aria-hidden="true" /> {c.courseLink}
-                </button>
+                </Link>
                 <button
                   type="button"
                   onClick={() => { unlockAlarm(); ring(); }}
@@ -291,13 +289,6 @@ export default function ResponderScreen() {
               {active && positionStatus === "denied" && <p className="mt-2 text-sm text-brand">{c.locationDenied}</p>}
               {!active && wantAvailable && positionStatus === "denied" && <p className="mt-2 text-sm text-brand">{c.locationDeniedWaiting}</p>}
             </section>
-
-            {/* The courses are reviewed here (there is no public course page) */}
-            {reviewing && (
-              <section className="mt-6 rounded-2xl border border-line bg-white p-5" aria-label={c.courseLink}>
-                <CourseLearning />
-              </section>
-            )}
 
             {notice && (
               <p className="mt-4 flex items-center justify-between gap-2 rounded-xl bg-[#f4f4f5] px-4 py-2.5 text-sm text-ink" role="status">
