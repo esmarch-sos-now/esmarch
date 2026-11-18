@@ -7,7 +7,10 @@ export const guides3d = [
     path: '/app/huong-dan/ep-bung',
     file: '/guides/ep-bung-3d.html',
     title: 'Sơ cứu hóc dị vật: ép bụng',
-    keywords: ['ép bụng', 'ep bung', 'heimlich']
+    // Nhãn nút trên màn chọn tình huống (/app/huong-dan)
+    label: 'Bị hóc dị vật',
+    hint: 'Nạn nhân không ho, không nói, không thở được',
+    keywords: ['ép bụng', 'ep bung', 'heimlich', 'hóc', 'nghẹn', 'dị vật', 'hoc', 'nghen', 'di vat']
   },
   {
     id: 'gay-xuong-dui',
@@ -16,7 +19,9 @@ export const guides3d = [
     path: '/app/huong-dan/gay-xuong-dui',
     file: '/guides/gay-xuong-dui-3d.html',
     title: 'Cố định gãy xương đùi: nẹp hai bên',
-    keywords: ['gãy xương đùi', 'gãy đùi', 'xương đùi', 'gay xuong dui', 'gay dui']
+    label: 'Gãy xương đùi',
+    hint: 'Đùi đau, sưng, biến dạng, không cử động được',
+    keywords: ['gãy xương đùi', 'gãy đùi', 'xương đùi', 'gãy chân', 'gay xuong dui', 'gay dui', 'gay chan']
   },
   {
     id: 'xuc-thia',
@@ -25,7 +30,9 @@ export const guides3d = [
     path: '/app/huong-dan/xuc-thia',
     file: '/guides/xuc-thia-3d.html',
     title: 'Đưa nạn nhân lên cáng: xúc thìa',
-    keywords: ['xúc thìa', 'lên cáng', 'xuc thia', 'len cang']
+    label: 'Đưa nạn nhân lên cáng',
+    hint: 'Cần di chuyển nạn nhân an toàn',
+    keywords: ['xúc thìa', 'lên cáng', 'cáng', 'khiêng', 'xuc thia', 'len cang', 'khieng']
   }
 ]
 

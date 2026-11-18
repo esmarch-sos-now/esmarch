@@ -18,6 +18,12 @@ export const appPages: AppPageDef[] = [
     description: 'Một chạm để gọi 115, đồng thời định vị vị trí hiện tại rồi chuyển sang danh sách cơ sở y tế gần nhất.'
   },
   {
+    path: '/app/huong-dan',
+    nav: 'Hướng dẫn sơ cứu',
+    title: 'Hướng dẫn sơ cứu',
+    description: 'Chọn hoặc mô tả tình huống để mở ngay hướng dẫn 3D có giọng đọc từng bước.'
+  },
+  {
     path: '/app/co-so-y-te',
     title: 'Cơ sở y tế gần nhất',
     description: 'Danh sách bệnh viện, cơ sở y tế gần vị trí hiện tại kèm số điện thoại để gọi khi không liên lạc được 115, cùng nút chỉ đường.'
@@ -55,6 +61,39 @@ export const sosScreen = {
   buttonLabel: 'Gọi 115 ngay',
   note: 'Cuộc gọi đến 115 hoàn toàn miễn phí.',
   findHelper: 'Tìm người biết sơ cứu gần bạn'
+}
+
+// Màn "Bạn đang gặp tình huống gì?" (/app/huong-dan): chọn gợi ý hoặc mô tả là mở hướng dẫn 3D có giọng đọc ngay,
+// không chờ AI. Chỉ gợi ý những tình huống đã có hướng dẫn; người bất tỉnh thì nhắc gọi 115.
+export const situationScreen = {
+  title: 'Hướng dẫn sơ cứu',
+  question: 'Bạn đang gặp tình huống gì?',
+  greeting: { morning: 'Chào buổi sáng !', afternoon: 'Chào buổi chiều !', evening: 'Chào buổi tối !' },
+  inputPlaceholder: 'Mô tả điều bạn đang thấy, hoặc nhấn micro để nói...',
+  language: 'Tiếng Việt',
+  micLabel: 'Nói tình huống',
+  stopLabel: 'Dừng nghe',
+  sendLabel: 'Gửi',
+  listening: 'Mình đang nghe…',
+  emergency: 'Nguy hiểm tính mạng? Gọi ngay 115',
+  unconscious: 'Có người bất tỉnh',
+  urgent: 'Người bất tỉnh hoặc ngừng thở: gọi 115 ngay, nhân viên 115 sẽ hướng dẫn bạn qua điện thoại.',
+  notFound: 'Mình chưa nhận ra tình huống. Chọn một gợi ý ở trên, nói với trợ lý sơ cứu, hoặc gọi 115.',
+  micFailed: 'Chưa nghe rõ. Hãy thử lại hoặc chọn một gợi ý ở trên.',
+  call115: 'Gọi 115',
+  askAssistant: 'Nói với trợ lý sơ cứu',
+  sosLink: 'Hướng dẫn sơ cứu ngay'
+}
+
+// Lệnh giọng nói trên màn hướng dẫn 3D: nhận ngay trong trình duyệt, không qua AI
+export const stepVoice = {
+  listening: 'Đang nghe: nói “xong”, “nhắc lại” hoặc “quay lại”',
+  reading: 'Đang đọc hướng dẫn…',
+  off: 'Lệnh giọng nói đang tắt',
+  denied: 'Chưa có quyền micro: dùng nút trên hình',
+  turnOn: 'Bật lệnh giọng nói',
+  turnOff: 'Tắt lệnh giọng nói',
+  heard: { next: 'Đã nghe: sang bước tiếp', repeat: 'Đã nghe: đọc lại bước này', previous: 'Đã nghe: về bước trước', call115: 'Đã nghe: gọi 115' }
 }
 
 // "Tìm kiếm người hỗ trợ": người cần giúp (/app/nguoi-ho-tro) và người hỗ trợ (/app/san-sang-ho-tro)
