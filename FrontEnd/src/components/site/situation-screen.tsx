@@ -135,7 +135,7 @@ export default function SituationScreen() {
 
         <form
           onSubmit={submit}
-          className="mt-8 w-full max-w-230 rounded-[22px] border border-line bg-white p-4 text-left shadow-[0_8px_24px_rgba(0,0,0,.04)] focus-within:border-brand/60"
+          className="mt-6 w-full max-w-160 rounded-[20px] border border-line bg-white px-4 pt-3 pb-2.5 text-left shadow-[0_8px_24px_rgba(0,0,0,.04)] focus-within:border-brand/60"
         >
           <textarea
             rows={2}
@@ -147,10 +147,10 @@ export default function SituationScreen() {
             }}
             placeholder={s.inputPlaceholder}
             aria-label={s.inputPlaceholder}
-            className="w-full resize-none border-0 bg-transparent text-[17px] leading-normal text-ink outline-none placeholder:text-[#9a9a9a]"
+            className="w-full resize-none border-0 bg-transparent text-[15px] leading-normal text-ink outline-none placeholder:text-[#9a9a9a]"
           />
-          <div className="mt-2 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-[15px] text-[#555] [&_svg]:size-4.5">
+          <div className="mt-1 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 text-[14px] text-[#555] [&_svg]:size-4">
               <Languages aria-hidden="true" /> {s.language}
             </span>
             <button
@@ -159,7 +159,7 @@ export default function SituationScreen() {
               aria-label={listening ? s.stopLabel : s.micLabel}
               aria-pressed={listening}
               className={cn(
-                "ml-auto grid size-12 cursor-pointer place-items-center rounded-full text-brand transition-colors [&_svg]:size-5",
+                "ml-auto grid size-10 cursor-pointer place-items-center rounded-full text-brand transition-colors [&_svg]:size-4.5",
                 listening ? "animate-sos-ring bg-brand text-white" : "bg-brand-soft hover:bg-brand/15",
               )}
             >
@@ -169,7 +169,7 @@ export default function SituationScreen() {
               type="submit"
               aria-label={s.sendLabel}
               disabled={text.trim().length < 2}
-              className="grid size-12 cursor-pointer place-items-center rounded-full bg-brand text-white transition-colors hover:bg-brand-dark disabled:cursor-default disabled:opacity-60 [&_svg]:size-5"
+              className="grid size-10 cursor-pointer place-items-center rounded-full bg-brand text-white transition-colors hover:bg-brand-dark disabled:cursor-default disabled:opacity-60 [&_svg]:size-4.5"
             >
               <ArrowUp aria-hidden="true" />
             </button>
@@ -180,7 +180,7 @@ export default function SituationScreen() {
           <div
             role="status"
             className={cn(
-              "mt-4 w-full max-w-230 rounded-2xl border px-4 py-3 text-left text-[15px] leading-normal",
+              "mt-4 w-full max-w-160 rounded-2xl border px-4 py-3 text-left text-[15px] leading-normal",
               notice === "urgent" ? "border-brand bg-brand-soft text-ink" : "border-line bg-white text-ink",
             )}
           >
