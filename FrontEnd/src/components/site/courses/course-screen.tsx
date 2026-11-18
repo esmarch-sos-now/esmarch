@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft, LogIn } from "lucide-react";
 import CourseLearning from "@/components/site/courses/course-learning";
@@ -14,7 +15,7 @@ import { SUPPORTER_PATH } from "@/lib/auth/paths";
 const LOGIN_NEXT = "/dang-nhap?next=%2Fapp%2Fkhoa-hoc";
 
 // The course page (/app/khoa-hoc): "Bắt đầu học" / "Học tiếp" / "Xem lại khóa học" on the supporter page lead here,
-// and every way out leads back there (the link at the top, and the congratulations once a course is finished).
+// and the link at the top leads back there. Each lesson's quiz is on its own page (course-quiz-screen.tsx).
 export default function CourseScreen() {
   const c = courseCopy;
   const { status } = useSession();
@@ -46,7 +47,12 @@ export default function CourseScreen() {
           </section>
         )}
 
-        {status === "authenticated" && <CourseLearning backHref={SUPPORTER_PATH} backLabel={backLabel} />}
+        {/* useSearchParams (?khoa=&bai=, the way back from a quiz) needs a Suspense boundary for static prerendering */}
+        {status === "authenticated" && (
+          <Suspense>
+            <CourseLearning />
+          </Suspense>
+        )}
       </main>
     </Page>
   );

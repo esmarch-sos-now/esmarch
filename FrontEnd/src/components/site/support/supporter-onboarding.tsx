@@ -102,7 +102,7 @@ export default function SupporterOnboarding({
     <section className="mt-6 grid gap-4" aria-label={c.title}>
       <p className="text-[15px] leading-[1.6] text-muted-foreground">{c.intro}</p>
 
-      <ol className="grid gap-3">
+      <ol className="grid divide-y divide-line border-y border-line">
         <Step index={1} title={c.steps.courses} state={state(1)}>
           {state(1) === "current" && <CoursesStep profile={profile} />}
           {state(1) === "done" && <CompletedCourseChips courses={profile.completedCourses} />}
@@ -137,8 +137,7 @@ function Step({ index, title, state, children }: { index: number; title: string;
   return (
     <li
       className={cn(
-        "grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 rounded-xl border p-4",
-        state === "current" ? "border-brand bg-[#fff8f6]" : "border-line",
+        "grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 py-4",
       )}
       aria-current={state === "current" ? "step" : undefined}
     >

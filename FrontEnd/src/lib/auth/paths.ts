@@ -11,6 +11,7 @@ export const AFTER_LOGIN_PATH = appStart;
 /** "Đăng ký làm người hỗ trợ" / supporter mode. Public: everyone can read the conditions; the steps need sign-in. */
 export const SUPPORTER_PATH = "/app/san-sang-ho-tro";
 export const COURSES_PATH = "/app/khoa-hoc"; // the first-aid courses, step 1 of becoming a supporter
+export const QUIZ_PATH = `${COURSES_PATH}/kiem-tra`; // a lesson's quiz, once its video has been watched
 
 /** Pages that need a signed-in user; the proxy redirects to the login page without a session. */
 export const PROTECTED_PREFIXES = [ACCOUNT_PATH, ADMIN_PATH];

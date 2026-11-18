@@ -242,7 +242,7 @@ export default function ResponderScreen() {
         {user && profile.isLoading && <p className="mt-6 text-sm text-muted-foreground">{c.loading}</p>}
 
         {user && profile.error && (
-          <section className="mt-6 rounded-2xl border border-line bg-white p-5">
+          <section className="mt-6">
             <p className="text-[15px] text-ink">{c.loadFailed}</p>
             <Button variant="outline" onClick={() => void profile.mutate()} className="mt-4 rounded-full">{c.retry}</Button>
           </section>
@@ -258,7 +258,7 @@ export default function ResponderScreen() {
 
         {enrolled && (
           <>
-            <section className="mt-6 rounded-2xl border border-line bg-white p-5">
+            <section className="mt-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm text-muted-foreground">{profile.data?.displayName} · {formatPhone(profile.data?.contactPhone ?? "")}</p>
