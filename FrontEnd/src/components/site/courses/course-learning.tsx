@@ -86,7 +86,7 @@ export default function CourseLearning({ backHref, backLabel }: { backHref: stri
       {overview.isLoading && <p className="mt-6 text-sm text-muted-foreground">{c.loading}</p>}
 
       {overview.error && (
-        <section className="mt-6 rounded-2xl border border-line bg-white p-6">
+        <section className="mt-6">
           <p className="text-[15px] text-ink">{c.loadFailed}</p>
           <Button variant="outline" onClick={() => void overview.mutate()} className="mt-4 rounded-full">{c.retryLoad}</Button>
         </section>
@@ -216,37 +216,39 @@ function CoursePicker({ courses, selectedId, onSelect }: { courses: Course[]; se
   return (
     <section className="mt-7" aria-labelledby="course-picker">
       <h2 id="course-picker" className="text-lg font-bold text-ink">{c.pickCourse}</h2>
-      <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+      {/* One row per course: title and status, then its progress; the selected one is marked in the brand colour */}
+      <ul className="mt-2 grid divide-y divide-line">
         {courses.map((item) => {
           const selected = item.id === selectedId;
           return (
-            <li key={item.id} className="flex">
+            <li key={item.id}>
               <button
                 type="button"
                 onClick={() => onSelect(item.id)}
                 aria-pressed={selected}
                 className={cn(
-                  "flex w-full cursor-pointer flex-col rounded-2xl border bg-white p-4 text-left transition",
-                  selected ? "border-brand bg-brand-soft ring-1 ring-brand" : "border-line hover:border-brand",
+                  "group grid w-full cursor-pointer gap-2 border-l-[3px] py-3 pr-1 pl-3 text-left transition",
+                  selected ? "border-brand" : "border-transparent",
                 )}
               >
-                <span className="flex items-start justify-between gap-2">
-                  <span className="text-[16px] leading-[1.35] font-black text-ink">{item.title}</span>
+                <span className="flex items-center justify-between gap-3">
+                  <span className={cn("text-[16px] leading-[1.35] font-black", selected ? "text-brand" : "text-ink group-hover:text-brand")}>
+                    {item.title}
+                  </span>
                   {item.completed && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#eef8f1] px-2 py-0.5 text-xs font-bold text-[#1e7d3a]">
                       <CheckCircle2 aria-hidden="true" className="size-3.5" /> {c.courseDone}
                     </span>
                   )}
                 </span>
-                <span className="mt-1 line-clamp-3 text-sm leading-[1.55] text-muted-foreground">{item.summary}</span>
-                <span className="mt-auto pt-3">
-                  <span className="block h-1.5 overflow-hidden rounded-full bg-[#f1f1f1]" aria-hidden="true">
+                <span className="flex items-center gap-3">
+                  <span className="block h-1.5 flex-1 overflow-hidden rounded-full bg-[#f1f1f1]" aria-hidden="true">
                     <span
                       className={cn("block h-full rounded-full", item.completed ? "bg-[#1e7d3a]" : "bg-brand")}
                       style={{ width: `${item.progressPercent}%` }}
                     />
                   </span>
-                  <span className="mt-1.5 block text-xs font-semibold text-ink">{c.lessonCount(item.completedLessons, item.lessonCount)}</span>
+                  <span className="shrink-0 text-xs font-semibold text-ink">{c.lessonCount(item.completedLessons, item.lessonCount)}</span>
                 </span>
               </button>
             </li>
@@ -296,7 +298,7 @@ function CourseBody({
 
   return (
     <>
-      <section className="mt-6 rounded-2xl border border-line bg-white p-5">
+      <section className="mt-8">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-2xl font-black text-ink">{course.title}</h2>
@@ -366,7 +368,7 @@ function CourseBody({
       </section>
 
       {active && (
-        <section className="mt-6 rounded-2xl border border-line bg-white p-5" aria-labelledby="active-lesson">
+        <section className="mt-8 border-t border-line pt-6" aria-labelledby="active-lesson">
           <p className="text-xs font-bold tracking-[.12em] text-brand uppercase">{c.lesson(index + 1)}</p>
           <h2 id="active-lesson" className="mt-1 text-2xl font-black text-ink">{active.title}</h2>
           <p className="mt-1.5 text-[15px] leading-[1.6] text-muted-foreground">{active.summary}</p>
@@ -431,7 +433,7 @@ function CourseBody({
       )}
 
       {active && !quizOpen && (
-        <section className="mt-6 rounded-2xl border border-dashed border-line bg-white p-5" aria-labelledby="course-quiz-locked">
+        <section className="mt-8 border-t border-line pt-6" aria-labelledby="course-quiz-locked">
           <h2 id="course-quiz-locked" className="flex items-center gap-2 text-lg font-bold text-ink">
             <LockKeyhole aria-hidden="true" className="size-5 text-muted-foreground" /> {c.quizTitle}
           </h2>
@@ -809,7 +811,7 @@ function QuizPanel({
   const badge = result?.course.completed ? result.course.badge : recordedBadge;
 
   return (
-    <section className="mt-6 rounded-2xl border border-line bg-white p-5" aria-labelledby="course-quiz">
+    <section className="mt-8 border-t border-line pt-6" aria-labelledby="course-quiz">
       <h2 id="course-quiz" className="flex items-center gap-2 text-lg font-bold text-ink">
         <BookOpenCheck aria-hidden="true" className="size-5 text-brand" /> {c.quizTitle}
       </h2>

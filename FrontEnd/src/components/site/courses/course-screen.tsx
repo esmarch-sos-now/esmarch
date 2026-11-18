@@ -36,7 +36,7 @@ export default function CourseScreen() {
         {status === "loading" && <p className="mt-6 text-sm text-muted-foreground">{c.loading}</p>}
 
         {status === "unauthenticated" && (
-          <section className="mt-6 rounded-2xl border border-line bg-white p-5">
+          <section className="mt-6">
             <p className="text-[15px] text-ink">{c.signIn}</p>
             <Button asChild className="mt-4 h-11 rounded-full px-5 font-bold [&_svg]:size-4.5">
               <Link href={LOGIN_NEXT}>
