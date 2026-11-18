@@ -12,10 +12,10 @@ import {
   QuizPanel,
   useCourses,
 } from "@/components/site/courses/course-learning";
-import Navbar from "@/components/site/landing/Navbar";
+import AppNav from "@/components/site/app-nav";
 import { Page } from "@/components/site/primitives";
 import { Button } from "@/components/ui/button";
-import { appNav, courseCopy } from "@/content/app";
+import { courseCopy } from "@/content/app";
 import { useSession } from "@/hooks/use-auth";
 import { useSupporterProfile } from "@/hooks/use-supporter";
 import { COURSES_PATH, QUIZ_PATH, SUPPORTER_PATH } from "@/lib/auth/paths";
@@ -44,7 +44,7 @@ export default function CourseQuizScreen() {
 
   return (
     <Page>
-      <Navbar appLinks={appNav} />
+      <AppNav />
       <main className="mx-auto w-full max-w-180 px-4 pt-7 pb-12">
         <Link
           href={lesson ? lessonHref(courseId, lessonId) : COURSES_PATH}

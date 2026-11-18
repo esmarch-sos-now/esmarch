@@ -4,10 +4,10 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowLeft, LogIn } from "lucide-react";
 import CourseLearning from "@/components/site/courses/course-learning";
-import Navbar from "@/components/site/landing/Navbar";
+import AppNav from "@/components/site/app-nav";
 import { Page } from "@/components/site/primitives";
 import { Button } from "@/components/ui/button";
-import { appNav, courseCopy } from "@/content/app";
+import { courseCopy } from "@/content/app";
 import { useSession } from "@/hooks/use-auth";
 import { useSupporterProfile } from "@/hooks/use-supporter";
 import { SUPPORTER_PATH } from "@/lib/auth/paths";
@@ -24,7 +24,7 @@ export default function CourseScreen() {
 
   return (
     <Page>
-      <Navbar appLinks={appNav} />
+      <AppNav />
       <main className="mx-auto w-full max-w-180 px-4 pt-7 pb-12">
         <Link
           href={SUPPORTER_PATH}
