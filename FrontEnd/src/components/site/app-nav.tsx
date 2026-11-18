@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { HandHeart, LogIn, Mic, ScanFace, Siren, UserRound, UsersRound, type LucideIcon } from 'lucide-react'
+import { BriefcaseMedical, HandHeart, LogIn, Mic, ScanFace, Siren, UserRound, UsersRound, type LucideIcon } from 'lucide-react'
 import Logo from '@/components/site/landing/Logo'
 import { useSession } from '@/hooks/use-auth'
 import { useSupporterProfile } from '@/hooks/use-supporter'
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 // Biểu tượng của từng trang trong thanh điều hướng dưới đáy (theo path trong appNav)
 const icons: Record<string, LucideIcon> = {
   '/app/sos': Siren,
+  '/app/huong-dan': BriefcaseMedical,
   '/app/tro-ly': Mic,
   '/app/luyen-tap': ScanFace,
   '/app/nguoi-ho-tro': UsersRound,
@@ -82,10 +83,10 @@ export default function AppNav({ bar = true }: { bar?: boolean }) {
       </header>
       {bar && <nav
         aria-label="Điều hướng chính"
-        // Chừa chỗ cuối trang để thanh cố định không che nội dung
-        className="fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(10px,env(safe-area-inset-bottom))] [body:has(&)]:pb-[calc(84px+env(safe-area-inset-bottom))]"
+        // Chừa chỗ cuối trang để thanh cố định không che nội dung; chỉ thanh nhận cú chạm, phần trống hai bên thì không
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(10px,env(safe-area-inset-bottom))] [body:has(&)]:pb-[calc(84px+env(safe-area-inset-bottom))]"
       >
-        <ul className="flex w-full max-w-120 items-center rounded-[22px] border border-line bg-paper/92 p-1.5 shadow-[0_12px_32px_rgba(0,0,0,.14)] backdrop-blur-md">
+        <ul className="pointer-events-auto flex w-full max-w-120 items-center rounded-[22px] border border-line bg-paper/92 p-1.5 shadow-[0_12px_32px_rgba(0,0,0,.14)] backdrop-blur-md">
           {items.map((item) => <NavItem key={item.href} item={item} />)}
           <li className="mx-1 h-7 w-px self-center bg-line" aria-hidden="true" />
           <NavItem item={account} className={status === 'loading' ? 'invisible' : undefined} />
