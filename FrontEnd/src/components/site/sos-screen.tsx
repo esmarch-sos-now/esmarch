@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { HandHeart, Phone } from "lucide-react";
+import { BookOpen, HandHeart, Phone } from "lucide-react";
 import AppNav from "@/components/site/app-nav";
 import { Page } from "@/components/site/primitives";
-import { sosScreen } from "@/content/app";
+import { situationScreen, sosScreen } from "@/content/app";
 
 const ring = "absolute inset-[14%] animate-sos-wave rounded-full bg-[rgba(234,84,85,.14)] motion-reduce:animate-none motion-reduce:opacity-50";
 
@@ -37,10 +37,17 @@ export default function SosScreen() {
 
         <p className="inline-flex items-center gap-2 text-lg font-bold text-brand [&_svg]:size-5"><Phone aria-hidden="true" /> {sosScreen.buttonLabel}</p>
         <p className="mt-2 text-[13px] leading-normal text-muted-foreground">{sosScreen.note}</p>
+        {/* Hướng dẫn sơ cứu từng bước có giọng đọc, mở ngay không qua AI */}
+        <Link
+          href="/app/huong-dan"
+          className="mt-6 inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3 text-base font-black text-white no-underline shadow-[0_10px_24px_rgba(0,0,0,.16)] transition-colors hover:bg-brand [&_svg]:size-5"
+        >
+          <BookOpen aria-hidden="true" /> {situationScreen.sosLink}
+        </Link>
         {/* Gửi tín hiệu tới người biết sơ cứu trong bán kính 3 km */}
         <Link
           href="/app/nguoi-ho-tro"
-          className="mt-6 inline-flex items-center gap-2 rounded-full border border-line bg-white px-5 py-2.5 text-[15px] font-bold text-ink no-underline shadow-[0_6px_18px_rgba(0,0,0,.06)] transition-colors hover:border-brand hover:text-brand [&_svg]:size-4.5"
+          className="mt-3 inline-flex items-center gap-2 rounded-full border border-line bg-white px-5 py-2.5 text-[15px] font-bold text-ink no-underline shadow-[0_6px_18px_rgba(0,0,0,.06)] transition-colors hover:border-brand hover:text-brand [&_svg]:size-4.5"
         >
           <HandHeart aria-hidden="true" /> {sosScreen.findHelper}
         </Link>

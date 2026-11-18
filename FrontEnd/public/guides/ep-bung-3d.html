@@ -1626,7 +1626,9 @@ const VOICE = ["data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYyLjEyL
 const VOICE_DUR = [2.53, 4.14, 5.88, 3.65, 3.58, 5.11, 5.01, 3.24];
 const audio = new Audio();
 audio.preload = 'auto';
-let voiceOn = window.parent === window, voiceDone = true;
+// ?voice=1: the quick guide screen embeds this page with narration on (the voice assistant speaks itself).
+const NARRATE = new URLSearchParams(location.search).get('voice') === '1';
+let voiceOn = window.parent === window || NARRATE, voiceDone = true;
 let narrationPlaying = false;
 function notifyNarration(active, force = false) {
   if (!force && narrationPlaying === active) return;
@@ -1676,6 +1678,8 @@ let camAuto = true;
 function goStep(n) {
   n = clamp(n, 0, NS - 1);
   cur = n; rest = 0; hold = 0;
+  // Every step change, whoever made it: the quick guide's voice commands track the step from this
+  if (window.parent !== window) window.parent.postMessage({ type: 'sosnow-guide-step-shown', stepIndex: n }, '*');
   camAuto = true; viewBtn.classList.remove('manual');
   const [a, b] = RANGE[n];
   const start = Math.max(a - 1, 0);
@@ -1949,6 +1953,7 @@ window.addEventListener('resize', () => { resize(); });
 resize();
 resetView(true);
 updateUI();
+if (NARRATE) speak(0);
 let last = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
