@@ -1,7 +1,9 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import CourseScreen from "@/components/site/courses/course-screen";
 
-// There is no public course page: the courses are step 1 of becoming a supporter, on the "Sẵn sàng hỗ trợ" page.
-// Old links (and bookmarks) to /app/khoa-hoc land there.
+export const metadata: Metadata = { title: "Khóa học sơ cứu – SOS NOW" };
+
+// The first-aid courses, step 1 of becoming a supporter: opened from the "Sẵn sàng hỗ trợ" page and leading back there.
 export default function Page() {
-  redirect("/app/san-sang-ho-tro");
+  return <CourseScreen />;
 }
