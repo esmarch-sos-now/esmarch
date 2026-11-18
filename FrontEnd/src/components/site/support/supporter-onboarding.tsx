@@ -18,9 +18,9 @@ type StepState = "done" | "current" | "next";
 export function SupporterIntro({ action }: { action: React.ReactNode }) {
   const c = onboardingCopy;
   return (
-    <section className="mt-6 grid gap-4 rounded-2xl border border-line bg-white p-5" aria-label={c.title}>
+    <section className="mt-6 grid gap-5" aria-label={c.title}>
       <p className="text-[15px] leading-[1.6] text-muted-foreground">{c.intro}</p>
-      <div className="rounded-xl bg-[#f7f7f8] p-4">
+      <div>
         <h3 className="text-[15px] font-bold text-ink">{c.conditionsTitle}</h3>
         <ol className="mt-2.5 grid gap-2">
           {c.conditions.map((condition, index) => (
@@ -86,7 +86,7 @@ export default function SupporterOnboarding({
   }
   if (profile.status === "suspended") {
     return (
-      <section className="mt-6 rounded-2xl border border-line bg-white p-5">
+      <section className="mt-6">
         <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
           <PauseCircle aria-hidden="true" className="size-5 text-muted-foreground" /> {c.suspendedTitle}
         </h2>
@@ -99,10 +99,10 @@ export default function SupporterOnboarding({
   const state = (index: number): StepState => (index < step ? "done" : index === step ? "current" : "next");
 
   return (
-    <section className="mt-6 grid gap-4 rounded-2xl border border-line bg-white p-5" aria-label={c.title}>
+    <section className="mt-6 grid gap-5" aria-label={c.title}>
       <p className="text-[15px] leading-[1.6] text-muted-foreground">{c.intro}</p>
 
-      <ol className="grid gap-3">
+      <ol className="grid divide-y divide-line border-y border-line">
         <Step index={1} title={c.steps.courses} state={state(1)}>
           {state(1) === "current" && <CoursesStep profile={profile} />}
           {state(1) === "done" && <CompletedCourseChips courses={profile.completedCourses} />}
@@ -137,8 +137,7 @@ function Step({ index, title, state, children }: { index: number; title: string;
   return (
     <li
       className={cn(
-        "grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 rounded-xl border p-4",
-        state === "current" ? "border-brand bg-[#fff8f6]" : "border-line",
+        "grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 py-4",
       )}
       aria-current={state === "current" ? "step" : undefined}
     >

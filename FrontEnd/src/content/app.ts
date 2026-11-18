@@ -215,8 +215,6 @@ export const onboardingCopy = {
 export const courseCopy = {
   eyebrow: 'Khóa học cho người hỗ trợ',
   title: 'Khóa học sơ cứu',
-  subtitle:
-    'Hai khóa ngắn từ video của bác sĩ Bệnh viện Hoàn Mỹ Đà Nẵng. Xem video từng bài rồi làm câu hỏi kiểm tra; khóa đã hoàn thành được ghi nhận lên hồ sơ của bạn.',
   signIn: 'Đăng nhập để học khóa sơ cứu dành cho người hỗ trợ.',
   backToSignup: 'Quay lại trang đăng ký',
   backToSupport: 'Quay lại trang Sẵn sàng hỗ trợ',
@@ -231,9 +229,6 @@ export const courseCopy = {
   },
   signInButton: 'Đăng nhập',
   loading: 'Đang tải khóa học…',
-  enrolledAs: (name: string) => `Bạn đang học với tư cách người hỗ trợ: ${name}`,
-  progress: (done: number, total: number) => `${done}/${total} bài đã hoàn thành`,
-  completed: 'Đã hoàn thành khóa học',
   next: 'Học bài tiếp theo',
   lesson: (index: number) => `Bài ${index}`,
   minutes: (minutes: number) => `${minutes} phút`,
@@ -242,6 +237,14 @@ export const courseCopy = {
   quizHint:
     'Câu hỏi được tạo ngẫu nhiên từ tài liệu sơ cứu, mỗi lần làm là một bộ khác. Trả lời đúng tất cả để hoàn thành bài học; đáp án và giải thích hiện khi bạn làm đúng hết.',
   quizNeedsVideo: 'Hãy xem hết video của bài học trước khi làm bài kiểm tra.',
+  quizReady: 'Bạn đã xem xong video. Làm bài kiểm tra 5 câu để hoàn thành bài học.',
+  quizReview: 'Bạn đã hoàn thành bài học này. Có thể làm lại bài kiểm tra để ôn tập.',
+  takeQuiz: 'Làm bài kiểm tra',
+  retakeQuiz: 'Làm lại bài kiểm tra',
+  backToLesson: 'Quay lại bài học',
+  quizFor: (title: string) => `Kiểm tra: ${title}`,
+  lessonNotFound: 'Không tìm thấy bài học này.',
+  backToCourses: 'Về trang khóa học',
   quizLoading: 'Đang tạo bộ câu hỏi…',
   quizLoadFailed: 'Chưa tải được bài kiểm tra. Hãy thử lại.',
   quizStale: 'Bộ câu hỏi vừa được cập nhật, đây là bộ câu hỏi mới.',

@@ -2,29 +2,30 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { ArrowLeft, ArrowRight, Award, BookOpenCheck, CheckCircle2, ExternalLink, Lightbulb, LockKeyhole, PartyPopper, PlayCircle, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Award, BookOpenCheck, CheckCircle2, ExternalLink, Lightbulb, LockKeyhole, PartyPopper, PlayCircle, RotateCcw, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { courseCopy, formatCourseDate } from "@/content/app";
+import { courseCopy } from "@/content/app";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
 import { useSupporterProfile } from "@/hooks/use-supporter";
-import { ACCOUNT_PATH } from "@/lib/auth/paths";
+import { ACCOUNT_PATH, COURSES_PATH, QUIZ_PATH } from "@/lib/auth/paths";
 import type { Course, CourseLesson, CourseOverview, LessonQuiz, QuizResult } from "@/lib/courses/types";
 import { formatClock, loadYouTubeApi, PlayerState, type YouTubePlayer } from "@/lib/courses/youtube";
 import { cn } from "@/lib/utils";
 
-const watchKey = (courseId: string, lessonId: string) => `${courseId}:${lessonId}`;
+/** The course page, opened on one lesson (the one the learner came back from); `rewatch` says the video was reset. */
+export const lessonHref = (courseId: string, lessonId: string, rewatch = false) =>
+  `${COURSES_PATH}?khoa=${encodeURIComponent(courseId)}&bai=${encodeURIComponent(lessonId)}${rewatch ? "&xem-lai=1" : ""}`;
+export const quizHref = (courseId: string, lessonId: string) =>
+  `${QUIZ_PATH}?khoa=${encodeURIComponent(courseId)}&bai=${encodeURIComponent(lessonId)}`;
+export const courseHref = (courseId: string) => `${COURSES_PATH}?khoa=${encodeURIComponent(courseId)}`;
 
-// The first-aid courses, on their own page (/app/khoa-hoc, opened from the supporter page by "Bắt đầu học" / "Học tiếp"
-// / "Xem lại khóa học"). Finishing a course shows a congratulations with the way back (`backHref`). The API needs a
-// signed-in user.
-// Each lesson: watch the video (YouTube, Bệnh viện Hoàn Mỹ Đà Nẵng) on the page first; the player reports how far it
-// got, and the server opens the quiz once 90% of it has played (see BackEnd courses/service.py). The key points under
-// the video come with it.
-export default function CourseLearning({ backHref, backLabel }: { backHref: string; backLabel: string }) {
-  const c = courseCopy;
-  // Set when a passed quiz finishes a course: the congratulations, with the way back (and on to the next course)
-  const [celebration, setCelebration] = useState<{ course: Course; remaining: number } | null>(null);
+/** A course just finished by a passed quiz, and how many are left: what the congratulations says. */
+export type Finished = { course: Course; remaining: number };
+
+/** The signed-in user's courses (shared by the course page and the quiz page through the SWR cache). */
+export function useCourses() {
   const { user } = useSession();
   const authFetch = useAuthFetch();
   const supporter = useSupporterProfile();
@@ -35,34 +36,26 @@ export default function CourseLearning({ backHref, backLabel }: { backHref: stri
       if (!response.ok) throw new Error(String(response.status));
       return (await response.json()) as CourseOverview;
     },
-    // Progress only changes through this screen (the graded quiz returns the updated course), so coming back from the
-    // YouTube tab does not need a refetch.
+    // Progress only changes through these pages (watch reports and graded quizzes return it), so no refetch on focus.
     { revalidateOnFocus: false },
   );
   const courses = overview.data?.courses ?? [];
-  const [courseId, setCourseId] = useState<string | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  // Nothing selected: the first unfinished course, or the first course when all are done
-  const course = courses.find((item) => item.id === courseId) ?? courses.find((item) => !item.completed) ?? courses[0];
 
-  const selectCourse = (id: string) => {
-    setCourseId(id);
-    setActiveId(null);
-  };
-
-  // A passed quiz returns the updated course: put it in the cache instead of refetching the whole overview. Only a
-  // finished course also changes `completedCourses`, so that case revalidates.
-  const applyCourse = (updated: Course) => {
+  // A graded quiz returns the updated course: put it in the cache instead of refetching the whole overview. Only a
+  // finished course also changes `completedCourses`, so that case revalidates. Returns the course when this finished it.
+  const applyCourse = (updated: Course): Finished | null => {
     const before = courses.find((item) => item.id === updated.id);
-    if (updated.completed && before && !before.completed) {
-      setCelebration({ course: updated, remaining: courses.filter((item) => item.id !== updated.id && !item.completed).length });
-    }
+    const finished =
+      updated.completed && before && !before.completed
+        ? { course: updated, remaining: courses.filter((item) => item.id !== updated.id && !item.completed).length }
+        : null;
     void overview.mutate(
       (current) => current && { ...current, courses: current.courses.map((item) => (item.id === updated.id ? updated : item)) },
       { revalidate: updated.completed },
     );
     // A passed lesson moves the sign-up steps (progress, then learning -> ready)
     void supporter.mutate();
+    return finished;
   };
 
   // A watch report returns the lesson (how far the video got, whether the quiz is open): patch it into the cache.
@@ -79,10 +72,31 @@ export default function CourseLearning({ backHref, backLabel }: { backHref: stri
     );
   };
 
+  return { overview, courses, applyCourse, applyLesson };
+}
+
+// The first-aid courses, on their own page (/app/khoa-hoc, opened from the supporter page by "Bắt đầu học" / "Học tiếp"
+// / "Xem lại khóa học"). Each lesson: watch the video (YouTube, Bệnh viện Hoàn Mỹ Đà Nẵng) on the page; the player
+// reports how far it got, and the server opens the quiz once 90% of it has played (see BackEnd courses/service.py). The
+// key points come with it, and so does "Làm bài kiểm tra", which leads to the quiz page (/app/khoa-hoc/kiem-tra).
+// `?khoa=&bai=` opens a given course and lesson (the way back from the quiz); `xem-lai=1` says the video was reset.
+export default function CourseLearning() {
+  const c = courseCopy;
+  const params = useSearchParams();
+  const { overview, courses, applyLesson } = useCourses();
+  const [courseId, setCourseId] = useState<string | null>(() => params.get("khoa"));
+  const [activeId, setActiveId] = useState<string | null>(() => params.get("bai"));
+  const rewatchFor = params.get("xem-lai") === "1" ? params.get("bai") : null;
+  // Nothing selected: the first unfinished course, or the first course when all are done
+  const course = courses.find((item) => item.id === courseId) ?? courses.find((item) => !item.completed) ?? courses[0];
+
+  const selectCourse = (id: string) => {
+    setCourseId(id);
+    setActiveId(null);
+  };
+
   return (
     <div className="mt-2">
-      <p className="max-w-160 text-[15px] leading-[1.6] text-muted-foreground">{c.subtitle}</p>
-
       {overview.isLoading && <p className="mt-6 text-sm text-muted-foreground">{c.loading}</p>}
 
       {overview.error && (
@@ -100,35 +114,10 @@ export default function CourseLearning({ backHref, backLabel }: { backHref: stri
         <CourseBody
           key={course.id}
           course={course}
-          responderName={overview.data?.responderName ?? ""}
-          activeId={activeId}
+          activeId={course.lessons.some((lesson) => lesson.id === activeId) ? activeId : null}
           onSelect={setActiveId}
           onLessonUpdated={(lesson) => applyLesson(course.id, lesson)}
-          onStale={() => void overview.mutate()}
-          onCourseUpdated={applyCourse}
-          onPassed={(lessonId) => {
-            // Keep the current course and lesson on screen: nextLessonId (and the default course) change once a
-            // lesson is passed.
-            setCourseId(course.id);
-            setActiveId(lessonId);
-          }}
-        />
-      )}
-
-      {celebration && (
-        <Celebration
-          course={celebration.course}
-          allDone={celebration.remaining === 0}
-          remaining={celebration.remaining}
-          backHref={backHref}
-          backLabel={backLabel}
-          onNextCourse={() => {
-            const next = courses.find((item) => item.id !== celebration.course.id && !item.completed);
-            setCelebration(null);
-            if (next) selectCourse(next.id);
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          onClose={() => setCelebration(null)}
+          rewatchFor={rewatchFor}
         />
       )}
     </div>
@@ -137,7 +126,7 @@ export default function CourseLearning({ backHref, backLabel }: { backHref: stri
 
 // "Chúc mừng" once a course is finished: back to the supporter page (the main way out once every course is done), or
 // on to the next course.
-function Celebration({
+export function Celebration({
   course,
   allDone,
   remaining,
@@ -261,82 +250,37 @@ function CoursePicker({ courses, selectedId, onSelect }: { courses: Course[]; se
 
 function CourseBody({
   course,
-  responderName,
   activeId,
   onSelect,
   onLessonUpdated,
-  onStale,
-  onCourseUpdated,
-  onPassed,
+  rewatchFor,
 }: {
   course: Course;
-  responderName: string;
   activeId: string | null;
   onSelect: (id: string) => void;
   onLessonUpdated: (lesson: CourseLesson) => void;
-  onStale: () => void;
-  onCourseUpdated: (course: Course) => void;
-  onPassed: (lessonId: string) => void;
+  /** The lesson whose video was reset by failed quizzes (back from the quiz page) */
+  rewatchFor: string | null;
 }) {
   const c = courseCopy;
   const lessons = course.lessons;
   const active = lessons.find((lesson) => lesson.id === activeId) ?? lessons.find((lesson) => lesson.id === course.nextLessonId) ?? lessons[0];
   const index = lessons.findIndex((lesson) => lesson.id === active?.id);
-  const next = lessons[index + 1];
   // Set by the server: the video was watched, or the lesson was already passed
   const quizOpen = active !== undefined && active.watched;
-  // Too many failed quizzes reset the video: say why the quiz closed (the player follows the server back to 0)
-  const [resetFor, setResetFor] = useState<string | null>(null);
   const videoRef = useRef<HTMLDivElement>(null);
-  const completedOn = formatCourseDate(course.completedAt);
 
-  const rewatch = (lessonId: string, updated: Course) => {
-    setResetFor(lessonId);
-    onCourseUpdated(updated);
-    videoRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
+  // Back from the quiz page on a given lesson: bring its video into view
+  const comingBack = useRef(activeId !== null);
+  useEffect(() => {
+    if (!comingBack.current) return;
+    comingBack.current = false;
+    videoRef.current?.scrollIntoView({ block: "center" });
+  }, []);
 
   return (
     <>
-      <section className="mt-8">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-black text-ink">{course.title}</h2>
-            <p className="mt-1 max-w-150 text-[15px] leading-[1.6] text-muted-foreground">{course.summary}</p>
-            {responderName && <p className="mt-2 text-sm font-semibold text-ink">{c.enrolledAs(responderName)}</p>}
-          </div>
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand">
-            <ShieldCheck aria-hidden="true" className="size-3.5" /> {course.audience}
-          </p>
-        </div>
-
-        <div className="mt-4">
-          <div className="h-2 overflow-hidden rounded-full bg-[#f1f1f1]" role="progressbar" aria-valuenow={course.progressPercent} aria-valuemin={0} aria-valuemax={100} aria-label={c.progress(course.completedLessons, course.lessonCount)}>
-            <span className="block h-full rounded-full bg-brand transition-[width] duration-500" style={{ width: `${course.progressPercent}%` }} />
-          </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-            <span className="font-semibold text-ink">{c.progress(course.completedLessons, course.lessonCount)}</span>
-            {course.completed && <span className="inline-flex items-center gap-1 font-bold text-[#1e7d3a]"><CheckCircle2 aria-hidden="true" className="size-4" /> {c.completed}</span>}
-          </div>
-        </div>
-
-        {course.completed && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#cdebd6] bg-[#f1fbf4] px-4 py-3" role="status">
-            <p className="flex items-start gap-2 text-[15px] leading-[1.5] text-[#145c2a]">
-              <Award aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[#1e7d3a]" />
-              <span>
-                <strong className="font-bold">{c.recorded(course.badge)}</strong>
-                {completedOn && <span className="block text-sm">{c.completedOn(completedOn)}</span>}
-              </span>
-            </p>
-            <Link href={ACCOUNT_PATH} className="inline-flex items-center gap-1 text-sm font-bold text-[#1e7d3a] hover:underline">
-              {c.viewProfile} <ArrowRight aria-hidden="true" className="size-4" />
-            </Link>
-          </div>
-        )}
-      </section>
-
-      <section className="mt-6" aria-labelledby="course-lessons">
+      <section className="mt-8" aria-labelledby="course-lessons">
         <h2 id="course-lessons" className="text-lg font-bold text-ink">{c.lessons}</h2>
         <ol className="mt-3 grid gap-2">
           {lessons.map((lesson, position) => (
@@ -418,18 +362,17 @@ function CourseBody({
       )}
 
       {active && quizOpen && (
-        <QuizPanel
-          key={watchKey(course.id, active.id)}
-          courseId={course.id}
-          lesson={active}
-          onCourseUpdated={onCourseUpdated}
-          onPassed={() => onPassed(active.id)}
-          onRewatch={(updated) => rewatch(active.id, updated)}
-          onStale={onStale}
-          nextLesson={next}
-          onNext={next ? () => onSelect(next.id) : undefined}
-          recordedBadge={course.completed ? course.badge : undefined}
-        />
+        <section className="mt-8 border-t border-line pt-6" aria-labelledby="course-quiz-entry">
+          <h2 id="course-quiz-entry" className="flex items-center gap-2 text-lg font-bold text-ink">
+            <BookOpenCheck aria-hidden="true" className="size-5 text-brand" /> {c.quizTitle}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">{active.completed ? c.quizReview : c.quizReady}</p>
+          <Button asChild variant={active.completed ? "outline" : "default"} className="mt-4 h-11 rounded-full px-5 font-bold">
+            <Link href={quizHref(course.id, active.id)}>
+              {active.completed ? c.retakeQuiz : c.takeQuiz} <ArrowRight aria-hidden="true" />
+            </Link>
+          </Button>
+        </section>
       )}
 
       {active && !quizOpen && (
@@ -437,7 +380,7 @@ function CourseBody({
           <h2 id="course-quiz-locked" className="flex items-center gap-2 text-lg font-bold text-ink">
             <LockKeyhole aria-hidden="true" className="size-5 text-muted-foreground" /> {c.quizTitle}
           </h2>
-          {resetFor === active.id && (
+          {rewatchFor === active.id && (
             <p className="mt-2 rounded-lg bg-[#fdf0ed] px-3 py-2 text-sm font-semibold text-[#8a2412]" role="status">{c.mustRewatch}</p>
           )}
           <p className="mt-1 text-sm text-muted-foreground">{c.quizLocked}</p>
@@ -679,7 +622,7 @@ function VideoPlayer({ courseId, lesson, onLesson }: { courseId: string; lesson:
 // previous lesson is never shown.
 type LoadedQuiz = { lessonId: string; quiz: LessonQuiz; status?: undefined } | { lessonId: string; quiz: null; status: number };
 
-function QuizPanel({
+export function QuizPanel({
   courseId,
   lesson,
   onCourseUpdated,
