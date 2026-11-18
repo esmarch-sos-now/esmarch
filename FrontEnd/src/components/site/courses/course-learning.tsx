@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
-import { ArrowRight, Award, BookOpenCheck, CheckCircle2, ExternalLink, Lightbulb, LockKeyhole, PlayCircle, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Award, BookOpenCheck, CheckCircle2, ExternalLink, Lightbulb, LockKeyhole, PartyPopper, PlayCircle, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { courseCopy, formatCourseDate } from "@/content/app";
 import { useAuthFetch, useSession } from "@/hooks/use-auth";
@@ -15,13 +15,16 @@ import { cn } from "@/lib/utils";
 
 const watchKey = (courseId: string, lessonId: string) => `${courseId}:${lessonId}`;
 
-// The first-aid courses, shown only inside the way to supporter mode (/app/san-sang-ho-tro): step 1 of the sign-up
-// ("Bắt đầu học"), and "Xem lại khóa học" for supporters. There is no public course page; the API needs a signed-in user.
+// The first-aid courses, on their own page (/app/khoa-hoc, opened from the supporter page by "Bắt đầu học" / "Học tiếp"
+// / "Xem lại khóa học"). Finishing a course shows a congratulations with the way back (`backHref`). The API needs a
+// signed-in user.
 // Each lesson: watch the video (YouTube, Bệnh viện Hoàn Mỹ Đà Nẵng) on the page first; the player reports how far it
 // got, and the server opens the quiz once 90% of it has played (see BackEnd courses/service.py). The key points under
 // the video come with it.
-export default function CourseLearning() {
+export default function CourseLearning({ backHref, backLabel }: { backHref: string; backLabel: string }) {
   const c = courseCopy;
+  // Set when a passed quiz finishes a course: the congratulations, with the way back (and on to the next course)
+  const [celebration, setCelebration] = useState<{ course: Course; remaining: number } | null>(null);
   const { user } = useSession();
   const authFetch = useAuthFetch();
   const supporter = useSupporterProfile();
@@ -50,6 +53,10 @@ export default function CourseLearning() {
   // A passed quiz returns the updated course: put it in the cache instead of refetching the whole overview. Only a
   // finished course also changes `completedCourses`, so that case revalidates.
   const applyCourse = (updated: Course) => {
+    const before = courses.find((item) => item.id === updated.id);
+    if (updated.completed && before && !before.completed) {
+      setCelebration({ course: updated, remaining: courses.filter((item) => item.id !== updated.id && !item.completed).length });
+    }
     void overview.mutate(
       (current) => current && { ...current, courses: current.courses.map((item) => (item.id === updated.id ? updated : item)) },
       { revalidate: updated.completed },
@@ -107,6 +114,99 @@ export default function CourseLearning() {
           }}
         />
       )}
+
+      {celebration && (
+        <Celebration
+          course={celebration.course}
+          allDone={celebration.remaining === 0}
+          remaining={celebration.remaining}
+          backHref={backHref}
+          backLabel={backLabel}
+          onNextCourse={() => {
+            const next = courses.find((item) => item.id !== celebration.course.id && !item.completed);
+            setCelebration(null);
+            if (next) selectCourse(next.id);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          onClose={() => setCelebration(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// "Chúc mừng" once a course is finished: back to the supporter page (the main way out once every course is done), or
+// on to the next course.
+function Celebration({
+  course,
+  allDone,
+  remaining,
+  backHref,
+  backLabel,
+  onNextCourse,
+  onClose,
+}: {
+  course: Course;
+  allDone: boolean;
+  remaining: number;
+  backHref: string;
+  backLabel: string;
+  onNextCourse: () => void;
+  onClose: () => void;
+}) {
+  const c = courseCopy.congrats;
+  const primaryRef = useRef<HTMLAnchorElement & HTMLButtonElement>(null);
+  useEffect(() => {
+    primaryRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4" onClick={onClose}>
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="course-congrats"
+        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-110 rounded-3xl bg-white p-6 text-center shadow-xl"
+      >
+        <span className="mx-auto grid size-16 place-items-center rounded-full bg-[#eef8f1] text-[#1e7d3a]" aria-hidden="true">
+          <PartyPopper className="size-8" />
+        </span>
+        <h2 id="course-congrats" className="mt-4 text-2xl leading-[1.25] font-black text-ink">
+          {allDone ? c.allTitle : c.courseTitle}
+        </h2>
+        <p className="mt-2 text-[15px] leading-[1.6] text-muted-foreground">
+          {allDone ? c.allBody : c.courseBody(course.title, remaining)}
+        </p>
+        <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#eef8f1] px-3 py-1 text-xs font-bold text-[#1e7d3a]">
+          <Award aria-hidden="true" className="size-3.5" /> {course.badge}
+        </p>
+        <div className="mt-6 grid gap-2.5">
+          {allDone ? (
+            <Button ref={primaryRef} asChild className="h-11 rounded-full font-bold">
+              <Link href={backHref}>
+                <ArrowLeft aria-hidden="true" /> {backLabel}
+              </Link>
+            </Button>
+          ) : (
+            <>
+              <Button ref={primaryRef} type="button" onClick={onNextCourse} className="h-11 rounded-full font-bold">
+                {c.nextCourse} <ArrowRight aria-hidden="true" />
+              </Button>
+              <Button asChild variant="outline" className="h-11 rounded-full font-semibold">
+                <Link href={backHref}>
+                  <ArrowLeft aria-hidden="true" /> {backLabel}
+                </Link>
+              </Button>
+            </>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
